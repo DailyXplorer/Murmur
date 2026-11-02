@@ -33,10 +33,16 @@
     "overlayCopied": "Kopiert",
     "overlayNotPasted": "Es gab kein Textfeld zum Einfügen.",
     "overlayMicDisconnected": "Die Aufnahme wurde vorzeitig beendet: Dein Mikrofon wurde getrennt.",
+    "overlayCancelled": "Diktat abgebrochen",
+    "overlayRestore": "Wiederherstellen",
+    "restoreCancelled": "Abgebrochenes Diktat wiederherstellen ({{duration}})",
     "callRecordQuestion": "Dieses Meeting aufnehmen?",
     "callRecord": "Aufnehmen",
     "callNotNow": "Nicht jetzt",
     "noticeNothingToPaste": "Es gibt noch keine Transkription zum Einfügen.",
+    "noticeNothingNewInMeeting": "Noch nichts Neues.",
+    "liveYou": "Du",
+    "liveOthers": "Die anderen",
     "startMeeting": "Meeting starten",
     "stopMeeting": "Meeting beenden",
     "meetingSystemAudioUnavailable": "Systemton ist nicht verfügbar, daher nimmt das Meeting nur dein Mikrofon auf.",
@@ -177,6 +183,7 @@
         "none": "Keine Tastenkürzel konfiguriert",
         "notFound": "Tastenkürzel nicht gefunden",
         "pressKeys": "Tasten drücken...",
+        "notSet": "Nicht festgelegt",
         "bindings": {
           "transcribe": {
             "name": "Transkriptions-Tastenkürzel",
@@ -193,6 +200,10 @@
           "meeting_toggle": {
             "name": "Meeting-Kurzbefehl",
             "description": "Startet die Aufnahme eines Meetings oder beendet das laufende."
+          },
+          "meeting_paste_new": {
+            "name": "Neuen Meeting-Text einfügen",
+            "description": "Fügt ein, was im Meeting seit dem letzten Einfügen oder in der letzten Minute gesagt wurde."
           }
         },
         "errors": {
@@ -354,6 +365,10 @@
         "label": "Aufnahme von Anrufen anbieten",
         "description": "Wenn Zoom, Google Meet, Teams, Slack, FaceTime, Webex oder Discord einen Anruf startet, fragen, ob er aufgenommen werden soll. Die Frage bleibt, bis du antwortest oder der Anruf endet. Murmur nimmt nie ohne Klick auf."
       },
+      "meetingLiveTranscript": {
+        "label": "Live-Transkript von Meetings",
+        "description": "Zeigt den Text des Meetings während der Aufnahme. Er entsteht auf diesem Mac mit dem lokalen Modell, nie in der Cloud."
+      },
       "meetingsAudio": {
         "title": "Meeting-Audio löschen",
         "description": "Löscht das Audio verarbeiteter Meetings nach der gewählten Zeit, um Speicherplatz zu sparen. Transkripte und Zusammenfassungen bleiben erhalten.",
@@ -391,10 +406,12 @@
       "recordingUnavailable": "Die Aufnahme ist nicht mehr verfügbar und kann daher nicht erneut transkribiert werden.",
       "noSpeech": "In der Aufnahme wurde keine Sprache erkannt.",
       "cleanupFailed": "Die KI-Bereinigung war nicht verfügbar, daher wurde das Rohtranskript eingefügt.",
+      "shortDictation": "Kurzes Diktat, sofort ohne KI-Bereinigung eingefügt.",
       "showOriginal": "Originaltranskript anzeigen",
       "hideOriginal": "Originaltranskript ausblenden",
       "fallback": {
         "model_not_ready": "In der Cloud transkribiert: Das lokale Modell war nicht bereit.",
+        "local_preparing": "In der Cloud transkribiert: Das lokale Modell wurde für diese macOS-Version optimiert.",
         "local_failed": "In der Cloud transkribiert: Die lokale Transkription ist fehlgeschlagen.",
         "language_not_supported": "In der Cloud transkribiert: Diese Sprache wird auf diesem Mac nicht unterstützt.",
         "cloud_limit_reached": "Auf diesem Mac transkribiert: Das ChatGPT-Limit war erreicht.",
@@ -524,6 +541,10 @@
         "description": "Entfernt Füllwörter, behält bei Selbstkorrekturen nur deine endgültige Formulierung, korrigiert die Zeichensetzung und formatiert Listen und gesprochene Zeilenumbrüche. Es übersetzt nie und ändert nie die Bedeutung. Wenn es fehlschlägt oder zu lange dauert, wird das Rohtranskript eingefügt.",
         "needsAccount": "Verbinde ChatGPT, um die KI-Bereinigung zu nutzen."
       },
+      "cleanupShortDictations": {
+        "title": "Auch kurze Diktate bereinigen",
+        "description": "Diktate unter 20 Wörtern werden sofort eingefügt, ohne KI-Bereinigung."
+      },
       "style": {
         "title": "Diktierstil",
         "description": "Förmlich: vollständige Zeichensetzung und schriftliche Formulierungen. Normal: etwas weniger Zeichensetzung, deine Worte bleiben. Locker: entspannt, wie eine Chatnachricht.",
@@ -564,6 +585,7 @@
           "downloading": "Wird geladen · {{percent}} %",
           "preparing": "Wird vorbereitet…",
           "preparingNote": "Dauert etwa 15 Sekunden.",
+          "optimizing": "Sprachmodell wird für diese macOS-Version optimiert…",
           "meetings": "Auch für Meetings genutzt.",
           "unavailable": "Nicht verfügbar",
           "needs": {
@@ -882,7 +904,22 @@
         "description": "Codex transkribiert die Aufnahme erneut, und Transkript und Zusammenfassung werden ersetzt. Ein von dir gewählter Titel bleibt erhalten."
       }
     },
-    "localFallback": "Codex war {{duration}} dieses Meetings nicht verfügbar, daher wurde dieser Teil auf diesem Mac transkribiert."
+    "localFallback": "Codex war {{duration}} dieses Meetings nicht verfügbar, daher wurde dieser Teil auf diesem Mac transkribiert.",
+    "live": {
+      "title": "Live-Transkript",
+      "you": "Du",
+      "others": "Die anderen",
+      "starting": "Hört zu… der Text erscheint einige Sekunden, nachdem jemand spricht.",
+      "catchingUp": "Holt auf",
+      "gap": "… (Lücke, das endgültige Transkript enthält sie)",
+      "unavailable": "Der Live-Text braucht das lokale Sprachmodell.",
+      "off": "Das Live-Transkript ist aus. Das Transkript entsteht nach dem Beenden.",
+      "unsupported": "Der Live-Text braucht einen Mac mit Apple Silicon. Das Transkript entsteht nach dem Beenden.",
+      "failed": "Der Live-Text wurde angehalten. Die Aufnahme läuft weiter und das Transkript entsteht nach dem Beenden.",
+      "copyAll": "Alles kopieren",
+      "pasteHint": "Um das gerade Gesagte in eine andere App einzufügen, lege auf der Seite Meetings Tasten zum Einfügen des neuen Meeting-Texts fest.",
+      "draftNotice": "Entwurf. Das endgültige Transkript ersetzt ihn, sobald die Verarbeitung fertig ist."
+    }
   },
   "localSttCard": {
     "title": "Neu: lokale Transkription, ohne Kontingent.",

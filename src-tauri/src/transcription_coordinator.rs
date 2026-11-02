@@ -58,6 +58,10 @@ enum Command {
     /// Paste the latest transcription again. Admitted only while idle, so it
     /// never interleaves with a dictation's own paste.
     PasteLast,
+    PasteMeeting,
+    /// Run the last cancelled dictation through the pipeline. Admitted only
+    /// while idle, like `PasteLast`.
+    RestoreCancelled,
     Shutdown,
     ProcessingFinished(OperationId),
 }
@@ -245,6 +249,12 @@ fn request_cancel(stage: &Stage) -> bool {
     }
 }
 
+/// Restore starts a pipeline of its own, so it waits for the stage that no
+/// dictation records, transcribes or pastes in.
+fn admits_restore(stage: &Stage) -> bool {
+    matches!(stage, Stage::Idle)
+}
+
 fn is_current_processing(stage: &Stage, id: OperationId) -> bool {
     matches!(stage, Stage::Processing { operation } if operation.id() == id)
 }
@@ -357,7 +367,7 @@ impl Worker {
                 // before its worker releases the audio manager, so that
                 // manager can still report recording active here.
                 let may_return_idle = request_cancel(&self.stage);
-                crate::utils::cancel_current_operation_from_coordinator(&self.app);
+                crate::utils::cancel_and_keep_from_coordinator(&self.app);
                 if may_return_idle {
                     finish_cancel(&mut self.stage, &mut self.pending_start);
                 } else {
@@ -378,6 +388,36 @@ impl Worker {
                 } else {
                     debug!("Ignoring paste-last request: dictation in progress");
                 }
+            }
+            Command::PasteMeeting => {
+                if matches!(self.stage, Stage::Idle) {
+                    let operation = self.next_operation();
+                    self.stage = Stage::Processing {
+                        operation: operation.clone(),
+                    };
+                    crate::meetings::live::paste::spawn(&self.app, operation);
+                } else {
+                    debug!("Ignoring meeting paste request: dictation in progress");
+                }
+            }
+            Command::RestoreCancelled => {
+                if !admits_restore(&self.stage) {
+                    debug!("Ignoring restore request: dictation in progress");
+                    return;
+                }
+                let kept = self
+                    .app
+                    .try_state::<Arc<crate::recently_cancelled::RecentlyCancelled>>()
+                    .and_then(|slot| slot.take());
+                let Some(kept) = kept else {
+                    debug!("Ignoring restore request: nothing kept");
+                    return;
+                };
+                let operation = self.next_operation();
+                self.stage = Stage::Processing {
+                    operation: operation.clone(),
+                };
+                crate::actions::restore(&self.app, operation, kept);
             }
             Command::Shutdown => {
                 self.gesture = Gesture::Idle;
@@ -562,6 +602,14 @@ impl TranscriptionCoordinator {
         self.send(Command::PasteLast);
     }
 
+    pub fn send_paste_meeting(&self) {
+        self.send(Command::PasteMeeting);
+    }
+
+    pub fn send_restore_cancelled(&self) {
+        self.send(Command::RestoreCancelled);
+    }
+
     pub fn notify_processing_finished(&self, id: OperationId) {
         if self.tx.send(Command::ProcessingFinished(id)).is_err() {
             warn!("Transcription coordinator channel closed");
@@ -576,6 +624,9 @@ impl TranscriptionCoordinator {
         if !self.shutdown_drain.begin() {
             return;
         }
+        // The cancel below makes pipelines unwind, and none may keep its
+        // audio for a Restore the quit would never offer.
+        crate::recently_cancelled::close(&app);
         if self.tx.send(Command::Shutdown).is_err() {
             self.shutdown_drain.finish();
         }
@@ -691,6 +742,37 @@ mod tests {
 
         assert!(!request_cancel(&stage));
         assert!(matches!(stage, Stage::Processing { .. }));
+    }
+
+    #[test]
+    fn restore_is_ignored_unless_the_coordinator_is_idle() {
+        let operation = ProcessingOperation::new(OperationId(1));
+        assert!(operation.try_enter_paste().is_some());
+
+        assert!(admits_restore(&Stage::Idle));
+        assert!(!admits_restore(&recording_stage(Instant::now())));
+        assert!(!admits_restore(&Stage::Processing {
+            operation: ProcessingOperation::new(OperationId(2)),
+        }));
+        assert!(!admits_restore(&Stage::Processing { operation }));
+    }
+
+    /// `begin_shutdown` needs a live app, so this pins its calls instead: the
+    /// tray's Quit closes the cancelled-dictation slot before its cancel can
+    /// make a pipeline keep its audio.
+    #[test]
+    fn the_tray_quit_closes_the_cancelled_dictation_before_it_cancels() {
+        let begin_shutdown = include_str!("transcription_coordinator.rs")
+            .split("pub fn begin_shutdown")
+            .nth(1)
+            .expect("the coordinator begins the shutdown");
+        let close = begin_shutdown
+            .find("recently_cancelled::close(&app)")
+            .expect("the quit closes the cancelled dictation");
+        let cancel = begin_shutdown
+            .find("Command::Shutdown")
+            .expect("the quit cancels the running dictation");
+        assert!(close < cancel);
     }
 
     #[test]

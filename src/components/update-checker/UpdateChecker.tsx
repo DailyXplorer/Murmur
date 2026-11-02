@@ -4,6 +4,7 @@ import { check } from "@tauri-apps/plugin-updater";
 import { listen } from "@tauri-apps/api/event";
 import { toast } from "sonner";
 import { commands, events } from "@/bindings";
+import { holdSettingsWindow } from "@/lib/holdSettingsWindow";
 import { ProgressBar } from "../shared";
 import { useSettings } from "../../hooks/useSettings";
 
@@ -81,8 +82,16 @@ const UpdateChecker: React.FC<UpdateCheckerProps> = ({ className = "" }) => {
       return;
     }
 
-    const updateUnlisten = listen("check-for-updates", () => {
-      void handleManualUpdateCheck();
+    // The tray's "Check for updates" may have built this window: the check
+    // waits in Rust until a window takes it, once.
+    const takeCheck = async () => {
+      if (await commands.takeMainAction("check_updates")) {
+        await handleManualUpdateCheck();
+      }
+    };
+    const updateUnlisten = listen("check-for-updates", () => void takeCheck());
+    void updateUnlisten.then(takeCheck).catch((error: unknown) => {
+      console.warn("Failed to read a pending update check:", error);
     });
 
     return () => {
@@ -93,7 +102,7 @@ const UpdateChecker: React.FC<UpdateCheckerProps> = ({ className = "" }) => {
     };
   }, [handleManualUpdateCheck, settingsLoaded, updateChecksEnabled]);
 
-  const installUpdate = async () => {
+  const downloadAndRelaunch = async () => {
     if (!updateChecksEnabled) return;
 
     try {
@@ -144,6 +153,10 @@ const UpdateChecker: React.FC<UpdateCheckerProps> = ({ className = "" }) => {
       contentLengthRef.current = 0;
     }
   };
+
+  // The relaunch runs from this page once the install ends: closing the
+  // window meanwhile must not destroy it.
+  const installUpdate = () => holdSettingsWindow(downloadAndRelaunch);
 
   const getUpdateStatusText = () => {
     if (!updateChecksEnabled) {

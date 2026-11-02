@@ -14,9 +14,12 @@ import type {
   HistoryHit,
   InsightsSummary,
   MeetingDetail,
+  LiveState,
+  LiveTranscript,
   LocalModelStatus,
   MeetingHit,
   MeetingListItem,
+  MeetingLiveUpdated,
   MeetingProgress,
   MeetingRuntime,
   MeetingStage,
@@ -35,6 +38,7 @@ declare global {
       emitProgress: (progress: MeetingProgress) => Promise<void>;
       emitMeetingsUpdated: (id: number) => Promise<void>;
       emitMeetingState: (runtime: MeetingRuntime) => Promise<void>;
+      emitLive: (update: MeetingLiveUpdated) => Promise<void>;
       /** Keeps list loads waiting, each with the list as it was asked for. */
       holdMeetingLoads: () => void;
       releaseMeetingLoads: () => void;
@@ -123,6 +127,12 @@ const updateAvailable = params.get("update") === "1";
 /** `missedUpdate=1`: a check finds a new version the footer never heard of. */
 const missedUpdate = params.get("missedUpdate") === "1";
 let updateWithdrawn = false;
+/** `pending=check_updates,…`: what happened while the window was closed. */
+const pendingMainActions = new Set(
+  params.get("pending")?.split(",").filter(Boolean) ?? [],
+);
+/** `lastSection=history`: the section a closed window showed last. */
+const lastSection = params.get("lastSection");
 const UPDATE = {
   body: "",
   currentVersion: "1.3.7",
@@ -165,6 +175,12 @@ const MODELS: Record<string, LocalModelStatus> = {
     state: { state: "preparing" },
   },
   ready: { kept_bytes: 0, size_bytes: MODEL_BYTES, state: { state: "ready" } },
+  /** Compiled again for a new macOS version, at launch. */
+  optimizing: {
+    kept_bytes: 0,
+    size_bytes: MODEL_BYTES,
+    state: { state: "optimizing" },
+  },
   failed: failed({ kind: "no_internet" }),
   serverDown: failed({ kind: "server_unavailable" }),
   damaged: failed({ kind: "damaged" }),
@@ -236,6 +252,13 @@ const SETTINGS: AppSettings = {
       id: "meeting_toggle",
       name: "Start or stop a meeting",
     },
+    meeting_paste_new: {
+      current_binding: "",
+      default_binding: "",
+      description: "Pastes what was said in the meeting since the last paste.",
+      id: "meeting_paste_new",
+      name: "Paste new meeting text",
+    },
     paste_last: {
       current_binding: "option+shift+v",
       default_binding: "option+shift+v",
@@ -267,6 +290,7 @@ const SETTINGS: AppSettings = {
   meeting_capture_mode: "both",
   mcp_enabled: params.get("mcp") === "1",
   mcp_include_dictations: params.get("mcpDictations") === "1",
+  meeting_live_transcript: true,
   meetings_enabled: meetingsEnabled,
   mute_while_recording: false,
   onboarding_completed: !showOnboarding,
@@ -540,6 +564,34 @@ const detailOf = (item: MeetingListItem): MeetingDetail => ({
 });
 const DETAILS = new Map(MEETINGS.map((item) => [item.id, detailOf(item)]));
 
+const liveParam = params.get("live") ?? "starting";
+const LIVE_STATES = ["starting", "live", "catching_up", "stopped"];
+const LIVE_DRAFTS = new Map<number, LiveTranscript>(
+  meetingRecording
+    ? [
+        [
+          4,
+          {
+            entries: [],
+            state: (LIVE_STATES.includes(liveParam)
+              ? { state: liveParam }
+              : { reason: liveParam, state: "unavailable" }) as LiveState,
+          },
+        ],
+      ]
+    : [],
+);
+const emitLive = (update: MeetingLiveUpdated) => {
+  const draft = LIVE_DRAFTS.get(update.id) ?? {
+    entries: [],
+    state: update.state,
+  };
+  LIVE_DRAFTS.set(update.id, {
+    entries: [...draft.entries, ...update.appended],
+    state: update.state,
+  });
+  return events.meetingLiveUpdated.emit(update);
+};
 const snippetOf = (text: string, query: string): Snippet => ({
   text,
   ranges: findMatches(text, query),
@@ -603,6 +655,11 @@ const handleMeetingCommand = (
     case "delete_meeting_audio":
       if (meeting) Object.assign(meeting, { audio: "deleted", audio_bytes: 0 });
       return { handled: true, value: null };
+    case "get_live_transcript":
+      return {
+        handled: true,
+        value: structuredClone(LIVE_DRAFTS.get(args.id as number) ?? null),
+      };
     case "search_meetings": {
       // Titles and turns holding the query, newest meeting first.
       const query = String(args.query);
@@ -644,6 +701,7 @@ const switchIfAsked = () => {
   SETTINGS.switch_to_local_when_ready = false;
   SETTINGS.transcription_engine = "local";
   void emit("settings-changed", { setting: "transcription_engine" });
+  pendingMainActions.add("switched_to_local");
   void events.switchedToLocal.emit({});
 };
 
@@ -680,6 +738,9 @@ const handleEngineCommand = (
     case "change_dictation_style_setting":
       if (styleRefused) throw "The settings store is read-only";
       SETTINGS.dictation_style = args.style as DictationStyle;
+      return { handled: true, value: null };
+    case "change_cleanup_short_dictations_setting":
+      SETTINGS.cleanup_short_dictations = args.enabled as boolean;
       return { handled: true, value: null };
     case "change_local_stt_card_dismissed_setting":
       SETTINGS.local_stt_card_dismissed = args.dismissed as boolean;
@@ -789,6 +850,10 @@ const RESPONSES: Record<string, unknown> = {
   get_key_labels: {},
   initialize_enigo: null,
   initialize_shortcuts: null,
+  report_settings_view: null,
+  get_last_settings_section: lastSection,
+  hold_settings_window: null,
+  release_settings_window: null,
   is_laptop: true,
   "plugin:app|version": "1.3.7",
   "plugin:macos-permissions|check_accessibility_permission": !showOnboarding,
@@ -803,6 +868,7 @@ window.settingsPages = {
   emitProgress: (progress) => events.meetingProgress.emit(progress),
   emitMeetingsUpdated: (id) => events.meetingsUpdated.emit({ id }),
   emitMeetingState: (runtime) => events.meetingStateChanged.emit(runtime),
+  emitLive,
   holdMeetingLoads: () => {
     meetingLoadsHeld = new Promise((resolve) => {
       releaseMeetingLoads = () => {
@@ -858,6 +924,11 @@ mockIPC(
       });
     }
     if (command === "stop_meeting") {
+      const stopped = DETAILS.get(4);
+      if (meetingRecording && stopped) {
+        Object.assign(stopped, { stage: "transcribing", status: "processing" });
+        void emitLive({ appended: [], id: 4, state: { state: "stopped" } });
+      }
       void events.meetingStateChanged.emit({ state: "idle" });
     }
     // The update's download stops at 42% so its progress stays on screen.
@@ -872,6 +943,9 @@ mockIPC(
     if (command === "plugin:updater|check" && updateWithdrawn) return null;
     if (command === "check_for_updates" && updateWithdrawn) {
       return { available: null };
+    }
+    if (command === "take_main_action") {
+      return pendingMainActions.delete((args as { action: string }).action);
     }
     if (command === "get_history_entries" && historyFails) {
       historyFails = false;

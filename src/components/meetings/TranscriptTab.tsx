@@ -26,6 +26,7 @@ interface TranscriptTabProps {
   onRenameSpeaker: (key: string | null) => void;
   /** Absent when the meeting cannot be processed again. */
   onRetry?: () => void;
+  draft?: React.ReactNode;
   /** The search the tab opens with, its items being the turns. */
   initialSearch?: InitialTextSearch;
 }
@@ -34,6 +35,7 @@ export const TranscriptTab: React.FC<TranscriptTabProps> = ({
   meeting,
   onRenameSpeaker,
   onRetry,
+  draft,
   initialSearch,
 }) => {
   const { t } = useTranslation();
@@ -100,7 +102,9 @@ export const TranscriptTab: React.FC<TranscriptTabProps> = ({
         </IconButton>
       </TabHeaderBar>
 
-      {meeting.turns.length === 0 ? (
+      {meeting.turns.length === 0 && draft ? (
+        draft
+      ) : meeting.turns.length === 0 ? (
         <p className="px-1 py-6 text-center text-sm text-mid-gray">
           {meeting.status === "ready" || meeting.status === "failed"
             ? t("meetings.transcript.empty")

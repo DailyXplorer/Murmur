@@ -238,7 +238,7 @@ pub async fn open_system_audio_privacy_settings() -> Result<(), String> {
 enum MeetingShortcutChange {
     /// Another action already uses these keys and keeps them; the shortcut
     /// field says so until the user picks other keys.
-    UsedByAnotherAction,
+    UsedByAnotherAction(ShortcutBinding),
     Register(ShortcutBinding),
     /// Only a shortcut that held its keys gives them back.
     Release {
@@ -249,8 +249,7 @@ enum MeetingShortcutChange {
 
 struct MeetingsToggle {
     settings: AppSettings,
-    /// `None` when there is no meeting shortcut.
-    shortcut: Option<MeetingShortcutChange>,
+    shortcuts: Vec<MeetingShortcutChange>,
 }
 
 /// `None` when meetings are already `enabled`.
@@ -258,26 +257,34 @@ fn toggle_meetings(mut settings: AppSettings, enabled: bool) -> Option<MeetingsT
     if settings.meetings_enabled == enabled {
         return None;
     }
-    let held = crate::shortcut::binding_registers(&settings, meetings::BINDING_ID);
+    let held: Vec<bool> = crate::shortcut::MEETING_BINDINGS
+        .iter()
+        .map(|id| crate::shortcut::binding_registers(&settings, id))
+        .collect();
     settings.meetings_enabled = enabled;
-    let yields = crate::shortcut::meeting_shortcut_yields(&settings);
-    let shortcut = settings
-        .bindings
-        .get(meetings::BINDING_ID)
-        .cloned()
-        .map(|binding| {
-            if yields {
-                MeetingShortcutChange::UsedByAnotherAction
-            } else if enabled {
-                MeetingShortcutChange::Register(binding)
-            } else {
-                MeetingShortcutChange::Release {
+    let shortcuts = crate::shortcut::MEETING_BINDINGS
+        .iter()
+        .zip(held)
+        .filter_map(|(id, held)| {
+            let binding = settings.bindings.get(*id).cloned()?;
+            if crate::shortcut::meeting_shortcut_yields(&settings, id) {
+                Some(MeetingShortcutChange::UsedByAnotherAction(binding))
+            } else if !enabled {
+                Some(MeetingShortcutChange::Release {
                     binding,
                     unregister: held,
-                }
+                })
+            } else if crate::shortcut::binding_registers(&settings, id) {
+                Some(MeetingShortcutChange::Register(binding))
+            } else {
+                None
             }
-        });
-    Some(MeetingsToggle { settings, shortcut })
+        })
+        .collect();
+    Some(MeetingsToggle {
+        settings,
+        shortcuts,
+    })
 }
 
 /// Turning meetings off stops a meeting in progress (it is kept) and frees
@@ -305,42 +312,43 @@ pub fn change_meetings_enabled_setting(app: AppHandle, enabled: bool) -> Result<
         }
     }
 
-    match toggle.shortcut {
-        Some(MeetingShortcutChange::UsedByAnotherAction) => {
-            crate::shortcut::record_registration_error(
-                &app,
-                meetings::BINDING_ID,
-                crate::shortcut::ShortcutRegistrationError::UsedByAnotherAction,
-            );
-        }
-        Some(MeetingShortcutChange::Register(binding)) => {
-            if let Err(error) = crate::shortcut::register_shortcut(&app, binding.clone()) {
-                log::warn!("Meeting shortcut is unavailable: {error}");
+    for change in toggle.shortcuts {
+        match change {
+            MeetingShortcutChange::UsedByAnotherAction(binding) => {
                 crate::shortcut::record_registration_error(
                     &app,
-                    meetings::BINDING_ID,
-                    crate::shortcut::ShortcutRegistrationError::Unavailable,
-                );
-                user_alert::show(
-                    &app,
-                    Alert::ShortcutUnavailable {
-                        shortcut: binding.current_binding,
-                    },
+                    &binding.id,
+                    crate::shortcut::ShortcutRegistrationError::UsedByAnotherAction,
                 );
             }
-        }
-        Some(MeetingShortcutChange::Release {
-            binding,
-            unregister,
-        }) => {
-            crate::shortcut::clear_registration_error(&app, meetings::BINDING_ID);
-            if unregister {
-                if let Err(error) = crate::shortcut::unregister_shortcut(&app, binding) {
-                    log::debug!("Meeting shortcut was not registered: {error}");
+            MeetingShortcutChange::Register(binding) => {
+                if let Err(error) = crate::shortcut::register_shortcut(&app, binding.clone()) {
+                    log::warn!("Meeting shortcut is unavailable: {error}");
+                    crate::shortcut::record_registration_error(
+                        &app,
+                        &binding.id,
+                        crate::shortcut::ShortcutRegistrationError::Unavailable,
+                    );
+                    user_alert::show(
+                        &app,
+                        Alert::ShortcutUnavailable {
+                            shortcut: binding.current_binding,
+                        },
+                    );
+                }
+            }
+            MeetingShortcutChange::Release {
+                binding,
+                unregister,
+            } => {
+                crate::shortcut::clear_registration_error(&app, &binding.id);
+                if unregister {
+                    if let Err(error) = crate::shortcut::unregister_shortcut(&app, binding) {
+                        log::debug!("Meeting shortcut was not registered: {error}");
+                    }
                 }
             }
         }
-        None => {}
     }
     meetings::call_watch::sync(&app);
     crate::utils::update_tray_menu(&app, None);
@@ -353,6 +361,25 @@ pub fn change_meeting_call_prompt_setting(app: AppHandle, enabled: bool) -> Resu
     update_settings(&app, |settings| settings.meeting_call_prompt = enabled);
     meetings::call_watch::sync(&app);
     Ok(())
+}
+
+/// Applies from the next meeting: the one recording keeps how it started.
+#[tauri::command]
+#[specta::specta]
+pub fn change_meeting_live_transcript_setting(app: AppHandle, enabled: bool) -> Result<(), String> {
+    update_settings(&app, |settings| settings.meeting_live_transcript = enabled);
+    Ok(())
+}
+
+/// The live transcript of meeting `id`, or the draft a crash left of it.
+/// `None` once the final transcript replaced it.
+#[tauri::command]
+#[specta::specta]
+pub async fn get_live_transcript(
+    app: AppHandle,
+    id: i64,
+) -> Result<Option<meetings::live::LiveTranscript>, String> {
+    with_manager(app, move |manager| Ok(manager.live_transcript(id))).await
 }
 
 /// The call prompt's buttons: "Record" when `accept`, else "Not now".
@@ -405,8 +432,12 @@ pub async fn get_meetings_storage(app: AppHandle) -> Result<MeetingsStorage, Str
 #[cfg(test)]
 mod tests {
     use super::{page_limit, toggle_meetings, with_capture_mode, MeetingShortcutChange};
+    use crate::meetings::live::PASTE_BINDING_ID;
     use crate::meetings::{BINDING_ID, DEFAULT_BINDING};
     use crate::settings::{get_default_settings, AppSettings, MeetingCaptureMode};
+    use crate::shortcut::MEETING_BINDINGS;
+
+    const PASTE_KEYS: &str = "ctrl+shift+f8";
 
     fn meetings(enabled: bool) -> AppSettings {
         let mut settings = get_default_settings();
@@ -419,11 +450,29 @@ mod tests {
         settings
     }
 
-    fn shortcut(settings: AppSettings, enabled: bool) -> MeetingShortcutChange {
+    fn change_for(settings: AppSettings, enabled: bool, id: &str) -> Option<MeetingShortcutChange> {
         toggle_meetings(settings, enabled)
             .expect("a change")
-            .shortcut
-            .expect("a meeting shortcut")
+            .shortcuts
+            .into_iter()
+            .find(|change| match change {
+                MeetingShortcutChange::UsedByAnotherAction(binding)
+                | MeetingShortcutChange::Register(binding)
+                | MeetingShortcutChange::Release { binding, .. } => binding.id == id,
+            })
+    }
+
+    fn shortcut(settings: AppSettings, enabled: bool) -> MeetingShortcutChange {
+        change_for(settings, enabled, BINDING_ID).expect("a meeting shortcut")
+    }
+
+    fn with_paste_keys(mut settings: AppSettings) -> AppSettings {
+        settings
+            .bindings
+            .get_mut(PASTE_BINDING_ID)
+            .unwrap()
+            .current_binding = PASTE_KEYS.to_string();
+        settings
     }
 
     #[test]
@@ -474,7 +523,56 @@ mod tests {
             assert!(
                 matches!(
                     shortcut(settings, true),
-                    MeetingShortcutChange::UsedByAnotherAction
+                    MeetingShortcutChange::UsedByAnotherAction(_)
+                ),
+                "{id}"
+            );
+        }
+    }
+
+    #[test]
+    fn turning_meetings_on_registers_the_paste_shortcut_once_bound() {
+        assert!(change_for(meetings(false), true, PASTE_BINDING_ID).is_none());
+        match change_for(with_paste_keys(meetings(false)), true, PASTE_BINDING_ID) {
+            Some(MeetingShortcutChange::Register(binding)) => {
+                assert_eq!(binding.current_binding, PASTE_KEYS);
+            }
+            _ => panic!("expected Register"),
+        }
+    }
+
+    #[test]
+    fn turning_meetings_off_unregisters_the_paste_shortcut() {
+        match change_for(with_paste_keys(meetings(true)), false, PASTE_BINDING_ID) {
+            Some(MeetingShortcutChange::Release { unregister, .. }) => assert!(unregister),
+            _ => panic!("expected Release"),
+        }
+        match change_for(meetings(true), false, PASTE_BINDING_ID) {
+            Some(MeetingShortcutChange::Release { unregister, .. }) => assert!(!unregister),
+            _ => panic!("expected Release"),
+        }
+    }
+
+    #[test]
+    fn the_paste_shortcut_leaves_keys_another_action_holds() {
+        for id in ["transcribe", "paste_last", "cancel"] {
+            let mut settings = with_paste_keys(meetings(false));
+            settings.bindings.get_mut(id).unwrap().current_binding = PASTE_KEYS.to_string();
+            assert!(
+                matches!(
+                    change_for(settings.clone(), true, PASTE_BINDING_ID),
+                    Some(MeetingShortcutChange::UsedByAnotherAction(_))
+                ),
+                "{id}"
+            );
+            settings.meetings_enabled = true;
+            assert!(
+                matches!(
+                    change_for(settings, false, PASTE_BINDING_ID),
+                    Some(MeetingShortcutChange::Release {
+                        unregister: false,
+                        ..
+                    })
                 ),
                 "{id}"
             );
@@ -518,9 +616,11 @@ mod tests {
     fn without_a_meeting_shortcut_the_toggle_changes_no_keys() {
         for enabled in [true, false] {
             let mut settings = meetings(!enabled);
-            settings.bindings.remove(BINDING_ID);
+            for id in MEETING_BINDINGS {
+                settings.bindings.remove(id);
+            }
             let toggle = toggle_meetings(settings, enabled).expect("a change");
-            assert!(toggle.shortcut.is_none(), "{enabled}");
+            assert!(toggle.shortcuts.is_empty(), "{enabled}");
         }
     }
 

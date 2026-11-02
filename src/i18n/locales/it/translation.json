@@ -33,10 +33,16 @@
     "overlayCopied": "Copiato",
     "overlayNotPasted": "Non c’era un campo di testo in cui incollare.",
     "overlayMicDisconnected": "La registrazione si è interrotta prima del previsto: il microfono si è disconnesso.",
+    "overlayCancelled": "Dettatura annullata",
+    "overlayRestore": "Ripristina",
+    "restoreCancelled": "Ripristina la dettatura annullata ({{duration}})",
     "callRecordQuestion": "Registrare questa riunione?",
     "callRecord": "Registra",
     "callNotNow": "Non ora",
     "noticeNothingToPaste": "Non c'è ancora nessuna trascrizione da incollare.",
+    "noticeNothingNewInMeeting": "Ancora niente di nuovo.",
+    "liveYou": "Tu",
+    "liveOthers": "Gli altri",
     "startMeeting": "Avvia riunione",
     "stopMeeting": "Interrompi riunione",
     "meetingSystemAudioUnavailable": "L'audio di sistema non è disponibile, quindi la riunione registra solo il microfono.",
@@ -177,6 +183,7 @@
         "none": "Nessuna scorciatoia configurata",
         "notFound": "Scorciatoia non trovata",
         "pressKeys": "Premi i tasti...",
+        "notSet": "Non impostata",
         "bindings": {
           "transcribe": {
             "name": "Scorciatoia trascrizione",
@@ -193,6 +200,10 @@
           "meeting_toggle": {
             "name": "Scorciatoia riunione",
             "description": "Avvia la registrazione di una riunione o interrompe quella in corso."
+          },
+          "meeting_paste_new": {
+            "name": "Incolla il nuovo testo della riunione",
+            "description": "Incolla ciò che è stato detto nella riunione dall’ultimo incolla, o nell’ultimo minuto."
           }
         },
         "errors": {
@@ -354,6 +365,10 @@
         "label": "Proponi di registrare le chiamate",
         "description": "Quando Zoom, Google Meet, Teams, Slack, FaceTime, Webex o Discord avvia una chiamata, chiedi se registrarla. La domanda resta finché non rispondi o la chiamata finisce. Murmur non registra mai senza un clic."
       },
+      "meetingLiveTranscript": {
+        "label": "Trascrizione dal vivo delle riunioni",
+        "description": "Mostra il testo della riunione mentre registri. Viene creato su questo Mac dal modello locale, mai nel cloud."
+      },
       "meetingsAudio": {
         "title": "Elimina l'audio delle riunioni",
         "description": "Elimina l'audio delle riunioni elaborate dopo il periodo scelto, per risparmiare spazio. Trascrizioni e riepiloghi vengono conservati.",
@@ -391,10 +406,12 @@
       "recordingUnavailable": "La registrazione non è più disponibile, quindi non può essere trascritta di nuovo.",
       "noSpeech": "Nessun parlato rilevato nella registrazione.",
       "cleanupFailed": "La pulizia IA non era disponibile, quindi è stata incollata la trascrizione grezza.",
+      "shortDictation": "Dettatura breve: incollata subito, senza pulizia IA.",
       "showOriginal": "Mostra trascrizione originale",
       "hideOriginal": "Nascondi trascrizione originale",
       "fallback": {
         "model_not_ready": "Trascritto nel cloud: il modello locale non era pronto.",
+        "local_preparing": "Trascritto nel cloud: il modello locale era in fase di ottimizzazione per questa versione di macOS.",
         "local_failed": "Trascritto nel cloud: la trascrizione locale non è riuscita.",
         "language_not_supported": "Trascritto nel cloud: questa lingua non è supportata su questo Mac.",
         "cloud_limit_reached": "Trascritto su questo Mac: era stato raggiunto il limite di ChatGPT.",
@@ -524,6 +541,10 @@
         "description": "Rimuove le parole riempitive, mantiene solo la formulazione finale quando ti correggi, sistema la punteggiatura e formatta elenchi e a capo dettati. Non traduce mai e non cambia mai il significato. Se non riesce o impiega troppo, viene incollata la trascrizione grezza.",
         "needsAccount": "Collega ChatGPT per usare la pulizia con IA."
       },
+      "cleanupShortDictations": {
+        "title": "Pulisci anche le dettature brevi",
+        "description": "Le dettature sotto le 20 parole vengono incollate subito, senza pulizia IA."
+      },
       "style": {
         "title": "Stile di dettatura",
         "description": "Formale: punteggiatura completa e forma scritta. Normale: punteggiatura più leggera, mantiene le tue parole. Informale: rilassato, come un messaggio in chat.",
@@ -564,6 +585,7 @@
           "downloading": "Download · {{percent}}%",
           "preparing": "Preparazione…",
           "preparingNote": "Circa 15 secondi.",
+          "optimizing": "Ottimizzazione del modello per questa versione di macOS…",
           "meetings": "Usato anche da Riunioni.",
           "unavailable": "Non disponibile",
           "needs": {
@@ -882,7 +904,22 @@
         "description": "Codex trascrive di nuovo la registrazione, e trascrizione e riepilogo vengono sostituiti. Un titolo che hai scelto resta."
       }
     },
-    "localFallback": "Codex non è stato disponibile per {{duration}} di questa riunione, quindi quella parte è stata trascritta su questo Mac."
+    "localFallback": "Codex non è stato disponibile per {{duration}} di questa riunione, quindi quella parte è stata trascritta su questo Mac.",
+    "live": {
+      "title": "Trascrizione dal vivo",
+      "you": "Tu",
+      "others": "Gli altri",
+      "starting": "In ascolto… il testo compare qualche secondo dopo che qualcuno parla.",
+      "catchingUp": "Recupero in corso",
+      "gap": "… (lacuna, la trascrizione finale la includerà)",
+      "unavailable": "Il testo dal vivo richiede il modello vocale locale.",
+      "off": "La trascrizione dal vivo è disattivata. La trascrizione verrà creata dopo l’interruzione.",
+      "unsupported": "Il testo dal vivo richiede un Mac con Apple silicon. La trascrizione verrà creata dopo l’interruzione.",
+      "failed": "Il testo dal vivo si è fermato. La registrazione continua e la trascrizione verrà creata dopo l’interruzione.",
+      "copyAll": "Copia tutto",
+      "pasteHint": "Per incollare ciò che è appena stato detto in un’altra app, scegli i tasti per incollare il nuovo testo della riunione nella pagina Riunioni.",
+      "draftNotice": "Bozza. La trascrizione finale la sostituisce al termine dell’elaborazione."
+    }
   },
   "localSttCard": {
     "title": "Novità: trascrizione locale, senza limiti di quota.",

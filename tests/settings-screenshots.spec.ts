@@ -334,6 +334,7 @@ test.describe("settings screenshots", () => {
           "downloading",
           "preparing",
           "ready",
+          "optimizing",
           "failed",
           "damaged",
           "noSpace",

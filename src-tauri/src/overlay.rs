@@ -14,7 +14,9 @@ use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, PhysicalSize};
 
 use tauri::WebviewUrl;
 
-use tauri_nspanel::{tauri_panel, CollectionBehavior, PanelBuilder, PanelLevel, StyleMask};
+use tauri_nspanel::{
+    tauri_panel, CollectionBehavior, ManagerExt, PanelBuilder, PanelLevel, StyleMask,
+};
 
 tauri_panel! {
     panel!(RecordingOverlayPanel {
@@ -69,12 +71,17 @@ enum Notice {
     /// The microphone went away during the dictation, so its text ends
     /// early.
     MicLost,
+    /// A dictation was cancelled; its Restore button brings it back.
+    Cancelled,
 }
 
 impl Notice {
     /// The pills the webview sizes to their text and Escape dismisses.
     fn is_fitted(&self) -> bool {
-        matches!(self, Notice::Copy { .. } | Notice::MicLost)
+        matches!(
+            self,
+            Notice::Copy { .. } | Notice::MicLost | Notice::Cancelled
+        )
     }
 }
 
@@ -111,6 +118,15 @@ struct CopyNoticeLabels {
     warning: Option<String>,
 }
 
+/// Payload of `show-overlay-cancelled`.
+#[derive(Clone, serde::Serialize)]
+struct CancelledNoticeLabels {
+    note: String,
+    restore: String,
+}
+
+const CANCELLED_DISPLAY_TIME: Duration = Duration::from_secs(5);
+
 /// The call prompt's own panel, beside the overlay.
 const CALL_PROMPT_WINDOW: &str = "call_prompt";
 /// The call prompt sits this much further from the screen edge than the
@@ -142,6 +158,21 @@ fn call_prompt() -> MutexGuard<'static, Option<CallPromptLabels>> {
 
 /// Whether a dictation owns the overlay (recording or transcribing).
 static DICTATION_SHOWING: AtomicBool = AtomicBool::new(false);
+/// Counts the dictation states that took the overlay. `DICTATION_SHOWING`
+/// stays set for a cancelled dictation until the coordinator hides its
+/// overlay, so only this count tells that dictation from a newer one.
+static DICTATION_EPOCH: AtomicU64 = AtomicU64::new(0);
+
+/// How many dictation states had taken the overlay at some moment.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct DictationEpoch(u64);
+
+/// The epoch now. A dictation reads it once its own state has shown, and a
+/// pill raised for it later is dropped when the epoch has moved on.
+pub fn dictation_epoch() -> DictationEpoch {
+    DictationEpoch(DICTATION_EPOCH.load(Ordering::SeqCst))
+}
+
 /// The meeting pill, while a meeting records. Dictation and error capsules
 /// take the overlay over for a moment; hiding them brings the pill back.
 static MEETING_PILL: Mutex<Option<MeetingPill>> = Mutex::new(None);
@@ -321,12 +352,17 @@ fn show_overlay_state(app_handle: &AppHandle, state: &str) {
         return;
     }
 
-    if !dictation_takes_overlay(&mut notice(), state) {
+    // The flag is set under the notice lock, which the cancelled pill reads it
+    // under: it shows before this state, which replaces it, or not at all.
+    let mut held = notice();
+    if !dictation_takes_overlay(&mut held, state) {
         log::debug!("Leaving the notice up over a late '{state}' overlay");
         return;
     }
     OVERLAY_GENERATION.fetch_add(1, Ordering::SeqCst);
+    DICTATION_EPOCH.fetch_add(1, Ordering::SeqCst);
     DICTATION_SHOWING.store(true, Ordering::SeqCst);
+    drop(held);
     let handle = app_handle.clone();
     let state = state.to_string();
     let _ = app_handle.run_on_main_thread(move || {
@@ -341,9 +377,14 @@ fn show_overlay_state(app_handle: &AppHandle, state: &str) {
 /// Whether a dictation showing `state` takes the overlay from `notice`,
 /// dropping it. Only a new recording replaces a fitted pill: a transcribing
 /// state that comes after one belongs to a dictation already over, and
-/// would leave the copy pill's Copy with nothing to copy.
+/// would leave the copy pill's Copy with nothing to copy. The cancelled pill
+/// is the exception: Restore's transcribing state replaces it.
 fn dictation_takes_overlay(notice: &mut Option<Notice>, state: &str) -> bool {
-    if state != "recording" && notice.as_ref().is_some_and(Notice::is_fitted) {
+    if state != "recording"
+        && notice
+            .as_ref()
+            .is_some_and(|notice| notice.is_fitted() && !matches!(notice, Notice::Cancelled))
+    {
         return false;
     }
     *notice = None;
@@ -463,9 +504,66 @@ pub fn show_mic_lost_notice(app_handle: &AppHandle, operation: &ProcessingOperat
     dismiss_notice_after(app_handle, generation, COPY_DISPLAY_TIME, true);
 }
 
+/// Holds the cancelled pill as the notice, unless a newer dictation took the
+/// overlay since the cancelled one showed at `shown`. The pill comes from a
+/// pipeline that unwinds after the cancel, so a newer dictation may have
+/// shown its own since: its recorder is not open yet, or it already
+/// transcribes, and the cancelled pill would cover it. The cancelled dictation
+/// itself may still own the overlay, until the coordinator hides it, and keeps
+/// its pill.
+fn hold_cancelled_notice(
+    notice: &mut Option<Notice>,
+    shown: DictationEpoch,
+    now: DictationEpoch,
+) -> bool {
+    if now != shown {
+        return false;
+    }
+    *notice = Some(Notice::Cancelled);
+    true
+}
+
+/// Says the dictation that showed at `shown` was cancelled, with a Restore
+/// button, in a pill shown and dismissed like the copy pill. Nothing shows
+/// when the overlay is disabled or a newer dictation shows: the tray item
+/// still restores it.
+pub fn show_cancelled_notice(app_handle: &AppHandle, shown: DictationEpoch) {
+    let settings = settings::get_settings(app_handle);
+    if settings.overlay_style == OverlayStyle::None {
+        return;
+    }
+    let strings = get_tray_translations(Some(settings.app_language));
+    let labels = CancelledNoticeLabels {
+        note: strings.overlay_cancelled,
+        restore: strings.overlay_restore,
+    };
+    // Held until the pill is queued, so a dictation that shows after the
+    // check queues its own state after it, with a later generation.
+    let mut held = notice();
+    if !hold_cancelled_notice(&mut held, shown, dictation_epoch()) {
+        log::debug!("Leaving the new dictation's overlay over a late cancelled notice");
+        return;
+    }
+    let generation = OVERLAY_GENERATION.fetch_add(1, Ordering::SeqCst) + 1;
+    let handle = app_handle.clone();
+    let _ = app_handle.run_on_main_thread(move || {
+        if let Some(window) = present_overlay_window(
+            &handle,
+            "cancelled",
+            COPY_OVERLAY_WIDTH,
+            COPY_OVERLAY_HEIGHT,
+            true,
+        ) {
+            let _ = window.emit("show-overlay-cancelled", labels);
+        }
+    });
+    drop(held);
+    dismiss_notice_after(app_handle, generation, CANCELLED_DISPLAY_TIME, true);
+}
+
 /// Creates the call prompt's panel, hidden. It takes clicks whenever it
-/// shows.
-pub fn create_call_prompt(app_handle: &AppHandle) {
+/// shows. It only lives while a prompt shows.
+fn create_call_prompt(app_handle: &AppHandle) {
     if let Err(e) = PanelBuilder::<_, RecordingOverlayPanel>::new(app_handle, CALL_PROMPT_WINDOW)
         .url(WebviewUrl::App("src/overlay/call.html".into()))
         .title("Call")
@@ -514,6 +612,10 @@ pub fn show_call_prompt(app_handle: &AppHandle, app: &str) {
     *call_prompt() = Some(labels.clone());
     let handle = app_handle.clone();
     let _ = app_handle.run_on_main_thread(move || {
+        // A page built here asks for the labels once it listens.
+        if handle.get_webview_window(CALL_PROMPT_WINDOW).is_none() {
+            create_call_prompt(&handle);
+        }
         let Some(window) = handle.get_webview_window(CALL_PROMPT_WINDOW) else {
             return;
         };
@@ -527,9 +629,14 @@ pub fn hide_call_prompt(app_handle: &AppHandle) {
     *call_prompt() = None;
     let handle = app_handle.clone();
     let _ = app_handle.run_on_main_thread(move || {
+        // The panel store holds the panel too: both go, or its web process
+        // stays.
+        drop(handle.remove_webview_panel(CALL_PROMPT_WINDOW));
         if let Some(window) = handle.get_webview_window(CALL_PROMPT_WINDOW) {
             let _ = window.hide();
-            let _ = handle.emit_to(CALL_PROMPT_WINDOW, "hide-overlay-call", ());
+            if let Err(e) = window.destroy() {
+                log::error!("Failed to destroy the call prompt panel: {}", e);
+            }
         }
     });
 }
@@ -1041,6 +1148,43 @@ mod tests {
             "a dictation still replaces an error"
         );
         assert!(error.is_none());
+    }
+
+    #[test]
+    fn restore_replaces_the_cancelled_pill_it_was_clicked_from() {
+        let mut notice = Some(Notice::Cancelled);
+        assert!(notice.as_ref().is_some_and(Notice::is_fitted));
+        assert!(dictation_takes_overlay(&mut notice, "transcribing"));
+        assert!(notice.is_none());
+    }
+
+    #[test]
+    fn a_cancelled_dictation_keeps_its_pill_but_never_covers_a_newer_dictation() {
+        let shown = DictationEpoch(4);
+
+        // Cancelled while it transcribes: it still owns the overlay when its
+        // pipeline unwinds and raises the pill, before the coordinator hides it.
+        let mut notice = None;
+        assert!(hold_cancelled_notice(&mut notice, shown, DictationEpoch(4)));
+        assert!(matches!(notice, Some(Notice::Cancelled)));
+
+        // A newer dictation showed first: its recorder may not be open yet, or
+        // it already transcribes. The old cancel's pill is dropped.
+        let mut notice = None;
+        assert!(dictation_takes_overlay(&mut notice, "recording"));
+        assert!(!hold_cancelled_notice(
+            &mut notice,
+            shown,
+            DictationEpoch(5)
+        ));
+        assert!(notice.is_none());
+
+        // The cancel's pill came first: the new dictation replaces it, and the
+        // pill's 5 s timer finds a newer overlay generation.
+        let mut notice = None;
+        assert!(hold_cancelled_notice(&mut notice, shown, DictationEpoch(4)));
+        assert!(dictation_takes_overlay(&mut notice, "recording"));
+        assert!(notice.is_none());
     }
 
     fn operation(id: u64) -> ProcessingOperation {

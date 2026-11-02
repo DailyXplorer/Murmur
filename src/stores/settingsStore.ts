@@ -290,6 +290,8 @@ const settingUpdaters: {
   window_names_enabled: (value) =>
     commands.changeWindowNamesSetting(value as boolean),
   whisper_mode: (value) => commands.changeWhisperModeSetting(value as boolean),
+  cleanup_short_dictations: (value) =>
+    commands.changeCleanupShortDictationsSetting(value as boolean),
   show_tray_icon: (value) =>
     commands.changeShowTrayIconSetting(value as boolean),
   extra_recording_buffer_ms: (value) =>
@@ -305,6 +307,8 @@ const settingUpdaters: {
   mcp_enabled: (value) => commands.changeMcpEnabledSetting(value as boolean),
   mcp_include_dictations: (value) =>
     commands.changeMcpIncludeDictationsSetting(value as boolean),
+  meeting_live_transcript: (value) =>
+    commands.changeMeetingLiveTranscriptSetting(value as boolean),
   transcription_engine: (value) =>
     commands.changeTranscriptionEngineSetting(value as Engine),
   local_stt_card_dismissed: (value) =>

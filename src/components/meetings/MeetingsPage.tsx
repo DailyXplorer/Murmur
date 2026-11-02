@@ -15,10 +15,12 @@ import {
 } from "@/bindings";
 import { formatDuration } from "@/lib/meetings/format";
 import { findMatches } from "@/lib/meetings/search";
+import { LiveMeetingView } from "./LiveMeetingView";
 import { formatMeetingDate, MeetingView } from "./MeetingView";
 import { SpeakerModels } from "./SpeakerModels";
 import type { InitialTextSearch } from "./TabHeaderBar";
 import { useLocalModel } from "../../hooks/useLocalModel";
+import { useNow } from "../../hooks/useNow";
 import { type SearchState, useSearch } from "../../hooks/useSearch";
 import { Highlighted, SearchField } from "../shared";
 import { useSettings } from "../../hooks/useSettings";
@@ -39,18 +41,6 @@ const STATUS_KEYS: Record<MeetingStatus, string> = {
   processing: "meetings.status.processing",
   ready: "meetings.status.ready",
   failed: "meetings.status.failed",
-};
-
-/** The current time, refreshed every second while `active`. */
-const useNow = (active: boolean) => {
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    if (!active) return;
-    setNow(Date.now());
-    const timer = window.setInterval(() => setNow(Date.now()), 1000);
-    return () => window.clearInterval(timer);
-  }, [active]);
-  return now;
 };
 
 /**
@@ -75,11 +65,17 @@ const transcriptQuery = (hit: MeetingHit, query: string) => {
 
 interface Opened {
   id: number;
+  /** The meeting is recording: it opens in the live view. */
+  live: boolean;
   initialSearch?: InitialTextSearch;
 }
 
 export const MeetingsPage: React.FC = () => {
   const [opened, setOpened] = useState<Opened | null>(null);
+  const stopped = useCallback(
+    () => setOpened((current) => current && { ...current, live: false }),
+    [],
+  );
   // Here rather than in the list, so Back returns to the same results.
   const [query, setQuery] = useState("");
   const search = useSearch(query, commands.searchMeetings);
@@ -88,36 +84,43 @@ export const MeetingsPage: React.FC = () => {
     const updated = events.meetingsUpdated.listen(refresh);
     return () => void updated.then((stop) => stop());
   }, [refresh]);
-  return opened === null ? (
-    <MeetingsList
-      onOpen={(id) => setOpened({ id })}
-      onOpenHit={(hit) =>
-        setOpened({
-          id: hit.id,
-          initialSearch: {
-            query: transcriptQuery(hit, query),
-            item: hit.first_turn_seq,
-          },
-        })
-      }
-      query={query}
-      onQueryChange={setQuery}
-      search={search.state}
-    />
+  if (opened === null) {
+    return (
+      <MeetingsList
+        onOpen={(id, live) => setOpened({ id, live })}
+        onOpenHit={(hit) =>
+          setOpened({
+            id: hit.id,
+            live: false,
+            initialSearch: {
+              query: transcriptQuery(hit, query),
+              item: hit.first_turn_seq,
+            },
+          })
+        }
+        query={query}
+        onQueryChange={setQuery}
+        search={search.state}
+      />
+    );
+  }
+  const back = () => {
+    setOpened(null);
+    refresh();
+  };
+  return opened.live ? (
+    <LiveMeetingView id={opened.id} onBack={back} onStopped={stopped} />
   ) : (
     <MeetingView
       id={opened.id}
       initialSearch={opened.initialSearch}
-      onBack={() => {
-        setOpened(null);
-        refresh();
-      }}
+      onBack={back}
     />
   );
 };
 
 interface MeetingsListProps {
-  onOpen: (id: number) => void;
+  onOpen: (id: number, live: boolean) => void;
   onOpenHit: (hit: MeetingHit) => void;
   query: string;
   onQueryChange: (query: string) => void;
@@ -311,6 +314,7 @@ const MeetingsList: React.FC<MeetingsListProps> = ({
           </div>
         </SettingContainer>
         <ShortcutInput shortcutId="meeting_toggle" grouped={true} />
+        <ShortcutInput shortcutId="meeting_paste_new" grouped={true} />
         <SettingContainer
           title={t("meetings.captureMode.title")}
           description={t("meetings.captureMode.description")}
@@ -391,8 +395,7 @@ const MeetingsList: React.FC<MeetingsListProps> = ({
                 >
                   <button
                     type="button"
-                    disabled={live}
-                    onClick={() => onOpen(meeting.id)}
+                    onClick={() => onOpen(meeting.id, live)}
                     className="min-w-0 flex-1 cursor-pointer rounded-md text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-text disabled:cursor-default"
                   >
                     <p className="truncate text-sm font-medium">

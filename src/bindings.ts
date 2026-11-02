@@ -283,6 +283,14 @@ async changeWhisperModeSetting(enabled: boolean) : Promise<Result<null, string>>
     else return { status: "error", error: String(e) };
 }
 },
+async changeCleanupShortDictationsSetting(enabled: boolean) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("change_cleanup_short_dictations_setting", { enabled }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
 async changeAppLanguageSetting(language: string) : Promise<Result<null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("change_app_language_setting", { language }) };
@@ -330,6 +338,31 @@ async showMainWindowCommand() : Promise<Result<null, string>> {
     if(e instanceof Error) throw e;
     else return { status: "error", error: String(e) };
 }
+},
+async reportSettingsView(view: SettingsView) : Promise<void> {
+    await TAURI_INVOKE("report_settings_view", { view });
+},
+async getLastSettingsSection() : Promise<string | null> {
+    return await TAURI_INVOKE("get_last_settings_section");
+},
+/**
+ * Until the matching release, closing the settings window only hides it:
+ * the page runs work that would die with it.
+ */
+async holdSettingsWindow() : Promise<void> {
+    await TAURI_INVOKE("hold_settings_window");
+},
+/**
+ * Ends one hold. A window closed while held is destroyed once none is left.
+ */
+async releaseSettingsWindow() : Promise<void> {
+    await TAURI_INVOKE("release_settings_window");
+},
+/**
+ * True once per `action` kept for this window.
+ */
+async takeMainAction(action: MainAction) : Promise<boolean> {
+    return await TAURI_INVOKE("take_main_action", { action });
 },
 /**
  * Restarts into the installed update and shows the settings window again.
@@ -379,6 +412,12 @@ async copyNoticeAgain() : Promise<Result<null, string>> {
  */
 async fitCopyNotice(width: number, height: number) : Promise<void> {
     await TAURI_INVOKE("fit_copy_notice", { width, height });
+},
+/**
+ * The cancelled pill's Restore button.
+ */
+async restoreCancelledDictation() : Promise<void> {
+    await TAURI_INVOKE("restore_cancelled_dictation");
 },
 async getAppDirPath() : Promise<Result<string, string>> {
     try {
@@ -1049,6 +1088,29 @@ async fitCallPrompt(width: number, height: number) : Promise<void> {
  */
 async getCallPrompt() : Promise<CallPromptLabels | null> {
     return await TAURI_INVOKE("get_call_prompt");
+},
+/**
+ * Applies from the next meeting: the one recording keeps how it started.
+ */
+async changeMeetingLiveTranscriptSetting(enabled: boolean) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("change_meeting_live_transcript_setting", { enabled }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
+/**
+ * The live transcript of meeting `id`, or the draft a crash left of it.
+ * `None` once the final transcript replaced it.
+ */
+async getLiveTranscript(id: number) : Promise<Result<LiveTranscript | null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_live_transcript", { id }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
 }
 }
 
@@ -1059,6 +1121,7 @@ export const events = __makeEvents__<{
 historyUpdatePayload: HistoryUpdatePayload,
 insightsUpdated: InsightsUpdated,
 localModelStatus: LocalModelStatus,
+meetingLiveUpdated: MeetingLiveUpdated,
 meetingProgress: MeetingProgress,
 meetingStateChanged: MeetingStateChanged,
 meetingsUpdated: MeetingsUpdated,
@@ -1068,6 +1131,7 @@ updateStatus: UpdateStatus
 historyUpdatePayload: "history-update-payload",
 insightsUpdated: "insights-updated",
 localModelStatus: "local-model-status",
+meetingLiveUpdated: "meeting-live-updated",
 meetingProgress: "meeting-progress",
 meetingStateChanged: "meeting-state-changed",
 meetingsUpdated: "meetings-updated",
@@ -1150,6 +1214,11 @@ meetings_enabled?: boolean; meeting_capture_mode?: MeetingCaptureMode; meeting_a
  */
 meeting_call_prompt?: boolean; 
 /**
+ * Shows the meeting's text while it records, made on this Mac when the
+ * local model is ready.
+ */
+meeting_live_transcript?: boolean; 
+/**
  * Which engine transcribes dictations.
  */
 transcription_engine?: Engine; 
@@ -1175,7 +1244,12 @@ mcp_enabled?: boolean;
 /**
  * Those apps may also read dictations. Needs `mcp_enabled`.
  */
-mcp_include_dictations?: boolean }
+mcp_include_dictations?: boolean;
+/**
+ * Also send dictations under 20 words to the default AI cleanup. Off:
+ * they are pasted right away.
+ */
+cleanup_short_dictations?: boolean }
 export type AudioDevice = { index: string; name: string; is_default: boolean }
 /**
  * Where a meeting's audio is.
@@ -1215,7 +1289,11 @@ export type CleanupOutcome = "cleaned" |
 /**
  * Cleanup was attempted and the raw transcript was used instead.
  */
-"failed"
+"failed" | 
+/**
+ * Too short for the default cleanup to be worth the wait: pasted as is.
+ */
+"short_dictation"
 export type ClipboardHandling = 
 /**
  * Put the user's previous clipboard back after a bounded paste window,
@@ -1279,6 +1357,10 @@ export type FallbackReason =
  * Local chosen: the model is not downloaded or not ready yet.
  */
 "model_not_ready" | 
+/**
+ * Local chosen: the model was being compiled for a new macOS version.
+ */
+"local_preparing" | 
 /**
  * Local chosen: the local run failed.
  */
@@ -1344,6 +1426,46 @@ categories: CategoryUsage[];
  */
 categorized_dictations: number; apps_used: number; streaks: Streaks; heatmap: HeatmapDay[] }
 export type InsightsUpdated = null
+/**
+ * One sentence of the draft, on the meeting timeline.
+ */
+export type LiveEntry = { source: Track; start_ms: number; end_ms: number; text: string; kind: LiveEntryKind }
+export type LiveEntryKind = "speech" | 
+/**
+ * Audio the live text skipped; the final transcript has it.
+ */
+"gap"
+export type LiveState = 
+/**
+ * Recording, nothing said yet.
+ */
+{ state: "starting" } | { state: "live" } | 
+/**
+ * Over 30 s of speech wait for the model.
+ */
+{ state: "catching_up" } | { state: "unavailable"; reason: LiveUnavailable } | 
+/**
+ * The meeting stopped: the draft waits for the final transcript.
+ */
+{ state: "stopped" }
+export type LiveTranscript = { state: LiveState; 
+/**
+ * In the order they were published, which is not quite time order.
+ */
+entries: LiveEntry[] }
+export type LiveUnavailable = 
+/**
+ * The live transcript setting is off.
+ */
+"off" | "missing" | "downloading" | "preparing" | 
+/**
+ * An Intel Mac.
+ */
+"unsupported" | 
+/**
+ * Three pieces in a row failed.
+ */
+"engine_failed"
 export type LocalModelState = 
 /**
  * This Mac cannot run the models.
@@ -1353,7 +1475,12 @@ export type LocalModelState =
  * Checking models an earlier version downloaded, or loading new ones
  * once so they are compiled for this Mac.
  */
-{ state: "preparing" } | { state: "ready" } | { state: "failed"; reason: DownloadFailure }
+{ state: "preparing" } | { state: "ready" } | 
+/**
+ * Ready models Core ML compiles again, in the background, for the
+ * macOS version this Mac now runs.
+ */
+{ state: "optimizing" } | { state: "failed"; reason: DownloadFailure }
 export type LocalModelStatus = { state: LocalModelState; 
 /**
  * What the download takes on this Mac.
@@ -1365,6 +1492,11 @@ size_bytes: number;
  */
 kept_bytes: number }
 export type LogLevel = "trace" | "debug" | "info" | "warn" | "error"
+/**
+ * Something that happened while the settings window was gone, for the
+ * next one to act on.
+ */
+export type MainAction = "check_updates" | "switched_to_local"
 /**
  * What an AI app needs to launch the read-only server.
  */
@@ -1449,6 +1581,10 @@ export type MeetingListItem = { id: number;
  * `None` until a summary names the meeting.
  */
 title: string | null; started_at_ms: number; duration_ms: number; status: MeetingStatus; tracks: MeetingTracks }
+/**
+ * Sent as the live transcript of meeting `id` grows or changes state.
+ */
+export type MeetingLiveUpdated = { id: number; state: LiveState; appended: LiveEntry[] }
 /**
  * Which tab Copy and Export take their text from.
  */
@@ -1556,6 +1692,10 @@ export type ProcessingError =
  */
 "other"
 export type RecordingRetentionPeriod = "never" | "preserve_limit" | "days_3" | "weeks_2" | "months_3"
+/**
+ * What the settings page shows, as it reports it.
+ */
+export type SettingsView = "onboarding" | { section: string }
 export type ShortcutBinding = { id: string; name: string; description: string; default_binding: string; current_binding: string }
 /**
  * Why a binding holds no hotkey.
@@ -1656,6 +1796,11 @@ export type SystemAudioSupport = "available" |
  * and `Dark` force one of the two palettes Murmur already ships.
  */
 export type Theme = "system" | "light" | "dark"
+/**
+ * Ties go to system audio: a remote question comes before the answer
+ * captured at the same moment.
+ */
+export type Track = "system" | "mic"
 /**
  * What the last update check found.
  */

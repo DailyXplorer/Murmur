@@ -33,10 +33,16 @@
     "overlayCopied": "Copié",
     "overlayNotPasted": "Il n’y avait pas de champ de texte où coller.",
     "overlayMicDisconnected": "L'enregistrement s'est arrêté : votre micro s'est déconnecté.",
+    "overlayCancelled": "Dictée annulée",
+    "overlayRestore": "Restaurer",
+    "restoreCancelled": "Restaurer la dictée annulée ({{duration}})",
     "callRecordQuestion": "Enregistrer cette réunion ?",
     "callRecord": "Enregistrer",
     "callNotNow": "Pas maintenant",
     "noticeNothingToPaste": "Aucune transcription à coller pour l’instant.",
+    "noticeNothingNewInMeeting": "Rien de nouveau pour l’instant.",
+    "liveYou": "Vous",
+    "liveOthers": "Les autres",
     "startMeeting": "Démarrer une réunion",
     "stopMeeting": "Arrêter la réunion",
     "meetingSystemAudioUnavailable": "L’audio du système n’est pas disponible : la réunion n’enregistre que votre microphone.",
@@ -177,6 +183,7 @@
         "none": "Aucun raccourci configuré",
         "notFound": "Raccourci non trouvé",
         "pressKeys": "Appuyez sur les touches...",
+        "notSet": "Aucun",
         "bindings": {
           "transcribe": {
             "name": "Raccourci de transcription",
@@ -193,6 +200,10 @@
           "meeting_toggle": {
             "name": "Raccourci de réunion",
             "description": "Démarre l’enregistrement d’une réunion ou arrête celle en cours."
+          },
+          "meeting_paste_new": {
+            "name": "Coller le nouveau texte de la réunion",
+            "description": "Colle ce qui a été dit dans la réunion depuis le dernier collage, ou pendant la dernière minute."
           }
         },
         "errors": {
@@ -354,6 +365,10 @@
         "label": "Proposer d’enregistrer les appels",
         "description": "Quand Zoom, Google Meet, Teams, Slack, FaceTime, Webex ou Discord démarre un appel, demander s’il faut l’enregistrer. La question reste affichée jusqu’à votre réponse ou la fin de l’appel. Murmur n’enregistre jamais sans un clic."
       },
+      "meetingLiveTranscript": {
+        "label": "Transcription en direct des réunions",
+        "description": "Affiche le texte de la réunion pendant l’enregistrement. Il est produit sur ce Mac par le modèle local, jamais dans le cloud."
+      },
       "meetingsAudio": {
         "title": "Supprimer l’audio des réunions",
         "description": "Supprime l’audio des réunions traitées après le délai choisi, pour libérer de l’espace. Les transcriptions et les résumés sont conservés.",
@@ -391,10 +406,12 @@
       "recordingUnavailable": "L’enregistrement n’est plus disponible, il ne peut donc pas être retranscrit.",
       "noSpeech": "Aucune parole n’a été détectée dans l’enregistrement.",
       "cleanupFailed": "Le nettoyage IA était indisponible : la transcription brute a été collée.",
+      "shortDictation": "Dictée courte : collée tout de suite, sans nettoyage IA.",
       "showOriginal": "Afficher la transcription d’origine",
       "hideOriginal": "Masquer la transcription d’origine",
       "fallback": {
         "model_not_ready": "Transcrit dans le cloud : le modèle local n’était pas prêt.",
+        "local_preparing": "Transcrit dans le cloud : le modèle local était en cours d’optimisation pour cette version de macOS.",
         "local_failed": "Transcrit dans le cloud : la transcription locale a échoué.",
         "language_not_supported": "Transcrit dans le cloud : cette langue n’est pas prise en charge sur ce Mac.",
         "cloud_limit_reached": "Transcrit sur ce Mac : la limite ChatGPT était atteinte.",
@@ -524,6 +541,10 @@
         "description": "Supprime les mots de remplissage, ne garde que votre formulation finale quand vous vous corrigez, corrige la ponctuation et met en forme les listes et les retours à la ligne dictés. Ne traduit jamais et ne change jamais le sens. En cas d’échec ou de lenteur, la transcription brute est collée.",
         "needsAccount": "Connectez ChatGPT pour utiliser le nettoyage par IA."
       },
+      "cleanupShortDictations": {
+        "title": "Nettoyer aussi les dictées courtes",
+        "description": "Les dictées de moins de 20 mots sont collées tout de suite, sans nettoyage IA."
+      },
       "style": {
         "title": "Style de dictée",
         "description": "Formel : ponctuation complète et tournures écrites. Normal : un peu moins de ponctuation, vos mots restent les vôtres. Détendu : plus relâché, comme un message à un ami.",
@@ -564,6 +585,7 @@
           "downloading": "Téléchargement · {{percent}} %",
           "preparing": "Préparation…",
           "preparingNote": "Environ 15 secondes.",
+          "optimizing": "Optimisation du modèle vocal pour cette version de macOS…",
           "meetings": "Sert aussi aux réunions.",
           "unavailable": "Non disponible",
           "needs": {
@@ -882,7 +904,22 @@
         "description": "Codex transcrit à nouveau l'enregistrement, et la transcription et le résumé sont remplacés. Un titre que vous avez choisi est conservé."
       }
     },
-    "localFallback": "Codex était indisponible pendant {{duration}} de cette réunion, cette partie a donc été transcrite sur ce Mac."
+    "localFallback": "Codex était indisponible pendant {{duration}} de cette réunion, cette partie a donc été transcrite sur ce Mac.",
+    "live": {
+      "title": "Transcription en direct",
+      "you": "Vous",
+      "others": "Les autres",
+      "starting": "À l’écoute… le texte apparaît quelques secondes après chaque prise de parole.",
+      "catchingUp": "Rattrapage en cours",
+      "gap": "… (passage manquant, la transcription finale l’inclura)",
+      "unavailable": "Le texte en direct a besoin du modèle vocal local.",
+      "off": "La transcription en direct est désactivée. La transcription sera faite après l’arrêt.",
+      "unsupported": "Le texte en direct demande un Mac avec puce Apple. La transcription sera faite après l’arrêt.",
+      "failed": "Le texte en direct s’est arrêté. L’enregistrement continue et la transcription sera faite après l’arrêt.",
+      "copyAll": "Tout copier",
+      "pasteHint": "Pour coller ce qui vient d’être dit dans une autre app, choisissez des touches pour coller le nouveau texte de la réunion, dans la page Réunions.",
+      "draftNotice": "Brouillon. La transcription finale le remplace à la fin du traitement."
+    }
   },
   "localSttCard": {
     "title": "Nouveau : transcription locale, sans quota.",

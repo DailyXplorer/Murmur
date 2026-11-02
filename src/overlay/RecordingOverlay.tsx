@@ -1,3 +1,4 @@
+import { ArrowCounterClockwiseIcon } from "@phosphor-icons/react/dist/csr/ArrowCounterClockwise";
 import { CheckIcon } from "@phosphor-icons/react/dist/csr/Check";
 import { CopyIcon } from "@phosphor-icons/react/dist/csr/Copy";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
@@ -32,6 +33,7 @@ type View =
   | { kind: "error"; message: string }
   | { kind: "copy"; labels: CopyLabels; copied: boolean }
   | { kind: "warning"; message: string }
+  | { kind: "cancelled"; labels: CancelledLabels }
   | { kind: "meeting"; startedAtMs: number; stopsAtMs: number };
 
 /** Payload of `show-overlay-meeting`, from `overlay::MeetingPill`. */
@@ -47,6 +49,12 @@ interface CopyLabels {
   note: string;
   /** Says the microphone went away during the dictation, when it did. */
   warning: string | null;
+}
+
+/** Payload of `show-overlay-cancelled`, from `overlay::CancelledNoticeLabels`. */
+interface CancelledLabels {
+  note: string;
+  restore: string;
 }
 
 /** Ticks once a second while a meeting records. */
@@ -186,6 +194,12 @@ const RecordingOverlay: React.FC = () => {
       refreshPosition();
     }).then(storeUnlistener, () => undefined);
 
+    // A dictation was cancelled: Restore runs it through the pipeline.
+    void listen<CancelledLabels>("show-overlay-cancelled", (event) => {
+      setView({ kind: "cancelled", labels: event.payload });
+      refreshPosition();
+    }).then(storeUnlistener, () => undefined);
+
     void listen("hide-overlay", () => {
       setView({ kind: "hidden" });
     }).then(storeUnlistener, () => undefined);
@@ -248,13 +262,18 @@ const RecordingOverlay: React.FC = () => {
   // so every such view, even one replacing a showing one, observes and
   // reports again.
   const fittedView =
-    view.kind === "copy" || view.kind === "warning" ? view : null;
+    view.kind === "copy" || view.kind === "warning" || view.kind === "cancelled"
+      ? view
+      : null;
   const pillShowing = fittedView !== null;
   useLayoutEffect(() => {
     const body = noticeBodyRef.current;
     if (!fittedView || !body) return;
     // The copy pill without the warning keeps the width it had before.
-    if (fittedView.kind === "warning" || fittedView.labels.warning) {
+    if (
+      fittedView.kind === "warning" ||
+      (fittedView.kind === "copy" && fittedView.labels.warning)
+    ) {
       hugWrappedLines(body);
     }
     const observer = new ResizeObserver(([entry]) => {
@@ -361,6 +380,42 @@ const RecordingOverlay: React.FC = () => {
                 <span className="ov-copy-label-spare" aria-hidden="true">
                   {view.copied ? view.labels.copy : view.labels.copied}
                 </span>
+              </span>
+            </span>
+          </span>
+        </button>
+      </div>
+    );
+  }
+
+  if (view.kind === "cancelled") {
+    const restore = () => {
+      commands.restoreCancelledDictation().catch((error: unknown) => {
+        console.warn("Restoring the cancelled dictation failed:", error);
+      });
+    };
+    return (
+      <div className={`ov-stage ${position}`}>
+        <button
+          type="button"
+          dir="auto"
+          className="ov-capsule ov-copy"
+          aria-labelledby={`${noticeId}-action`}
+          aria-describedby={`${noticeId}-note`}
+          onClick={restore}
+        >
+          <span ref={noticeBodyRef} className="ov-copy-body">
+            <span id={`${noticeId}-note`} className="ov-copy-note">
+              {view.labels.note}
+            </span>
+            <span className="ov-copy-action">
+              <ArrowCounterClockwiseIcon
+                size={14}
+                weight="bold"
+                aria-hidden="true"
+              />
+              <span id={`${noticeId}-action`} className="ov-copy-label">
+                {view.labels.restore}
               </span>
             </span>
           </span>
