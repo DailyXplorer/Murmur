@@ -377,10 +377,12 @@
       "recordingUnavailable": "L’enregistrement n’est plus disponible, il ne peut donc pas être retranscrit.",
       "noSpeech": "Aucune parole n’a été détectée dans l’enregistrement.",
       "cleanupFailed": "Le nettoyage IA était indisponible : la transcription brute a été collée.",
+      "shortDictation": "Dictée courte : collée tout de suite, sans nettoyage IA.",
       "showOriginal": "Afficher la transcription d’origine",
       "hideOriginal": "Masquer la transcription d’origine",
       "fallback": {
         "model_not_ready": "Transcrit dans le cloud : le modèle local n’était pas prêt.",
+        "local_preparing": "Transcrit dans le cloud : le modèle local était en cours d’optimisation pour cette version de macOS.",
         "local_failed": "Transcrit dans le cloud : la transcription locale a échoué.",
         "language_not_supported": "Transcrit dans le cloud : cette langue n’est pas prise en charge sur ce Mac.",
         "cloud_limit_reached": "Transcrit sur ce Mac : la limite ChatGPT était atteinte.",
@@ -510,6 +512,10 @@
         "description": "Supprime les mots de remplissage, ne garde que votre formulation finale quand vous vous corrigez, corrige la ponctuation et met en forme les listes et les retours à la ligne dictés. Ne traduit jamais et ne change jamais le sens. En cas d’échec ou de lenteur, la transcription brute est collée.",
         "needsAccount": "Connectez ChatGPT pour utiliser le nettoyage par IA."
       },
+      "cleanupShortDictations": {
+        "title": "Nettoyer aussi les dictées courtes",
+        "description": "Les dictées de moins de 20 mots sont collées tout de suite, sans nettoyage IA."
+      },
       "style": {
         "title": "Style de dictée",
         "description": "Formel : ponctuation complète et tournures écrites. Normal : un peu moins de ponctuation, vos mots restent les vôtres. Détendu : plus relâché, comme un message à un ami.",
@@ -550,6 +556,7 @@
           "downloading": "Téléchargement · {{percent}} %",
           "preparing": "Préparation…",
           "preparingNote": "Environ 15 secondes.",
+          "optimizing": "Optimisation du modèle vocal pour cette version de macOS…",
           "meetings": "Sert aussi aux réunions.",
           "unavailable": "Non disponible",
           "needs": {
@@ -883,5 +890,14 @@
   "localModelPill": {
     "downloading": "Téléchargement du modèle… {{percent}} %",
     "preparing": "Préparation du modèle…"
+  },
+  "search": {
+    "placeholder": {
+      "meetings": "Rechercher dans les réunions",
+      "history": "Rechercher dans les dictées"
+    },
+    "noResults": "Aucun résultat pour « {{query}} »",
+    "failed": "La recherche a échoué. Réessayez.",
+    "clear": "Effacer la recherche"
   }
 }

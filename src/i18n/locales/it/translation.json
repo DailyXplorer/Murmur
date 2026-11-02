@@ -377,10 +377,12 @@
       "recordingUnavailable": "La registrazione non è più disponibile, quindi non può essere trascritta di nuovo.",
       "noSpeech": "Nessun parlato rilevato nella registrazione.",
       "cleanupFailed": "La pulizia IA non era disponibile, quindi è stata incollata la trascrizione grezza.",
+      "shortDictation": "Dettatura breve: incollata subito, senza pulizia IA.",
       "showOriginal": "Mostra trascrizione originale",
       "hideOriginal": "Nascondi trascrizione originale",
       "fallback": {
         "model_not_ready": "Trascritto nel cloud: il modello locale non era pronto.",
+        "local_preparing": "Trascritto nel cloud: il modello locale era in fase di ottimizzazione per questa versione di macOS.",
         "local_failed": "Trascritto nel cloud: la trascrizione locale non è riuscita.",
         "language_not_supported": "Trascritto nel cloud: questa lingua non è supportata su questo Mac.",
         "cloud_limit_reached": "Trascritto su questo Mac: era stato raggiunto il limite di ChatGPT.",
@@ -510,6 +512,10 @@
         "description": "Rimuove le parole riempitive, mantiene solo la formulazione finale quando ti correggi, sistema la punteggiatura e formatta elenchi e a capo dettati. Non traduce mai e non cambia mai il significato. Se non riesce o impiega troppo, viene incollata la trascrizione grezza.",
         "needsAccount": "Collega ChatGPT per usare la pulizia con IA."
       },
+      "cleanupShortDictations": {
+        "title": "Pulisci anche le dettature brevi",
+        "description": "Le dettature sotto le 20 parole vengono incollate subito, senza pulizia IA."
+      },
       "style": {
         "title": "Stile di dettatura",
         "description": "Formale: punteggiatura completa e forma scritta. Normale: punteggiatura più leggera, mantiene le tue parole. Informale: rilassato, come un messaggio in chat.",
@@ -550,6 +556,7 @@
           "downloading": "Download · {{percent}}%",
           "preparing": "Preparazione…",
           "preparingNote": "Circa 15 secondi.",
+          "optimizing": "Ottimizzazione del modello per questa versione di macOS…",
           "meetings": "Usato anche da Riunioni.",
           "unavailable": "Non disponibile",
           "needs": {
@@ -883,5 +890,14 @@
   "localModelPill": {
     "downloading": "Download del modello… {{percent}}%",
     "preparing": "Preparazione del modello…"
+  },
+  "search": {
+    "placeholder": {
+      "meetings": "Cerca nelle riunioni",
+      "history": "Cerca nelle dettature"
+    },
+    "noResults": "Nessun risultato per «{{query}}»",
+    "failed": "Ricerca non riuscita. Riprova.",
+    "clear": "Cancella ricerca"
   }
 }

@@ -7,15 +7,18 @@
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader, Lines};
 use tokio::process::{Child, ChildStdin, ChildStdout, Command};
+use tokio::sync::watch;
 
 use super::session::{BoxFuture, Loaded, Runtime};
+use super::SAMPLES_PER_SECOND;
+use crate::local_models::LocalModelState;
 use crate::meetings::protocol::{parse_reply, Reply, Request};
 
-/// A load from compiled models takes about 2 s; a first one after a macOS
-/// update compiles them again, about 15 s.
+/// A load from compiled models takes well under a second, one that compiles
+/// them about 25 s. The prewarm run counts in it.
 const LOAD_TIMEOUT: Duration = Duration::from_secs(2 * 60);
 
 /// Unique across the dictation and meeting sessions, which share the folder.
@@ -25,29 +28,55 @@ pub struct FluidRuntime {
     program: PathBuf,
     models: PathBuf,
     scratch: PathBuf,
+    state: watch::Receiver<LocalModelState>,
 }
 
 impl FluidRuntime {
-    pub fn new(program: PathBuf, models: PathBuf, scratch: PathBuf) -> Self {
+    pub fn new(
+        program: PathBuf,
+        models: PathBuf,
+        scratch: PathBuf,
+        state: watch::Receiver<LocalModelState>,
+    ) -> Self {
         Self {
             program,
             models,
             scratch,
+            state,
         }
     }
 }
 
 impl Runtime for FluidRuntime {
     fn load(&self) -> BoxFuture<'static, anyhow::Result<Box<dyn Loaded>>> {
-        let (program, models, scratch) = (
+        let (program, models, scratch, mut state) = (
             self.program.clone(),
             self.models.clone(),
             self.scratch.clone(),
+            self.state.clone(),
         );
         Box::pin(async move {
+            // Loading during the compile after a macOS update would compile
+            // the models a second time, beside it.
+            let _ = state
+                .wait_for(|state| *state != LocalModelState::Optimizing)
+                .await;
             std::fs::create_dir_all(&scratch)?;
+            let spawned = Instant::now();
             let mut serve = Serve::spawn(&program, &models, scratch)?;
-            match tokio::time::timeout(LOAD_TIMEOUT, serve.ready()).await {
+            let loaded = async {
+                serve.ready().await?;
+                log::info!("Local model ready in {} ms", spawned.elapsed().as_millis());
+                // The first run after a load is slower: this one takes that
+                // cost off the dictation, and finds a broken model before it.
+                let prewarm = Instant::now();
+                serve
+                    .transcribe(&vec![0.0; SAMPLES_PER_SECOND], &[])
+                    .await?;
+                log::info!("Local model prewarm {} ms", prewarm.elapsed().as_millis());
+                anyhow::Ok(())
+            };
+            match tokio::time::timeout(LOAD_TIMEOUT, loaded).await {
                 Ok(result) => result?,
                 Err(_) => anyhow::bail!("The helper did not load the models in {LOAD_TIMEOUT:?}"),
             }
@@ -160,6 +189,7 @@ impl Loaded for Serve {
                 id,
                 wav: &wav.0,
                 terms,
+                background: None,
             })?;
             line.push('\n');
             self.stdin.write_all(line.as_bytes()).await?;
@@ -187,21 +217,143 @@ impl Loaded for Serve {
 
 #[cfg(test)]
 mod tests {
+    use super::super::session::Session;
     use super::*;
+    use crate::engine::{route, Conditions, Engine, EngineUsed, LocalReadiness, Route};
     use std::os::unix::fs::PermissionsExt;
+    use std::sync::Arc;
 
     /// A stand-in helper: a shell script with the given body. `$wav` and
     /// `$id` hold the fields of each request it reads.
     fn runtime(dir: &Path, body: &str) -> FluidRuntime {
+        runtime_while(dir, body, watch::channel(LocalModelState::Ready).1)
+    }
+
+    fn runtime_while(
+        dir: &Path,
+        body: &str,
+        state: watch::Receiver<LocalModelState>,
+    ) -> FluidRuntime {
         let program = dir.join("helper.sh");
         std::fs::write(&program, format!("#!/bin/sh\n{body}\n")).unwrap();
         std::fs::set_permissions(&program, std::fs::Permissions::from_mode(0o755)).unwrap();
-        FluidRuntime::new(program, dir.join("models"), dir.join("scratch"))
+        FluidRuntime::new(program, dir.join("models"), dir.join("scratch"), state)
     }
 
-    const READ_REQUESTS: &str = r#"while read line; do
+    /// Reads each request into `$line`, `$id` and `$wav`, counting them in
+    /// `$n`: the first one is the prewarm.
+    const READ_REQUESTS: &str = r#"n=0
+while read line; do
+n=$((n + 1))
 id=$(echo "$line" | sed 's/.*"id":\([0-9]*\).*/\1/')
 wav=$(echo "$line" | sed 's/.*"wav":"\([^"]*\)".*/\1/')"#;
+
+    const ANSWER: &str = r#"echo "{\"type\":\"text\",\"id\":$id,\"text\":\"\"}""#;
+
+    #[tokio::test]
+    async fn prewarm_request_is_sent_after_ready() {
+        let dir = tempfile::tempdir().unwrap();
+        let log = dir.path().join("requests");
+        let runtime = runtime(
+            dir.path(),
+            &format!(
+                r#"echo '{{"type":"ready"}}'
+{READ_REQUESTS}
+echo "$n $(wc -c < "$wav" | tr -d ' ') $line" >> "{}"
+{ANSWER}
+done"#,
+                log.display()
+            ),
+        );
+        let mut model = runtime.load().await.unwrap();
+        let requests = std::fs::read_to_string(&log).unwrap();
+        // One second of silence: 44 bytes of header, then 16-bit samples.
+        let silence = format!("1 {} ", 44 + 2 * SAMPLES_PER_SECOND);
+        assert!(requests.starts_with(&silence), "{requests}");
+        assert_eq!(requests.lines().count(), 1, "{requests}");
+        assert!(!requests.contains("terms") && !requests.contains("background"));
+
+        model.transcribe(&samples(), &[]).await.unwrap();
+        let requests = std::fs::read_to_string(&log).unwrap();
+        assert_eq!(requests.lines().count(), 2, "{requests}");
+    }
+
+    #[tokio::test]
+    async fn prewarm_failure_drops_the_model() {
+        let dir = tempfile::tempdir().unwrap();
+        let broken = dir.path().join("broken-once");
+        let runtime = runtime(
+            dir.path(),
+            &format!(
+                r#"echo '{{"type":"ready"}}'
+{READ_REQUESTS}
+if [ ! -e "{broken}" ]; then
+touch "{broken}"
+echo "{{\"type\":\"error\",\"id\":$id,\"stage\":\"transcribe\",\"code\":\"io\",\"message\":\"broken model\"}}"
+else
+echo "{{\"type\":\"text\",\"id\":$id,\"text\":\"ok $n\"}}"
+fi
+done"#,
+                broken = broken.display()
+            ),
+        );
+        let session = Session::new(Box::new(runtime), Box::new(|| false));
+        let error = session.warm().await.unwrap_err();
+        assert!(error.to_string().contains("broken model"), "{error}");
+        assert!(!session.is_loaded().await);
+
+        // The next dictation starts a fresh helper, prewarmed again.
+        let text = session
+            .transcribe(&samples(), &[], Duration::from_secs(30))
+            .await
+            .unwrap();
+        assert_eq!(text, "ok 2");
+    }
+
+    #[tokio::test]
+    async fn warm_waits_for_optimizing_without_cloud() {
+        let without_cloud = Conditions {
+            model: LocalReadiness::Optimizing,
+            signed_in: false,
+            language: "fr",
+        };
+        assert_eq!(
+            route(Engine::Local, without_cloud),
+            Route::Run(EngineUsed {
+                engine: Engine::Local,
+                fallback: None,
+            })
+        );
+
+        let dir = tempfile::tempdir().unwrap();
+        let started = dir.path().join("started");
+        let (state, receiver) = watch::channel(LocalModelState::Optimizing);
+        let runtime = runtime_while(
+            dir.path(),
+            &format!(
+                r#"touch "{}"
+echo '{{"type":"ready"}}'
+{READ_REQUESTS}
+{ANSWER}
+done"#,
+                started.display()
+            ),
+            receiver,
+        );
+        let session = Session::new(Box::new(runtime), Box::new(|| false));
+        let warming = tokio::spawn({
+            let session = Arc::clone(&session);
+            async move { session.warm().await }
+        });
+        tokio::time::sleep(Duration::from_millis(300)).await;
+        assert!(!warming.is_finished(), "loaded during the compile");
+        assert!(!started.exists(), "a second compile started beside it");
+
+        state.send_replace(LocalModelState::Ready);
+        warming.await.unwrap().unwrap();
+        assert!(started.exists());
+        assert!(session.is_loaded().await);
+    }
 
     fn samples() -> Vec<f32> {
         vec![0.1; 1_600]
@@ -268,12 +420,10 @@ done"#
             &format!(
                 r#"echo '{{"type":"ready"}}'
 {READ_REQUESTS}
-marker="$(dirname "$wav")/failed-once"
-if [ -e "$marker" ]; then
-echo "{{\"type\":\"text\",\"id\":$id,\"text\":\"ok\"}}"
-else
-touch "$marker"
+if [ $n -eq 2 ]; then
 echo "{{\"type\":\"error\",\"id\":$id,\"stage\":\"transcribe\",\"code\":\"io\",\"message\":\"bad audio\"}}"
+else
+echo "{{\"type\":\"text\",\"id\":$id,\"text\":\"ok\"}}"
 fi
 done"#
             ),
@@ -300,7 +450,8 @@ exit 1"#,
             &format!(
                 r#"echo '{{"type":"ready"}}'
 {READ_REQUESTS}
-kill -9 $$
+[ $n -eq 2 ] && kill -9 $$
+{ANSWER}
 done"#
             ),
         );

@@ -1,10 +1,11 @@
 use crate::audio_toolkit::gain::{normalize_quiet_speech, GainProfile};
+use crate::audio_toolkit::text_passes::{self, PassLanguage};
 use crate::audio_toolkit::{apply_custom_words_counted, normalize_transcription_output};
 use crate::codex_transcribe;
 use crate::engine::local::boost::boost_terms;
 use crate::engine::local::LocalEngine;
-use crate::engine::{self, Conditions, Engine, EngineUsed, Route};
-use crate::local_models::LocalModels;
+use crate::engine::{self, Conditions, Engine, EngineUsed, LocalReadiness, Route};
+use crate::local_models::{LocalModelState, LocalModels};
 use crate::settings::{get_settings, AppSettings};
 use crate::{OperationId, ProcessingOperation};
 use anyhow::Result;
@@ -20,6 +21,8 @@ pub struct Transcript {
     pub text: String,
     pub dictionary_fixes: u32,
     pub source: EngineUsed,
+    /// The language the text passes ran in, if they ran.
+    pub pass_language: Option<PassLanguage>,
 }
 
 /// Transcribes `audio` with `engine`. `language` is the dictation setting.
@@ -219,6 +222,11 @@ impl TranscriptionManager {
             &settings.custom_words,
             settings.word_correction_threshold,
         );
+        let pass_language = text_passes::detect(&settings.selected_language, &processed);
+        let processed = match pass_language {
+            Some(language) => text_passes::before_cleanup(&processed, language),
+            None => processed,
+        };
 
         info!(
             "The {} engine produced {} characters",
@@ -229,17 +237,23 @@ impl TranscriptionManager {
             text: processed,
             dictionary_fixes,
             source,
+            pass_language,
         })
     }
 
     fn conditions<'a>(&self, settings: &'a AppSettings) -> Conditions<'a> {
-        let model_ready = self
+        let engine = self.app_handle.try_state::<Arc<LocalEngine>>().is_some();
+        let state = self
             .app_handle
             .try_state::<Arc<LocalModels>>()
-            .is_some_and(|models| models.is_ready())
-            && self.app_handle.try_state::<Arc<LocalEngine>>().is_some();
+            .map(|models| models.state());
+        let model = match state {
+            Some(LocalModelState::Ready) if engine => LocalReadiness::Ready,
+            Some(LocalModelState::Optimizing) if engine => LocalReadiness::Optimizing,
+            _ => LocalReadiness::NotReady,
+        };
         Conditions {
-            model_ready,
+            model,
             signed_in: crate::codex_auth::auth_status().signed_in,
             language: &settings.selected_language,
         }

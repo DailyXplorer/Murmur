@@ -60,6 +60,8 @@ const rowLines = (
       ];
     case "preparing":
       return [t(`${ROW}.preparing`), t(`${ROW}.preparingNote`)];
+    case "optimizing":
+      return [t(`${ROW}.optimizing`), null];
     case "ready":
       return [
         t("settings.transcription.localModel.ready", {
@@ -158,6 +160,7 @@ export const LocalModelRow: React.FC<{
       case "ready":
         return deleteButton;
       case "preparing":
+      case "optimizing":
       case "unsupported":
         return null;
       default: {

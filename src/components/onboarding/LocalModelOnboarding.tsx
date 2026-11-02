@@ -20,7 +20,8 @@ const LocalModelOnboarding: React.FC<LocalModelOnboardingProps> = ({
 }) => {
   const { t, i18n } = useTranslation();
   const [choosing, setChoosing] = useState(false);
-  const ready = status.state.state === "ready";
+  const ready =
+    status.state.state === "ready" || status.state.state === "optimizing";
 
   const choose = async (engine: Engine) => {
     if (choosing) return;

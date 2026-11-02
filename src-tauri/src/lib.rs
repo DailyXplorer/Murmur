@@ -16,6 +16,7 @@ mod codex_login;
 mod codex_transcribe;
 mod commands;
 mod dictation_gesture;
+mod durable;
 mod engine;
 mod field_excerpt;
 mod helpers;
@@ -26,9 +27,11 @@ mod managers;
 mod meetings;
 mod operation;
 mod overlay;
+mod panic_log;
 mod paste_last;
 mod paste_tx;
 mod recently_cancelled;
+mod search;
 mod settings;
 mod settings_window;
 mod shortcut;
@@ -668,6 +671,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::cleanup::change_dictation_style_setting,
             commands::cleanup::change_window_names_setting,
             commands::cleanup::change_whisper_mode_setting,
+            commands::cleanup::change_cleanup_short_dictations_setting,
             shortcut::change_app_language_setting,
             shortcut::change_update_checks_setting,
             shortcut::change_show_whats_new_on_update_setting,
@@ -718,6 +722,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::transcription::switch_to_local_when_ready,
             commands::transcription::change_local_stt_card_dismissed_setting,
             commands::history::get_history_entries,
+            commands::history::search_history,
             commands::history::toggle_history_entry_saved,
             commands::history::get_audio_file_path,
             commands::history::delete_history_entry,
@@ -731,6 +736,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::meetings::stop_meeting,
             commands::meetings::discard_meeting,
             commands::meetings::get_meetings,
+            commands::meetings::search_meetings,
             commands::meetings::delete_meeting,
             commands::meetings::get_meeting,
             commands::meetings::rename_meeting,
@@ -836,6 +842,7 @@ pub fn run(cli_args: CliArgs) {
                 ])
                 .build(),
         );
+    panic_log::install();
 
     builder = builder.plugin(tauri_nspanel::init());
 
@@ -866,7 +873,6 @@ pub fn run(cli_args: CliArgs) {
         .plugin(tauri_plugin_macos_permissions::init())
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_opener::init())
-        .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
         .plugin(tauri_plugin_autostart::init(
             MacosLauncher::LaunchAgent,
@@ -897,6 +903,7 @@ pub fn run(cli_args: CliArgs) {
                         .state::<Arc<TranscriptionManager>>()
                         .inner()
                         .shutdown();
+                    settings::flush_pending_save(&handle);
                     use std::io::Write;
                     let _ = std::io::stdout().flush();
                     let _ = std::io::stderr().flush();
@@ -1054,6 +1061,8 @@ pub fn run(cli_args: CliArgs) {
                 if !codex_auth::wait_for_refreshes(codex_auth::REFRESH_TIMEOUT) {
                     log::warn!("Timed out waiting for a Codex token refresh while quitting");
                 }
+                // A settings change is written in the background.
+                settings::flush_pending_save(app);
             }
             _ => {}
         });
@@ -1322,5 +1331,12 @@ mod exit_tests {
             .rfind(".shutdown()")
             .expect("quitting shuts the managers down");
         assert!(shutdown < wait);
+    }
+
+    /// A setting changed just before quitting may still be on its way to
+    /// disk in the background; the exit would cut that write off.
+    #[test]
+    fn quitting_writes_pending_settings() {
+        assert!(exit_arm().contains("settings::flush_pending_save(app)"));
     }
 }
