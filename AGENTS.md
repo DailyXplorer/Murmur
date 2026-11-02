@@ -220,6 +220,12 @@ For a change to how meetings record or process, also run the 3-hour soak on a Ma
 
 `bun install` sets `core.hooksPath` to `.githooks`. The pre-commit hook runs the fast subset. Let it run. If you skip it, say why in the pull request.
 
+## Release smoke test
+
+`build.yml`, which the release, main-build, build-test and PR test-build workflows share, launches the release bundle it built, right after the build step (tauri-action has already put the assets on the draft release) and before the build artifacts are uploaded, so a failed launch stops `publish-release` and a release never goes out with an app that dies at launch. Debug builds are skipped: they write `../src/bindings.ts` when they start and only run from `src-tauri`. `scripts/smoke-macos-app.sh <Murmur.app>` starts the executable with `--start-hidden` in a throwaway `HOME`: the app starts as on a first launch, onboarding not done, so the microphone and shortcuts stay off and nothing asks for a permission. It waits up to 15 s (`SMOKE_TIMEOUT`; 60 s for the x86_64 bundle, which Rosetta translates at its first launch on the arm64 runner) for the `Setup complete (version …)` line that `lib.rs` logs as the last step of setup, keeps watching for 3 s (`SMOKE_SETTLE`), then stops the app with SIGTERM. The job fails when the line does not come, when the app exits, when `murmur.log` holds a panic record (`panicked at`, from `panic_log.rs`) or when SIGTERM does not stop the app within 10 s. The log tail and the app's own output (a dyld error lands there, not in the log) go to the job log. Keep the `Setup complete` line, and keep it last in setup: the script reads it.
+
+The script runs the executable directly, so it checks that the signed bundle launches, not Gatekeeper's check of a downloaded app. Run it on a CI runner. The single-instance lock lives in `/tmp` and the login item belongs to the bundle identifier, so on a Mac with Murmur installed it refuses to start while Murmur runs and it switches Open at Login off; test a copy of the bundle with another `CFBundleIdentifier` there. If the first runs on a cold runner are too slow, raise `SMOKE_TIMEOUT` in the step; do not retry. A crash later than the 3 s of watching passes the step.
+
 ## Pull requests
 
 - Title: Conventional Commits (`feat:`, `fix:`, `docs:`, `refactor:`, `test:`, `chore:`), focused on why. Branch the same way: `feat/short-description`.
