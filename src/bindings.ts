@@ -1244,7 +1244,7 @@ mcp_enabled?: boolean;
 /**
  * Those apps may also read dictations. Needs `mcp_enabled`.
  */
-mcp_include_dictations?: boolean;
+mcp_include_dictations?: boolean; 
 /**
  * Also send dictations under 20 words to the default AI cleanup. Off:
  * they are pasted right away.
