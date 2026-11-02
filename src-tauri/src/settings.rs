@@ -373,6 +373,10 @@ pub struct AppSettings {
     /// ready.
     #[serde(default)]
     pub switch_to_local_when_ready: bool,
+    /// Also send dictations under 20 words to the default AI cleanup. Off:
+    /// they are pasted right away.
+    #[serde(default)]
+    pub cleanup_short_dictations: bool,
 }
 
 impl AppSettings {
@@ -619,6 +623,7 @@ pub fn get_default_settings() -> AppSettings {
         local_stt_card_dismissed: false,
         local_model_download_wanted: false,
         switch_to_local_when_ready: false,
+        cleanup_short_dictations: false,
     }
 }
 

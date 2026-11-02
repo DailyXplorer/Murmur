@@ -1,4 +1,5 @@
 use crate::audio_toolkit::gain::{normalize_quiet_speech, GainProfile};
+use crate::audio_toolkit::text_passes::{self, PassLanguage};
 use crate::audio_toolkit::{apply_custom_words_counted, normalize_transcription_output};
 use crate::codex_transcribe;
 use crate::engine::local::boost::boost_terms;
@@ -20,6 +21,8 @@ pub struct Transcript {
     pub text: String,
     pub dictionary_fixes: u32,
     pub source: EngineUsed,
+    /// The language the text passes ran in, if they ran.
+    pub pass_language: Option<PassLanguage>,
 }
 
 /// Transcribes `audio` with `engine`. `language` is the dictation setting.
@@ -219,6 +222,11 @@ impl TranscriptionManager {
             &settings.custom_words,
             settings.word_correction_threshold,
         );
+        let pass_language = text_passes::detect(&settings.selected_language, &processed);
+        let processed = match pass_language {
+            Some(language) => text_passes::before_cleanup(&processed, language),
+            None => processed,
+        };
 
         info!(
             "The {} engine produced {} characters",
@@ -229,6 +237,7 @@ impl TranscriptionManager {
             text: processed,
             dictionary_fixes,
             source,
+            pass_language,
         })
     }
 

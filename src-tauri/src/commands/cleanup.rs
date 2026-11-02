@@ -29,3 +29,12 @@ pub fn change_window_names_setting(app: AppHandle, enabled: bool) -> Result<(), 
 pub fn change_whisper_mode_setting(app: AppHandle, enabled: bool) -> Result<(), String> {
     update(&app, |value| value.whisper_mode = enabled)
 }
+
+#[tauri::command]
+#[specta::specta]
+pub fn change_cleanup_short_dictations_setting(
+    app: AppHandle,
+    enabled: bool,
+) -> Result<(), String> {
+    update(&app, |value| value.cleanup_short_dictations = enabled)
+}

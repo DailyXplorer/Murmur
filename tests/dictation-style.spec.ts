@@ -112,3 +112,59 @@ test.describe("the dictation style in Settings", () => {
     ]);
   });
 });
+
+const shortToggle = (page: Page) =>
+  page.getByRole("checkbox", { name: "Also clean up short dictations" });
+
+test.describe("cleaning up short dictations", () => {
+  test("is off by default, under AI cleanup, and saves when turned on", async ({
+    page,
+  }) => {
+    await openTranscription(page);
+    await expect(shortToggle(page)).not.toBeChecked();
+    await expect(shortToggle(page)).toBeEnabled();
+    const cleanup = await page
+      .getByRole("checkbox", { name: "Cleanup and formatting" })
+      .boundingBox();
+    const toggle = await shortToggle(page).boundingBox();
+    expect(toggle!.y, "below AI cleanup").toBeGreaterThan(cleanup!.y);
+    await expect(
+      page.getByRole("button", {
+        name: "Dictations under 20 words are pasted right away, without AI cleanup.",
+        exact: true,
+      }),
+    ).toBeVisible();
+
+    await shortToggle(page).check({ force: true });
+    await expect(shortToggle(page)).toBeChecked();
+    expect(
+      await page.evaluate(() =>
+        window.settingsPages.calls
+          .filter(
+            (call) =>
+              call.command === "change_cleanup_short_dictations_setting",
+          )
+          .map((call) => call.args),
+      ),
+    ).toEqual([{ enabled: true }]);
+  });
+
+  test("waits for AI cleanup", async ({ page }) => {
+    await openTranscription(page, "cleanup=off");
+    await expect(shortToggle(page)).toBeDisabled();
+  });
+
+  const outputDir = process.env.MURMUR_SCREENSHOT_DIR;
+  for (const theme of ["light", "dark"] as const) {
+    test(`screenshot (${theme})`, async ({ page }) => {
+      test.skip(!outputDir, "Set MURMUR_SCREENSHOT_DIR to capture screenshots");
+      await page.emulateMedia({ colorScheme: theme });
+      await openTranscription(page, `theme=${theme}`);
+      await shortToggle(page).scrollIntoViewIfNeeded();
+      await page.waitForTimeout(500);
+      await page.screenshot({
+        path: `${outputDir}/ai-cleanup-section-${theme}.png`,
+      });
+    });
+  }
+});
