@@ -10,6 +10,7 @@ import {
   openCallPrompt,
   openOverlay,
   ORB_WINDOW,
+  widthsAfter,
 } from "./overlayHarness";
 
 const LOUD = Array(16).fill(0.9);
@@ -212,6 +213,22 @@ test("an error replaces the orb with the message", async ({ page }) => {
   await expect(page.getByRole("alert")).toHaveText("Couldn't reach Codex.");
   await expect(page.getByRole("alert")).toBeVisible();
   await expect(page.locator(".ov-orb")).toHaveCount(0);
+});
+
+test("an error opens from the orb to its message", async ({ page }) => {
+  await page.setViewportSize(ERROR_WINDOW);
+  await openOverlay(page);
+  await page.evaluate(() => document.fonts.ready);
+  await dispatch(page, "show-overlay", "transcribing");
+
+  const widths = await widthsAfter(
+    page,
+    "show-overlay-error",
+    "Transcription failed. Retry from History.",
+    ".ov-error",
+  );
+  expect(widths[0], "width starts at the orb").toBeLessThanOrEqual(40);
+  expect(widths[widths.length - 1], "width ends fitted").toBeGreaterThan(200);
 });
 
 for (const { locale, messages } of errorStringsByLocale) {
@@ -568,6 +585,7 @@ test("reduced motion shows a still orb that ignores the voice", async ({
 
   await dispatch(page, "show-overlay", "transcribing");
   await expect(page.locator(".ov-capsule")).toHaveClass(/processing/);
+  await expect(page.locator(".ov-orb-arc"), "no frozen arc").toHaveCount(0);
   expect(await page.evaluate(() => document.getAnimations().length)).toBe(0);
 });
 
@@ -704,6 +722,29 @@ test("a dictation, its error or the meeting pill never hide the call prompt", as
   await expect(prompt).toBeVisible();
   await prompt.getByRole("button", { name: "Record", exact: true }).click();
   expect(await callAnswers(page)).toEqual([true]);
+});
+
+test("a call prompt opens from the orb, and again when the call ends", async ({
+  page,
+}) => {
+  await openCallPrompt(page);
+  await page.evaluate(() => document.fonts.ready);
+  for (const labels of [callLabels(englishTray), endedLabels(englishTray)]) {
+    const widths = await widthsAfter(
+      page,
+      "show-overlay-call",
+      labels,
+      ".ov-call",
+    );
+    expect(
+      widths[0],
+      `${labels.kind}: width starts at the orb`,
+    ).toBeLessThanOrEqual(40);
+    expect(
+      widths[widths.length - 1],
+      `${labels.kind}: width ends fitted`,
+    ).toBeGreaterThan(250);
+  }
 });
 
 test("a call prompt shown before the page listened still appears", async ({

@@ -6,6 +6,7 @@ import {
   entranceFinished,
   fitCopyWindow,
   openOverlay,
+  widthsAfter,
 } from "./overlayHarness";
 
 const localesDir = fileURLToPath(
@@ -120,6 +121,25 @@ test("the warning pill opens from the orb to its text", async ({ page }) => {
   );
 
   expect(widths.length, "the pill showed").toBeGreaterThan(10);
+  expect(widths[0], "width starts at the orb").toBeLessThanOrEqual(40);
+  expect(widths[widths.length - 1], "width ends fitted").toBeGreaterThan(250);
+});
+
+test("the warning that follows the copy pill opens from the orb again", async ({
+  page,
+}) => {
+  await openOverlay(page);
+  await page.evaluate(() => document.fonts.ready);
+  await dispatch(page, "show-overlay-copy", COPY);
+  await expect(page.getByRole("button", { name: "Copy" })).toBeVisible();
+  await entranceFinished(page);
+
+  const widths = await widthsAfter(
+    page,
+    "show-overlay-warning",
+    WARNING,
+    ".ov-warning",
+  );
   expect(widths[0], "width starts at the orb").toBeLessThanOrEqual(40);
   expect(widths[widths.length - 1], "width ends fitted").toBeGreaterThan(250);
 });

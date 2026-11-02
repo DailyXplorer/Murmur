@@ -7,6 +7,7 @@ import React, {
   useState,
 } from "react";
 import "./RecordingOverlay.css";
+import { openFromOrb } from "./openFromOrb";
 import { commands, type CallPromptLabels } from "@/bindings";
 
 // The window renders no text until its first message, so without this the
@@ -20,6 +21,7 @@ void document.fonts
 const CallPromptOverlay: React.FC = () => {
   const [labels, setLabels] = useState<CallPromptLabels | null>(null);
   const bodyRef = useRef<HTMLSpanElement>(null);
+  const capsuleRef = useRef<HTMLDivElement>(null);
   const id = useId();
 
   useEffect(() => {
@@ -77,6 +79,16 @@ const CallPromptOverlay: React.FC = () => {
     return () => observer.disconnect();
   }, [labels]);
 
+  // Opens from the orb each time the prompt appears.
+  const showing = labels !== null;
+  useLayoutEffect(() => {
+    const capsule = capsuleRef.current;
+    if (!showing || !capsule) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const growth = openFromOrb(capsule);
+    return () => growth.cancel();
+  }, [showing]);
+
   if (!labels) return null;
 
   const answer = (accept: boolean) => {
@@ -88,6 +100,7 @@ const CallPromptOverlay: React.FC = () => {
   return (
     <div className={`ov-stage ${labels.position}`}>
       <div
+        ref={capsuleRef}
         role="alertdialog"
         dir="auto"
         className="ov-capsule ov-call"

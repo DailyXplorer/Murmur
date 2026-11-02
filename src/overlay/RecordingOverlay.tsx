@@ -13,6 +13,7 @@ import React, {
 import "./RecordingOverlay.css";
 import { commands } from "@/bindings";
 import { CAP_WARNING_MS, formatDuration } from "@/lib/meetings/format";
+import { openFromOrb } from "./openFromOrb";
 import {
   approach,
   ORB_RADIUS,
@@ -124,6 +125,10 @@ const RecordingOverlay: React.FC = () => {
   );
   const levelsRef = useRef<number[]>([]);
   const ringRef = useRef<SVGPathElement>(null);
+  const pillRef = useRef<HTMLElement | null>(null);
+  const setPill = (pill: HTMLElement | null) => {
+    pillRef.current = pill;
+  };
   const noticeBodyRef = useRef<HTMLSpanElement>(null);
   const noticeId = useId();
 
@@ -251,7 +256,6 @@ const RecordingOverlay: React.FC = () => {
     view.kind === "copy" || view.kind === "warning" || view.kind === "cancelled"
       ? view
       : null;
-  const pillShowing = fittedView !== null;
   useLayoutEffect(() => {
     const body = noticeBodyRef.current;
     if (!fittedView || !body) return;
@@ -268,26 +272,16 @@ const RecordingOverlay: React.FC = () => {
     return () => observer.disconnect();
   }, [fittedView]);
 
-  // The pill opens as the orb's circle and grows to fit its body. CSS cannot
-  // transition to an auto size, so the fitted size is measured before the
-  // first paint and the growth runs towards it. The body keeps its own size
-  // and is clipped meanwhile, so the note never rewraps as the pill grows.
+  // Each pill opens from the orb, again when another kind replaces it (the
+  // microphone warning after the copy pill), not when Copy turns to Copied.
+  const pillKind =
+    fittedView?.kind ?? (view.kind === "error" ? view.kind : null);
   useLayoutEffect(() => {
-    const pill = noticeBodyRef.current?.parentElement;
-    if (!pillShowing || !pill || reducedMotion) return;
-    const style = getComputedStyle(pill);
-    const growth = pill.animate(
-      [
-        {
-          width: style.getPropertyValue("--ov-orb"),
-          height: style.getPropertyValue("--ov-orb"),
-        },
-        { width: `${pill.offsetWidth}px`, height: `${pill.offsetHeight}px` },
-      ],
-      { duration: 420, easing: "cubic-bezier(0.22, 1, 0.36, 1)" },
-    );
+    const pill = pillRef.current;
+    if (!pillKind || !pill || reducedMotion) return;
+    const growth = openFromOrb(pill);
     return () => growth.cancel();
-  }, [pillShowing, reducedMotion]);
+  }, [pillKind, reducedMotion]);
 
   if (view.kind === "hidden") return null;
 
@@ -320,6 +314,7 @@ const RecordingOverlay: React.FC = () => {
     return (
       <div className={`ov-stage ${position}`}>
         <button
+          ref={setPill}
           type="button"
           dir="auto"
           className={`ov-capsule ov-copy${view.copied ? " copied" : ""}`}
@@ -358,6 +353,7 @@ const RecordingOverlay: React.FC = () => {
     return (
       <div className={`ov-stage ${position}`}>
         <button
+          ref={setPill}
           type="button"
           dir="auto"
           className="ov-capsule ov-copy"
@@ -389,7 +385,12 @@ const RecordingOverlay: React.FC = () => {
   if (view.kind === "warning") {
     return (
       <div className={`ov-stage ${position}`}>
-        <div className="ov-capsule ov-warning" role="status" dir="auto">
+        <div
+          ref={setPill}
+          className="ov-capsule ov-warning"
+          role="status"
+          dir="auto"
+        >
           <span ref={noticeBodyRef} className="ov-copy-body">
             <Glyph kind="off" />
             <span className="ov-copy-note ov-copy-warning">{view.message}</span>
@@ -402,10 +403,12 @@ const RecordingOverlay: React.FC = () => {
   if (view.kind === "error") {
     return (
       <div className={`ov-stage ${position}`}>
-        <div className="ov-capsule ov-error" role="alert">
-          <Glyph kind="alert" />
-          <span className="ov-error-text" dir="auto">
-            {view.message}
+        <div ref={setPill} className="ov-capsule ov-error" role="alert">
+          <span className="ov-error-body">
+            <Glyph kind="alert" />
+            <span className="ov-error-text" dir="auto">
+              {view.message}
+            </span>
           </span>
         </div>
       </div>
@@ -424,7 +427,7 @@ const RecordingOverlay: React.FC = () => {
           aria-hidden="true"
         >
           <path ref={ringRef} className="ov-orb-ring" d={RESTING_PATH} />
-          {phase === "processing" && (
+          {phase === "processing" && !reducedMotion && (
             <circle
               className="ov-orb-arc"
               cx={ORB_SIZE / 2}

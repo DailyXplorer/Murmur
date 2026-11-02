@@ -496,8 +496,8 @@ async fn wait_or_cancel(delay: Duration, operation: &ProcessingOperation) -> boo
     }
 }
 
-/// `mic_lost` puts the microphone warning on the copy pill, when one is
-/// offered.
+/// With `mic_lost`, the microphone warning follows the copy pill, when one
+/// is offered.
 pub(crate) async fn paste(
     text: String,
     app_handle: AppHandle,

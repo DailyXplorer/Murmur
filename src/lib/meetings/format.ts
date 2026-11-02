@@ -28,5 +28,5 @@ export const formatSize = (bytes: number, locale: string): string => {
   }).format(kilobytes < 1_000 ? kilobytes : bytes / 1_000_000);
 };
 
-/** The meeting pill turns amber this long before the 3-hour cap. */
+/** The meeting pill's time turns red this long before the 3-hour cap. */
 export const CAP_WARNING_MS = 5 * 60 * 1000;
