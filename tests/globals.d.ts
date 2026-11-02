@@ -36,8 +36,8 @@ declare global {
       /** Capsule sizes the copy pill or the call prompt asked its window to
        * fit, oldest first. */
       copyFits(): Array<{ width: number; height: number }>;
-      /** The call prompt's answers, "Record" as true, oldest first. */
-      callAnswers(): boolean[];
+      /** The call prompt's answers, oldest first. */
+      callAnswers(): string[];
     };
   }
 }

@@ -1,8 +1,9 @@
-//! Which calls are on, from the apps holding the microphone, and when to
-//! offer to record one. Pure: `call_watch.rs` polls the system and shows
-//! what this decides. Nothing here starts or stops a meeting.
+//! Which calls are on, from the apps holding the microphone, when to offer
+//! to record one, and when to offer to stop a meeting whose call ended.
+//! Pure: `call_watch.rs` polls the system and shows what this decides.
+//! Nothing here starts or stops a meeting.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::time::{Duration, Instant};
 
 /// How long an app holds the microphone before the prompt: a device check
@@ -15,6 +16,10 @@ pub const ENDED_AFTER: Duration = Duration::from_secs(15);
 /// Off this long, the call is over: the app's next use of the microphone is
 /// a new call, which "Not now" no longer mutes.
 pub const CALL_OVER_AFTER: Duration = Duration::from_secs(30);
+/// Off the microphone this long while a meeting records, the call recorded
+/// has ended: Murmur offers to stop. Coming back hides the offer, so a mute
+/// that drops the microphone costs a prompt, never a recording.
+pub const ENDED_PROMPT_AFTER: Duration = Duration::from_secs(3);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum CallApp {
@@ -304,10 +309,40 @@ pub struct Snapshot {
     pub now: Instant,
 }
 
+/// What the call prompt asks.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, specta::Type)]
+#[serde(rename_all = "snake_case")]
+pub enum PromptKind {
+    /// "Record this meeting?", for a call while no meeting records.
+    Start,
+    /// "{{app}} left the call", while the meeting recording it goes on.
+    Ended,
+}
+
+/// The call prompt's buttons.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize, specta::Type)]
+#[serde(rename_all = "snake_case")]
+pub enum CallAnswer {
+    Record,
+    NotNow,
+    StopAndTranscribe,
+    KeepRecording,
+}
+
+impl CallAnswer {
+    /// The prompt this answers. An answer to another prompt than the one
+    /// showing does nothing.
+    pub fn kind(self) -> PromptKind {
+        match self {
+            Self::Record | Self::NotNow => PromptKind::Start,
+            Self::StopAndTranscribe | Self::KeepRecording => PromptKind::Ended,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Action {
-    /// "Record this meeting?"
-    Prompt(CallApp),
+    Prompt(PromptKind, CallApp),
     /// Hide the prompt showing.
     Hide,
 }
@@ -326,9 +361,13 @@ struct Call {
 #[derive(Debug, Default)]
 pub struct CallWatch {
     calls: BTreeMap<CallApp, Call>,
-    /// The call the prompt showing asks about. It stays until it is
-    /// answered, a meeting records, or that call ends.
-    showing: Option<CallApp>,
+    /// The prompt showing and its call. "Record" stays until it is
+    /// answered, a meeting records, or that call ends; "left the call" until
+    /// it is answered, the meeting stops, or the call comes back.
+    showing: Option<(PromptKind, CallApp)>,
+    /// The calls that held the microphone `PROMPT_AFTER` while the meeting
+    /// recorded, since it started or since "Keep recording".
+    in_meeting: BTreeSet<CallApp>,
 }
 
 impl CallWatch {
@@ -347,7 +386,7 @@ impl CallWatch {
                 .is_none_or(|off| now.duration_since(off) < CALL_OVER_AFTER)
         });
         for &app in &snapshot.calls {
-            let showing = self.showing == Some(app);
+            let showing = self.showing == Some((PromptKind::Start, app));
             let call = self.calls.entry(app).or_insert(Call {
                 on_since: now,
                 off_since: None,
@@ -358,20 +397,42 @@ impl CallWatch {
             }
             call.asked |= snapshot.recording;
         }
-
-        if let Some(app) = self.showing {
-            let ended = self.calls.get(&app).is_none_or(|call| {
-                call.off_since
-                    .is_some_and(|off| now.duration_since(off) >= ENDED_AFTER)
+        if snapshot.recording {
+            let held = self.calls.iter().filter(|(_, call)| {
+                call.off_since.is_none() && now.duration_since(call.on_since) >= PROMPT_AFTER
             });
-            if !snapshot.recording && !ended {
+            self.in_meeting.extend(held.map(|(&app, _)| app));
+        } else {
+            self.in_meeting.clear();
+        }
+
+        if let Some((kind, app)) = self.showing {
+            let stays = match kind {
+                PromptKind::Start => {
+                    let ended = self.calls.get(&app).is_none_or(|call| {
+                        call.off_since
+                            .is_some_and(|off| now.duration_since(off) >= ENDED_AFTER)
+                    });
+                    !snapshot.recording && !ended
+                }
+                PromptKind::Ended => {
+                    let back = self
+                        .in_meeting
+                        .iter()
+                        .any(|app| snapshot.calls.contains(app));
+                    snapshot.recording && !back
+                }
+            };
+            if stays {
                 return None;
             }
             self.showing = None;
             return Some(Action::Hide);
         }
         if snapshot.recording {
-            return None;
+            let app = self.call_ended(now)?;
+            self.showing = Some((PromptKind::Ended, app));
+            return Some(Action::Prompt(PromptKind::Ended, app));
         }
         let (&app, call) = self.calls.iter_mut().find(|(_, call)| {
             !call.asked
@@ -379,14 +440,38 @@ impl CallWatch {
                 && now.duration_since(call.on_since) >= PROMPT_AFTER
         })?;
         call.asked = true;
-        self.showing = Some(app);
-        Some(Action::Prompt(app))
+        self.showing = Some((PromptKind::Start, app));
+        Some(Action::Prompt(PromptKind::Start, app))
     }
 
-    /// The prompt was answered: it hides. Returns its call, or `None` when
-    /// no prompt shows any more.
-    pub fn answered(&mut self) -> Option<CallApp> {
-        self.showing.take()
+    /// The call that left last, once every call of the meeting has been off
+    /// the microphone `ENDED_PROMPT_AFTER`. A call gone from `calls` left
+    /// before any still there.
+    fn call_ended(&self, now: Instant) -> Option<CallApp> {
+        let off_since = |app: &CallApp| self.calls.get(app).and_then(|call| call.off_since);
+        let all_left = self.in_meeting.iter().all(|app| {
+            off_since(app).is_some_and(|off| now.duration_since(off) >= ENDED_PROMPT_AFTER)
+                || !self.calls.contains_key(app)
+        });
+        if !all_left {
+            return None;
+        }
+        self.in_meeting.iter().copied().max_by_key(off_since)
+    }
+
+    /// The prompt `kind` was answered: it hides. Returns its call, or `None`
+    /// when no such prompt shows any more. "Keep recording" forgets the
+    /// calls that left: only a call back on the microphone asks again.
+    pub fn answered(&mut self, kind: PromptKind) -> Option<CallApp> {
+        let (showing, app) = self.showing?;
+        if showing != kind {
+            return None;
+        }
+        self.showing = None;
+        if kind == PromptKind::Ended {
+            self.in_meeting.clear();
+        }
+        Some(app)
     }
 }
 
@@ -464,10 +549,10 @@ mod tests {
         assert_eq!(clock.run(3, ZOOM, false), []);
         assert_eq!(
             clock.run(1, ZOOM, false),
-            [(3, Action::Prompt(CallApp::Zoom))]
+            [(3, Action::Prompt(PromptKind::Start, CallApp::Zoom))]
         );
         assert_eq!(clock.run(10, ZOOM, false), []);
-        assert_eq!(clock.watch.answered(), Some(CallApp::Zoom));
+        assert_eq!(clock.watch.answered(PromptKind::Start), Some(CallApp::Zoom));
         assert_eq!(clock.run(60, ZOOM, false), []);
     }
 
@@ -483,7 +568,7 @@ mod tests {
         let mut clock = Clock::new();
         assert_eq!(
             clock.run(600, ZOOM, false),
-            [(3, Action::Prompt(CallApp::Zoom))]
+            [(3, Action::Prompt(PromptKind::Start, CallApp::Zoom))]
         );
     }
 
@@ -510,20 +595,90 @@ mod tests {
         clock.run(1, &[], false);
         clock.second += 60;
         assert_eq!(clock.run(5, ZOOM, false), []);
-        assert_eq!(clock.watch.answered(), Some(CallApp::Zoom));
+        assert_eq!(clock.watch.answered(PromptKind::Start), Some(CallApp::Zoom));
         assert_eq!(clock.run(20, ZOOM, false), []);
     }
 
+    const ENDED_ZOOM: Action = Action::Prompt(PromptKind::Ended, CallApp::Zoom);
+
     #[test]
-    fn a_recorded_call_that_ends_asks_nothing() {
+    fn ended_prompt_after_call_leaves_mic_while_recording() {
         let mut clock = Clock::new();
         assert_eq!(clock.run(30, ZOOM, true), []);
-        assert_eq!(clock.run(120, &[], true), []);
+        assert_eq!(clock.run(3, &[], true), []);
+        assert_eq!(clock.run(1, &[], true), [(33, ENDED_ZOOM)]);
+        assert_eq!(clock.run(600, &[], true), [], "it never goes on its own");
+        assert_eq!(clock.watch.answered(PromptKind::Ended), Some(CallApp::Zoom));
+        assert_eq!(clock.run(5, &[], false), []);
 
+        // Recorded from the "Record" prompt.
         let mut clock = Clock::new();
         clock.run(4, ZOOM, false);
-        assert_eq!(clock.run(60, ZOOM, true), [(4, Action::Hide)]);
-        assert_eq!(clock.run(120, &[], true), []);
+        assert_eq!(clock.watch.answered(PromptKind::Start), Some(CallApp::Zoom));
+        assert_eq!(clock.run(60, ZOOM, true), []);
+        assert_eq!(clock.run(4, &[], true), [(67, ENDED_ZOOM)]);
+    }
+
+    #[test]
+    fn ended_prompt_hides_when_the_meeting_stops() {
+        let mut clock = Clock::new();
+        clock.run(10, ZOOM, true);
+        assert_eq!(clock.run(4, &[], true), [(13, ENDED_ZOOM)]);
+        assert_eq!(clock.run(1, &[], false), [(14, Action::Hide)]);
+        assert_eq!(clock.watch.answered(PromptKind::Ended), None);
+        assert_eq!(clock.run(60, &[], false), []);
+    }
+
+    #[test]
+    fn no_ended_prompt_for_manual_meeting_without_call() {
+        let mut clock = Clock::new();
+        assert_eq!(clock.run(600, &[], true), []);
+        clock.run(2, ZOOM, true);
+        assert_eq!(clock.run(60, &[], true), [], "shorter than a call");
+    }
+
+    #[test]
+    fn ended_prompt_hides_when_app_returns() {
+        let mut clock = Clock::new();
+        clock.run(10, ZOOM, true);
+        assert_eq!(clock.run(4, &[], true), [(13, ENDED_ZOOM)]);
+        assert_eq!(clock.run(1, ZOOM, true), [(14, Action::Hide)]);
+        assert_eq!(clock.run(30, ZOOM, true), []);
+        assert_eq!(clock.run(4, &[], true), [(48, ENDED_ZOOM)]);
+    }
+
+    #[test]
+    fn keep_recording_is_not_asked_again() {
+        let mut clock = Clock::new();
+        clock.run(10, ZOOM, true);
+        clock.run(4, &[], true);
+        assert_eq!(clock.watch.answered(PromptKind::Ended), Some(CallApp::Zoom));
+        assert_eq!(clock.run(600, &[], true), []);
+        clock.run(1, ZOOM, true);
+        assert_eq!(clock.run(10, &[], true), [], "a blip is no call");
+
+        clock.run(5, ZOOM, true);
+        assert_eq!(clock.run(4, &[], true), [(633, ENDED_ZOOM)]);
+    }
+
+    #[test]
+    fn an_answer_to_another_prompt_does_nothing() {
+        let mut clock = Clock::new();
+        clock.run(10, ZOOM, true);
+        clock.run(4, &[], true);
+        assert_eq!(clock.watch.answered(PromptKind::Start), None);
+        assert_eq!(clock.watch.answered(PromptKind::Ended), Some(CallApp::Zoom));
+    }
+
+    #[test]
+    fn ended_prompt_waits_for_all_call_apps() {
+        let mut clock = Clock::new();
+        clock.run(10, &[CallApp::Zoom, CallApp::Slack], true);
+        assert_eq!(clock.run(60, &[CallApp::Slack], true), []);
+        assert_eq!(
+            clock.run(4, &[], true),
+            [(73, Action::Prompt(PromptKind::Ended, CallApp::Slack))]
+        );
     }
 
     #[test]
@@ -544,13 +699,13 @@ mod tests {
     fn not_now_mutes_the_app_until_it_leaves_the_microphone_for_30_seconds() {
         let mut clock = Clock::new();
         clock.run(4, ZOOM, false);
-        assert_eq!(clock.watch.answered(), Some(CallApp::Zoom));
+        assert_eq!(clock.watch.answered(PromptKind::Start), Some(CallApp::Zoom));
         clock.run(29, &[], false);
         assert_eq!(clock.run(20, ZOOM, false), []);
         clock.run(31, &[], false);
         assert_eq!(
             clock.run(4, ZOOM, false),
-            [(87, Action::Prompt(CallApp::Zoom))]
+            [(87, Action::Prompt(PromptKind::Start, CallApp::Zoom))]
         );
     }
 
@@ -559,7 +714,7 @@ mod tests {
         let mut clock = Clock::new();
         clock.run(4, ZOOM, false);
         assert_eq!(clock.run(1, ZOOM, true), [(4, Action::Hide)]);
-        assert_eq!(clock.watch.answered(), None);
+        assert_eq!(clock.watch.answered(PromptKind::Start), None);
     }
 
     #[test]
@@ -595,7 +750,7 @@ mod tests {
         let mut clock = Clock::new();
         assert_eq!(
             clock.run_mic(4, &chrome(), MEET, false),
-            [(3, Action::Prompt(CallApp::GoogleMeet))]
+            [(3, Action::Prompt(PromptKind::Start, CallApp::GoogleMeet))]
         );
         assert_eq!(clock.run_mic(30, &chrome(), None, false), []);
         assert_eq!(clock.run_mic(16, &[], None, false), [(49, Action::Hide)]);
@@ -605,7 +760,10 @@ mod tests {
     fn not_now_holds_while_the_meet_call_is_behind_another_tab() {
         let mut clock = Clock::new();
         clock.run_mic(4, &chrome(), MEET, false);
-        assert_eq!(clock.watch.answered(), Some(CallApp::GoogleMeet));
+        assert_eq!(
+            clock.watch.answered(PromptKind::Start),
+            Some(CallApp::GoogleMeet)
+        );
         assert_eq!(clock.run_mic(40, &chrome(), None, false), []);
         assert_eq!(clock.run_mic(10, &chrome(), MEET, false), []);
     }
@@ -614,12 +772,12 @@ mod tests {
     fn a_browser_off_the_microphone_leaves_its_call() {
         let mut clock = Clock::new();
         clock.run_mic(4, &chrome(), MEET, false);
-        clock.watch.answered();
+        clock.watch.answered(PromptKind::Start);
         clock.run_mic(31, &[], None, false);
         assert_eq!(clock.run_mic(10, &chrome(), None, false), []);
         assert_eq!(
             clock.run_mic(4, &chrome(), MEET, false),
-            [(48, Action::Prompt(CallApp::GoogleMeet))]
+            [(48, Action::Prompt(PromptKind::Start, CallApp::GoogleMeet))]
         );
     }
 

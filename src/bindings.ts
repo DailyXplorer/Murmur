@@ -1011,10 +1011,10 @@ async changeMeetingCallPromptSetting(enabled: boolean) : Promise<Result<null, st
 }
 },
 /**
- * The call prompt's buttons: "Record" when `accept`, else "Not now".
+ * The call prompt's buttons.
  */
-async answerCallPrompt(accept: boolean) : Promise<void> {
-    await TAURI_INVOKE("answer_call_prompt", { accept });
+async answerCallPrompt(answer: CallAnswer) : Promise<void> {
+    await TAURI_INVOKE("answer_call_prompt", { answer });
 },
 /**
  * Fits the call prompt's window to the capsule the webview measured, as
@@ -1165,13 +1165,21 @@ export type AudioState =
 export type AutoSubmitKey = "enter" | "ctrl_enter" | "cmd_enter"
 export type BindingResponse = { success: boolean; binding: ShortcutBinding | null; error: string | null }
 /**
+ * The call prompt's buttons.
+ */
+export type CallAnswer = "record" | "not_now" | "stop_and_transcribe" | "keep_recording"
+/**
  * Payload of `show-overlay-call`, and what `get_call_prompt` answers.
  */
 export type CallPromptLabels = { 
 /**
  * The call app's name.
  */
-app: string; question: string; accept: string; decline: string; 
+app: string; 
+/**
+ * Which answers the buttons send.
+ */
+kind: PromptKind; question: string; accept: string; decline: string; 
 /**
  * The overlay's side of the screen, which the prompt sits on too.
  */
@@ -1496,6 +1504,18 @@ export type ProcessingError =
  * Processing stopped on an unexpected error.
  */
 "other"
+/**
+ * What the call prompt asks.
+ */
+export type PromptKind = 
+/**
+ * "Record this meeting?", for a call while no meeting records.
+ */
+"start" | 
+/**
+ * "{{app}} left the call", while the meeting recording it goes on.
+ */
+"ended"
 export type RecordingRetentionPeriod = "never" | "preserve_limit" | "days_3" | "weeks_2" | "months_3"
 /**
  * What the settings page shows, as it reports it.
