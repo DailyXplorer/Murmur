@@ -797,21 +797,18 @@ pub fn hide_call_prompt(app_handle: &AppHandle) {
         // left on, the window would be freed twice.
         #[cfg(target_os = "macos")]
         let window = match handle.get_webview_panel(CALL_PROMPT_WINDOW) {
-            Ok(panel) => panel.to_window(),
+            Ok(panel) => {
+                panel.hide();
+                let window = panel.to_window();
+                panel.set_released_when_closed(false);
+                window
+            }
+            // Already handed back by an earlier hide, its destroy pending.
             Err(_) => handle.get_webview_window(CALL_PROMPT_WINDOW),
         };
         #[cfg(not(target_os = "macos"))]
         let window = handle.get_webview_window(CALL_PROMPT_WINDOW);
         if let Some(window) = window {
-            #[cfg(target_os = "macos")]
-            if let Ok(ns_window) = window.ns_window() {
-                // SAFETY: on the main thread, a live NSWindow of this window;
-                // tao keeps it retained until the destroy below.
-                unsafe {
-                    let ns_window = &*(ns_window as *const objc2_app_kit::NSWindow);
-                    ns_window.setReleasedWhenClosed(false);
-                }
-            }
             let _ = window.hide();
             if let Err(e) = window.destroy() {
                 log::error!("Failed to destroy the call prompt panel: {}", e);
