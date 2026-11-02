@@ -1249,6 +1249,10 @@ export type FallbackReason =
  */
 "model_not_ready" | 
 /**
+ * Local chosen: the model was being compiled for a new macOS version.
+ */
+"local_preparing" | 
+/**
  * Local chosen: the local run failed.
  */
 "local_failed" | 
@@ -1314,7 +1318,12 @@ export type LocalModelState =
  * Checking models an earlier version downloaded, or loading new ones
  * once so they are compiled for this Mac.
  */
-{ state: "preparing" } | { state: "ready" } | { state: "failed"; reason: DownloadFailure }
+{ state: "preparing" } | { state: "ready" } | 
+/**
+ * Ready models Core ML compiles again, in the background, for the
+ * macOS version this Mac now runs.
+ */
+{ state: "optimizing" } | { state: "failed"; reason: DownloadFailure }
 export type LocalModelStatus = { state: LocalModelState; 
 /**
  * What the download takes on this Mac.

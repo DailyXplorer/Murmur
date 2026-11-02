@@ -96,6 +96,7 @@ fn runtime(models: &Path, scratch: &Path) -> Box<dyn Runtime> {
         helper(),
         models.to_path_buf(),
         scratch.to_path_buf(),
+        tokio::sync::watch::channel(LocalModelState::Ready).1,
     ))
 }
 
