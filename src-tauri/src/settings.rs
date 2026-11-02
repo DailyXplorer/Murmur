@@ -1,5 +1,7 @@
+mod file;
 mod transaction;
 
+use crate::durable;
 use crate::engine::Engine;
 use chrono::{DateTime, Utc};
 use log::{debug, error, warn};
@@ -10,10 +12,9 @@ use std::collections::{HashMap, HashSet};
 use std::convert::Infallible;
 use std::fmt;
 use std::fs;
-use std::io::{self, Write};
+use std::io;
 use std::path::{Path, PathBuf};
-use tauri::AppHandle;
-use tauri_plugin_store::StoreExt;
+use tauri::{AppHandle, Manager};
 
 #[derive(Serialize, Debug, Clone, Copy, PartialEq, Eq, Type)]
 #[serde(rename_all = "lowercase")]
@@ -830,22 +831,54 @@ pub fn get_settings(app: &AppHandle) -> AppSettings {
 // Only called while SETTINGS_TRANSACTIONS is held. Loading can itself write
 // a repaired value; it must not race with a mutation.
 fn read_settings(app: &AppHandle) -> AppSettings {
-    let store = app
-        .store(SETTINGS_STORE_PATH)
-        .expect("Failed to initialize store");
+    read_from(&settings_file(app).expect("Failed to initialize store"))
+}
 
-    if let Some(settings_value) = store.get("settings") {
-        let (settings, updated) = parse_stored_settings(&settings_value);
-
-        if updated {
-            store.set("settings", serde_json::to_value(&settings).unwrap());
-        }
-
-        settings
-    } else {
+fn read_from(file: &file::SettingsFile) -> AppSettings {
+    let Some(settings_value) = file.get() else {
         let default_settings = get_default_settings();
-        store.set("settings", serde_json::to_value(&default_settings).unwrap());
-        default_settings
+        file.store(serde_json::to_value(&default_settings).unwrap());
+        return default_settings;
+    };
+    let (settings, updated) = parse_stored_settings(&settings_value);
+    if updated {
+        if serde_json::from_value::<AppSettings>(settings_value).is_err() {
+            match file.preserve_unreadable() {
+                Ok(Some(copy)) => warn!(
+                    "Kept the settings file as {} before dropping what this version cannot read",
+                    copy.file_name().unwrap_or_default().to_string_lossy()
+                ),
+                Ok(None) => {}
+                Err(error) => error!("Cannot keep a copy of the settings file: {error}"),
+            }
+        }
+        file.store(serde_json::to_value(&settings).unwrap());
+    }
+    settings
+}
+
+/// The settings file of this app, read on first use.
+fn settings_file(app: &AppHandle) -> Result<tauri::State<'_, file::SettingsFile>, String> {
+    if let Some(file) = app.try_state::<file::SettingsFile>() {
+        return Ok(file);
+    }
+    app.manage(file::SettingsFile::open(settings_path(app)?));
+    Ok(app.state::<file::SettingsFile>())
+}
+
+/// Where the store plugin of earlier versions kept it.
+fn settings_path(app: &AppHandle) -> Result<PathBuf, String> {
+    app.path()
+        .app_data_dir()
+        .map(|dir| dir.join(SETTINGS_STORE_PATH))
+        .map_err(|error| format!("Cannot locate the settings file: {error}"))
+}
+
+/// Returns once the changes saved in the background are on disk. The process
+/// is about to end, which would cut a pending write off.
+pub fn flush_pending_save(app: &AppHandle) {
+    if let Some(file) = app.try_state::<file::SettingsFile>() {
+        file.flush();
     }
 }
 
@@ -859,28 +892,26 @@ pub enum SettingsRecovery {
     Reset,
 }
 
-/// Checks the settings file before anything reads it. The store takes a
-/// file it cannot read for a first launch and saves the defaults over it,
-/// and its saves are not atomic: one cut short by a full disk or a power
-/// cut would reset every setting, and the default history limit would then
-/// delete all but 5 dictations. A damaged file is kept as
-/// `<name>.corrupt-<time>`, like a damaged database, and replaced.
+/// Checks the settings file before anything reads it. A file that cannot
+/// be read would otherwise read as a first launch and get the defaults
+/// saved over it: every setting reset, and the default history limit would
+/// then delete all but 5 dictations. Saves are atomic now, but a file an
+/// earlier version cut short, or a damaged disk, can still hold one. A
+/// damaged file is kept as `<name>.corrupt-<time>`, like a damaged
+/// database, and replaced.
 pub fn recover_damaged_store(app: &AppHandle) -> Option<SettingsRecovery> {
-    let path = match tauri_plugin_store::resolve_store_path(app, SETTINGS_STORE_PATH) {
+    let path = match settings_path(app) {
         Ok(path) => path,
         Err(error) => {
-            warn!("Cannot locate the settings file: {error}");
+            warn!("{error}");
             return None;
         }
     };
     let (recovery, settings) = check_store_file(&path, Utc::now())?;
     // This launch reads the replacement even when the disk refused it.
-    if let Err(error) = app
-        .store_builder(SETTINGS_STORE_PATH)
-        .default("settings", settings)
-        .build()
-    {
-        error!("Cannot open the settings store: {error}");
+    match settings_file(app) {
+        Ok(file) => file.set(Some(settings)),
+        Err(error) => error!("Cannot open the settings file: {error}"),
     }
     Some(recovery)
 }
@@ -895,7 +926,7 @@ fn check_store_file(
     let backup = with_suffix(path, "bak");
     match fs::read(path) {
         Ok(bytes) if stored_settings(&bytes).is_some() => {
-            if let Err(error) = write_atomically(&backup, &bytes) {
+            if let Err(error) = durable::write(&backup, &bytes) {
                 warn!("Cannot keep a copy of the settings: {error}");
             }
             return None;
@@ -923,7 +954,7 @@ fn check_store_file(
     }
     let bytes = serde_json::to_vec_pretty(&serde_json::json!({ "settings": settings }))
         .expect("settings serialize to JSON");
-    if let Err(error) = write_atomically(path, &bytes) {
+    if let Err(error) = durable::write(path, &bytes) {
         error!("Cannot replace the damaged settings file: {error}");
     }
     Some((recovery, settings))
@@ -942,22 +973,6 @@ fn with_suffix(path: &Path, suffix: &str) -> PathBuf {
     let mut name = path.as_os_str().to_owned();
     name.push(format!(".{suffix}"));
     PathBuf::from(name)
-}
-
-/// Writes a temporary file, then renames it over `path`, so a crash leaves
-/// the old file or the new one, never part of one.
-fn write_atomically(path: &Path, bytes: &[u8]) -> io::Result<()> {
-    let temporary = with_suffix(path, "tmp");
-    let result = (|| {
-        let mut file = fs::File::create(&temporary)?;
-        file.write_all(bytes)?;
-        file.sync_all()?;
-        fs::rename(&temporary, path)
-    })();
-    if result.is_err() {
-        let _ = fs::remove_file(&temporary);
-    }
-    result
 }
 
 /// Rebuilds settings from a store value that failed to deserialize as a whole.
@@ -1030,13 +1045,11 @@ pub fn update_settings<T>(app: &AppHandle, change: impl FnOnce(&mut AppSettings)
 
 fn store_settings(app: &AppHandle, mut settings: AppSettings) {
     normalize_settings(&mut settings);
-    let store = app
-        .store(SETTINGS_STORE_PATH)
-        .expect("Failed to initialize store");
+    let file = settings_file(app).expect("Failed to initialize store");
 
     let next = serde_json::to_value(&settings).expect("settings serialize to JSON");
-    if store.get("settings").as_ref() != Some(&next) {
-        store.set("settings", next);
+    if file.get().as_ref() != Some(&next) {
+        file.store(next);
     }
 }
 
@@ -1051,9 +1064,7 @@ pub fn update_settings_checked<T>(
     SETTINGS_TRANSACTIONS.update(
         || {
             // Report initialization failure rather than panicking on this path.
-            app.store(SETTINGS_STORE_PATH)
-                .map_err(|error| format!("Failed to initialize settings store: {error}"))?;
-            Ok(read_settings(app))
+            settings_file(app).map(|file| read_from(&file))
         },
         change,
         |settings| store_settings_checked(app, settings),
@@ -1062,22 +1073,10 @@ pub fn update_settings_checked<T>(
 
 fn store_settings_checked(app: &AppHandle, mut settings: AppSettings) -> Result<(), String> {
     normalize_settings(&mut settings);
-    let store = app
-        .store(SETTINGS_STORE_PATH)
-        .map_err(|error| format!("Failed to initialize settings store: {error}"))?;
+    let file = settings_file(app)?;
     let next = serde_json::to_value(&settings)
         .map_err(|error| format!("Failed to serialize settings: {error}"))?;
-    transaction::persist_checked(
-        next,
-        || store.get("settings"),
-        |value| match value {
-            Some(value) => store.set("settings", value),
-            None => {
-                store.delete("settings");
-            }
-        },
-        || store.save(),
-    )
+    file.store_checked(next)
 }
 
 pub fn get_history_limit(app: &AppHandle) -> usize {
@@ -1813,5 +1812,51 @@ mod tests {
         assert!(validate_custom_words(&[" two  spaces ".to_string()]).is_err());
         assert!(validate_custom_words(&["same".to_string(), "same".to_string()]).is_err());
         assert!(validate_custom_words(&["valid word".to_string()]).is_ok());
+    }
+
+    /// A field this version cannot read (say, written by a newer build) is
+    /// dropped, but the file as it was stays next to it, once per content.
+    #[test]
+    fn salvage_preserves_original_bytes_once() {
+        use sha2::{Digest, Sha256};
+        use std::os::unix::fs::PermissionsExt;
+
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join(SETTINGS_STORE_PATH);
+        let mut stored = default_settings_json();
+        stored["history_limit"] = serde_json::json!(MAX_HISTORY_LIMIT);
+        stored["overlay_position"] = serde_json::json!("from-a-newer-build");
+        let original =
+            serde_json::to_vec_pretty(&serde_json::json!({ "settings": stored })).unwrap();
+        let digest = Sha256::digest(&original);
+        let prefix: String = digest[..6].iter().map(|b| format!("{b:02x}")).collect();
+        let copy = dir
+            .path()
+            .join(format!("settings_store.json.unreadable-{prefix}"));
+        let copies = || {
+            std::fs::read_dir(dir.path())
+                .unwrap()
+                .filter(|entry| {
+                    let name = entry.as_ref().unwrap().file_name();
+                    name.to_string_lossy().contains(".unreadable-")
+                })
+                .count()
+        };
+
+        for _launch in 0..2 {
+            std::fs::write(&path, &original).unwrap();
+            let settings = read_from(&file::SettingsFile::open(path.clone()));
+            assert_eq!(settings.history_limit, MAX_HISTORY_LIMIT);
+            assert_eq!(settings.overlay_position, default_overlay_position());
+            assert_eq!(std::fs::read(&copy).unwrap(), original);
+            assert_eq!(copies(), 1);
+        }
+        let mode = std::fs::metadata(&copy).unwrap().permissions().mode() & 0o777;
+        assert_eq!(mode, 0o600);
+        assert!(settings_in(&path).overlay_position == default_overlay_position());
+
+        // The repaired file reads cleanly: nothing more to keep.
+        read_from(&file::SettingsFile::open(path.clone()));
+        assert_eq!(copies(), 1);
     }
 }
