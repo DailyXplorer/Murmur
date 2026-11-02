@@ -243,6 +243,7 @@ for (const { locale, messages } of errorStringsByLocale) {
       await dispatch(page, "show-overlay-error", message);
       const alert = page.getByRole("alert");
       await expect(alert).toHaveText(message);
+      await entranceFinished(page);
 
       const fit = await alert.evaluate((capsule) => {
         const text = capsule.querySelector(".ov-error-text")!;
@@ -735,6 +736,7 @@ test("a call prompt opens from the orb, and again when the call ends", async ({
       "show-overlay-call",
       labels,
       ".ov-call",
+      labels.question,
     );
     expect(
       widths[0],

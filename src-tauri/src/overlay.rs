@@ -621,16 +621,9 @@ pub fn show_mic_lost_notice(app_handle: &AppHandle, operation: &ProcessingOperat
 }
 
 /// Shows the microphone warning `held` holds, and lets the lock go once the
-/// pill is queued. With the overlay turned off since the copy pill it
-/// followed showed, the warning is dropped and the overlay hides.
-fn present_mic_lost_notice(app_handle: &AppHandle, mut held: MutexGuard<'static, Option<Notice>>) {
+/// pill is queued.
+fn present_mic_lost_notice(app_handle: &AppHandle, held: MutexGuard<'static, Option<Notice>>) {
     let settings = settings::get_settings(app_handle);
-    if settings.overlay_style == OverlayStyle::None {
-        *held = None;
-        drop(held);
-        hide_recording_overlay(app_handle);
-        return;
-    }
     let message = get_tray_translations(Some(settings.app_language)).overlay_mic_disconnected;
     let generation = OVERLAY_GENERATION.fetch_add(1, Ordering::SeqCst) + 1;
     let handle = app_handle.clone();
@@ -931,17 +924,24 @@ pub async fn copy_notice_again(app: AppHandle) -> Result<(), String> {
     receiver
         .await
         .map_err(|_| "The clipboard write did not run".to_string())??;
-    // Its own timer may have ended the pill meanwhile and shown the warning
-    // that follows it: that warning keeps its time.
+    // Its own timer may have ended the pill a moment before: the text is
+    // copied, but the warning that followed the pill keeps its time, with no
+    // "Copied".
     let generation = {
         let held = notice();
-        if !matches!(*held, Some(Notice::Copy { .. })) {
+        if !copy_pill_showing(&held) {
             return Ok(());
         }
         OVERLAY_GENERATION.fetch_add(1, Ordering::SeqCst) + 1
     };
     dismiss_notice_after(&app, generation, COPIED_DISPLAY_TIME, false);
     Ok(())
+}
+
+/// Whether the copy pill a Copy click came from still shows, so "Copied"
+/// may take its place.
+fn copy_pill_showing(notice: &Option<Notice>) -> bool {
+    matches!(notice, Some(Notice::Copy { .. }))
 }
 
 /// With `hover_holds`, the notice outlasts `delay` while the pointer is over
@@ -988,11 +988,13 @@ enum AfterDismissal {
 /// applies at `generation`, read under the notice lock: a timer the overlay
 /// moved past, such as the copy pill's after Escape showed the warning that
 /// follows it, or Escape with no fitted pill showing, leaves it alone and
-/// gives `None`.
+/// gives `None`. With the overlay turned off since the copy pill showed,
+/// nothing follows it.
 fn dismiss(
     notice: &mut Option<Notice>,
     dismissal: Dismissal,
     generation: u64,
+    style: OverlayStyle,
 ) -> Option<AfterDismissal> {
     let applies = match dismissal {
         Dismissal::Timer(started) => started == generation,
@@ -1001,7 +1003,7 @@ fn dismiss(
     if !applies {
         return None;
     }
-    *notice = notice_after(notice.take());
+    *notice = notice_after(notice.take()).filter(|_| style != OverlayStyle::None);
     Some(if matches!(notice, Some(Notice::MicLost)) {
         AfterDismissal::Warning
     } else {
@@ -1010,11 +1012,13 @@ fn dismiss(
 }
 
 fn dismiss_notice(app_handle: &AppHandle, dismissal: Dismissal) {
+    let style = settings::get_settings(app_handle).overlay_style;
     let mut held = notice();
     match dismiss(
         &mut held,
         dismissal,
         OVERLAY_GENERATION.load(Ordering::SeqCst),
+        style,
     ) {
         None => {}
         Some(AfterDismissal::Warning) => present_mic_lost_notice(app_handle, held),
@@ -1393,12 +1397,12 @@ mod tests {
             *mic_lost_next = true;
         }
         assert_eq!(
-            dismiss(&mut both, Dismissal::Timer(1), 1),
+            dismiss(&mut both, Dismissal::Timer(1), 1, OverlayStyle::Minimal),
             Some(AfterDismissal::Warning),
             "the warning shows once the copy pill goes"
         );
         assert_eq!(
-            dismiss(&mut both, Dismissal::Timer(2), 2),
+            dismiss(&mut both, Dismissal::Timer(2), 2, OverlayStyle::Minimal),
             Some(AfterDismissal::Settled),
             "then nothing"
         );
@@ -1409,7 +1413,7 @@ mod tests {
             Some(Notice::Cancelled),
         ] {
             assert_eq!(
-                dismiss(&mut alone, Dismissal::Timer(1), 1),
+                dismiss(&mut alone, Dismissal::Timer(1), 1, OverlayStyle::Minimal),
                 Some(AfterDismissal::Settled)
             );
             assert!(alone.is_none());
@@ -1424,30 +1428,63 @@ mod tests {
         }
         // Escape on the copy pill shows the warning, at generation 2.
         assert_eq!(
-            dismiss(&mut notice, Dismissal::Escape, 1),
+            dismiss(&mut notice, Dismissal::Escape, 1, OverlayStyle::Minimal),
             Some(AfterDismissal::Warning)
         );
         assert!(matches!(notice, Some(Notice::MicLost)));
 
         // The copy pill's timer, started at generation 1, wakes late.
-        assert_eq!(dismiss(&mut notice, Dismissal::Timer(1), 2), None);
+        assert_eq!(
+            dismiss(&mut notice, Dismissal::Timer(1), 2, OverlayStyle::Minimal),
+            None
+        );
         assert!(
             matches!(notice, Some(Notice::MicLost)),
             "the warning keeps its time"
         );
         assert_eq!(
-            dismiss(&mut notice, Dismissal::Timer(2), 2),
+            dismiss(&mut notice, Dismissal::Timer(2), 2, OverlayStyle::Minimal),
             Some(AfterDismissal::Settled)
         );
         assert!(notice.is_none());
 
         let mut error = Some(Notice::Error);
         assert_eq!(
-            dismiss(&mut error, Dismissal::Escape, 3),
+            dismiss(&mut error, Dismissal::Escape, 3, OverlayStyle::Minimal),
             None,
             "Escape leaves an error"
         );
         assert!(matches!(error, Some(Notice::Error)));
+    }
+
+    /// A copy pill whose warning follows it.
+    fn copy_pill_then_warning() -> Option<Notice> {
+        let (mut notice, _) = copy_pill("the dictated text");
+        if let Some(Notice::Copy { mic_lost_next, .. }) = notice.as_mut() {
+            *mic_lost_next = true;
+        }
+        notice
+    }
+
+    #[test]
+    fn a_copy_click_after_the_timer_showed_the_warning_leaves_the_warning_its_time() {
+        assert!(copy_pill_showing(&copy_pill("text").0));
+        let mut notice = copy_pill_then_warning();
+        dismiss(&mut notice, Dismissal::Timer(1), 1, OverlayStyle::Minimal);
+        assert!(
+            !copy_pill_showing(&notice),
+            "the click arms no Copied timer over the warning"
+        );
+    }
+
+    #[test]
+    fn with_the_overlay_turned_off_nothing_follows_the_copy_pill() {
+        let mut notice = copy_pill_then_warning();
+        assert_eq!(
+            dismiss(&mut notice, Dismissal::Timer(1), 1, OverlayStyle::None),
+            Some(AfterDismissal::Settled)
+        );
+        assert!(notice.is_none());
     }
 
     #[test]

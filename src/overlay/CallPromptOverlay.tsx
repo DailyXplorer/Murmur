@@ -7,7 +7,7 @@ import React, {
   useState,
 } from "react";
 import "./RecordingOverlay.css";
-import { openFromOrb } from "./openFromOrb";
+import { openFromOrb, useReducedMotion } from "./openFromOrb";
 import { commands, type CallPromptLabels } from "@/bindings";
 
 // The window renders no text until its first message, so without this the
@@ -22,6 +22,7 @@ const CallPromptOverlay: React.FC = () => {
   const [labels, setLabels] = useState<CallPromptLabels | null>(null);
   const bodyRef = useRef<HTMLSpanElement>(null);
   const capsuleRef = useRef<HTMLDivElement>(null);
+  const reducedMotion = useReducedMotion();
   const id = useId();
 
   useEffect(() => {
@@ -83,11 +84,10 @@ const CallPromptOverlay: React.FC = () => {
   const showing = labels !== null;
   useLayoutEffect(() => {
     const capsule = capsuleRef.current;
-    if (!showing || !capsule) return;
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    if (!showing || !capsule || reducedMotion) return;
     const growth = openFromOrb(capsule);
     return () => growth.cancel();
-  }, [showing]);
+  }, [showing, reducedMotion]);
 
   if (!labels) return null;
 
