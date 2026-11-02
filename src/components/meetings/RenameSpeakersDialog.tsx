@@ -2,6 +2,7 @@ import React, { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { commands, type MeetingSpeaker } from "@/bindings";
+import { holdSettingsWindow } from "@/lib/holdSettingsWindow";
 import { speakerColor } from "@/lib/meetings/speakerColors";
 import { Button } from "../ui/Button";
 import { Dialog } from "../ui/Dialog";
@@ -51,7 +52,7 @@ export const RenameSpeakersDialog: React.FC<RenameSpeakersDialogProps> = ({
   );
   const valid = speakers.every(({ key }) => (names[key] ?? "x").trim() !== "");
 
-  const save = async () => {
+  const renameAll = async () => {
     setSaving(true);
     try {
       for (const { key } of changed) {
@@ -71,6 +72,9 @@ export const RenameSpeakersDialog: React.FC<RenameSpeakersDialogProps> = ({
       onSaved();
     }
   };
+
+  // One rename per command: closing the window mid-way must not drop the rest.
+  const save = () => holdSettingsWindow(renameAll);
 
   const focusIndex = Math.max(
     0,

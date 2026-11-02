@@ -68,6 +68,7 @@ Murmur is a macOS desktop speech-to-text application built with Tauri 2.x (Rust 
 - `window_names.rs`, `accessibility.rs`, `field_excerpt.rs` - Name hints and the text around the cursor, read from the frontmost window for cleanup
 - `updates/` - Automatic update checks while `update_checks_enabled` is on: at launch, every 4 hours and after the Mac wakes (`schedule.rs`, a wake is wall-clock time `Instant` did not see), one check at a time (`checks.rs`). The result is the one update status the tray item and the settings footer show (`update-status` event). Nothing downloads until the user clicks the footer's "Update available"
 - `utils.rs` - Tray, window, and application helpers
+- `settings_window.rs` - When the settings window is destroyed, the section it reopens on, and the actions it takes when it opens (see Window Lifecycle)
 
 ### Frontend Structure (src/)
 
@@ -127,6 +128,16 @@ The settings cover:
 ### Single Instance Architecture
 
 The app enforces single instance behavior — launching when already running brings the settings window to front rather than creating a new process. Remote control flags (`--toggle-transcription`, etc.) work by launching a second instance that sends args to the running instance via `tauri_plugin_single_instance`, then exits.
+
+### Window Lifecycle
+
+While Murmur sits in the menu bar, the recording pill is the only live webview.
+
+- Closing the settings window destroys it, web process included, when the tray icon is visible, `initialize_shortcuts` has succeeded, and the page reported that it left onboarding (`report_settings_view`). Otherwise closing hides it: with `--no-tray` or the tray icon off, before the shortcuts run, on any onboarding step, and while the page holds it (`holdSettingsWindow` in `src/lib/`) for work whose later steps run in the page, such as an update install and its relaunch; the release destroys a window closed meanwhile. A hidden start builds the window so its page can run the onboarding checks and start the shortcuts. Rust destroys it once both are done and it is still hidden.
+- Every open goes through `show_main_window`, which builds the window again if it is gone. The new page opens on the section the user left (`get_last_settings_section`, kept in memory, not across launches).
+- What happens while the window is closed is kept as a pending action in Rust (`MainAction`). The event still goes out. The page takes the action when it hears the event, and once after it listens on mount (`take_main_action`), so it runs exactly once. The tray's "Check for updates" and the switch to the local engine work this way. Dictation errors are not kept: the pill and the notifications show them.
+- The call prompt panel is created when a prompt shows and destroyed when it hides, together with its entry in the nspanel store. Its page asks for the prompt (`get_call_prompt`) once it listens.
+- Locales load lazily: a window loads `en` and the active language before its first render (`i18nReady` in `src/i18n`). History, Meetings, Insights and the What's New modal load with their first open.
 
 ## Internationalization (i18n)
 
