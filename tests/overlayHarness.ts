@@ -37,7 +37,7 @@ export async function openOverlay(
     const pendingSettings: Array<(settings: unknown) => void> = [];
     let copyCalls = 0;
     const copyFits: Array<{ width: number; height: number }> = [];
-    const callAnswers: boolean[] = [];
+    const callAnswers: string[] = [];
     let restoreCalls = 0;
     let nextId = 1;
 
@@ -64,7 +64,7 @@ export async function openOverlay(
           handler?: number;
           width?: number;
           height?: number;
-          accept?: boolean;
+          answer?: string;
         },
       ) => {
         if (command === "plugin:event|listen") {
@@ -87,7 +87,7 @@ export async function openOverlay(
           return Promise.resolve(null);
         }
         if (command === "answer_call_prompt") {
-          callAnswers.push(args?.accept ?? false);
+          callAnswers.push(args?.answer ?? "");
           return Promise.resolve(null);
         }
         if (command === "restore_cancelled_dictation") {

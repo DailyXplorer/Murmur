@@ -8,7 +8,12 @@ import React, {
 } from "react";
 import "./RecordingOverlay.css";
 import { openFromOrb, useReducedMotion } from "./openFromOrb";
-import { commands, type CallPromptLabels } from "@/bindings";
+import {
+  commands,
+  type CallAnswer,
+  type CallPromptLabels,
+  type PromptKind,
+} from "@/bindings";
 
 // The window renders no text until its first message, so without this the
 // font would still be loading when the prompt measures its fitted size.
@@ -16,8 +21,15 @@ void document.fonts
   .load('1em "Instrument Sans Variable"')
   .catch(() => undefined);
 
-/** "Record this meeting?", in a window of its own: only the call watcher
- * shows or hides it, so nothing the overlay shows takes its place. */
+const ANSWERS: Record<PromptKind, { accept: CallAnswer; decline: CallAnswer }> =
+  {
+    start: { accept: "record", decline: "not_now" },
+    ended: { accept: "stop_and_transcribe", decline: "keep_recording" },
+  };
+
+/** "Record this meeting?", or "Call ended." while the meeting records, in
+ * a window of its own: only the call watcher shows or hides it,
+ * so nothing the overlay shows takes its place. */
 const CallPromptOverlay: React.FC = () => {
   const [labels, setLabels] = useState<CallPromptLabels | null>(null);
   const bodyRef = useRef<HTMLSpanElement>(null);
@@ -80,19 +92,21 @@ const CallPromptOverlay: React.FC = () => {
     return () => observer.disconnect();
   }, [labels]);
 
-  // Opens from the orb each time the prompt appears.
-  const showing = labels !== null;
+  // Opens from the orb, again when the prompt that ended a call replaces
+  // the one that asked to record it.
+  const kind = labels?.kind ?? null;
   useLayoutEffect(() => {
     const capsule = capsuleRef.current;
-    if (!showing || !capsule || reducedMotion) return;
+    if (!kind || !capsule || reducedMotion) return;
     const growth = openFromOrb(capsule);
     return () => growth.cancel();
-  }, [showing, reducedMotion]);
+  }, [kind, reducedMotion]);
 
   if (!labels) return null;
 
-  const answer = (accept: boolean) => {
-    void commands.answerCallPrompt(accept).catch((error: unknown) => {
+  const answers = ANSWERS[labels.kind];
+  const answer = (sent: CallAnswer) => {
+    void commands.answerCallPrompt(sent).catch((error: unknown) => {
       console.warn("Answering the call prompt failed:", error);
     });
   };
@@ -114,14 +128,14 @@ const CallPromptOverlay: React.FC = () => {
           <button
             type="button"
             className="ov-call-button"
-            onClick={() => answer(false)}
+            onClick={() => answer(answers.decline)}
           >
             {labels.decline}
           </button>
           <button
             type="button"
             className="ov-call-button accept"
-            onClick={() => answer(true)}
+            onClick={() => answer(answers.accept)}
           >
             {labels.accept}
           </button>

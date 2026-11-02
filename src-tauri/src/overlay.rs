@@ -1,3 +1,4 @@
+use crate::meetings::calls::PromptKind;
 use crate::settings;
 use crate::settings::{OverlayPosition, OverlayStyle};
 use crate::tray_i18n::get_tray_translations;
@@ -152,6 +153,8 @@ const CALL_PROMPT_OFFSET: f64 = 84.0 + 8.0;
 /// Payload of `show-overlay-call`, and what `get_call_prompt` answers.
 #[derive(Clone, serde::Serialize, specta::Type)]
 pub struct CallPromptLabels {
+    /// Which answers the buttons send.
+    kind: PromptKind,
     question: String,
     accept: String,
     decline: String,
@@ -738,16 +741,31 @@ fn create_call_prompt(app_handle: &AppHandle) {
 }
 
 /// Asks whether to record the call that started, with "Record" and "Not
-/// now", in a panel of its own: a dictation, an error or the meeting pill
-/// never hides it. It shows even with the overlay off: the call prompt has
-/// a setting of its own. The panel never takes the focus from the call.
-pub fn show_call_prompt(app_handle: &AppHandle) {
+/// now", or, once the call a meeting records ended, whether to stop, with
+/// "Stop and transcribe" and "Keep recording", in a panel of its own: a
+/// dictation, an error or the meeting pill never hides it. It shows even
+/// with the overlay off: the call prompt has a setting of its own. The
+/// panel never takes the focus from the call.
+pub fn show_call_prompt(app_handle: &AppHandle, kind: PromptKind) {
     let settings = settings::get_settings(app_handle);
     let strings = get_tray_translations(Some(settings.app_language));
+    let (question, accept, decline) = match kind {
+        PromptKind::Start => (
+            strings.call_record_question,
+            strings.call_record,
+            strings.call_not_now,
+        ),
+        PromptKind::Ended => (
+            strings.call_ended_question,
+            strings.call_ended_stop,
+            strings.call_ended_keep,
+        ),
+    };
     let labels = CallPromptLabels {
-        question: strings.call_record_question,
-        accept: strings.call_record,
-        decline: strings.call_not_now,
+        kind,
+        question,
+        accept,
+        decline,
         position: settings.overlay_position,
     };
     *call_prompt() = Some(labels.clone());

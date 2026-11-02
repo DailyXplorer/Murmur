@@ -12,7 +12,9 @@ use log::{debug, error, info};
 use once_cell::sync::Lazy;
 use tauri::{AppHandle, Manager};
 
-use super::calls::{self, Action, Browser, CallApp, CallWatch, MicUser, Snapshot};
+use super::calls::{
+    self, Action, Browser, CallAnswer, CallApp, CallWatch, MicUser, PromptKind, Snapshot,
+};
 use super::coordinator::MeetingAlert;
 use super::MeetingsManager;
 #[cfg(target_os = "macos")]
@@ -138,9 +140,12 @@ fn tick(app: &AppHandle, seen: &mut Vec<String>, browser_calls: &mut BTreeMap<Br
     };
     let mut watch = watch();
     match watch.update(&snapshot) {
-        Some(Action::Prompt(call)) => {
-            info!("{} started a call: offering to record it", call.name());
-            overlay::show_call_prompt(app);
+        Some(Action::Prompt(kind, call)) => {
+            match kind {
+                PromptKind::Start => info!("{} started a call: offering to record it", call.name()),
+                PromptKind::Ended => info!("{} left the call: offering to stop", call.name()),
+            }
+            overlay::show_call_prompt(app, kind);
         }
         Some(Action::Hide) => overlay::hide_call_prompt(app),
         None => {}
@@ -173,28 +178,46 @@ fn browser_call(_browser: Browser) -> Option<CallApp> {
     None
 }
 
-/// The prompt's answer, "Record" when `accept`. "Record" acts only while
-/// the prompt still shows; every answer hides it.
-pub fn answer(app: &AppHandle, accept: bool) {
-    let answered = {
+/// The prompt's answer. It acts only while the prompt it answers still
+/// shows, which it then hides: a meeting stops only on "Stop and
+/// transcribe" to the prompt that offered it.
+pub fn answer(app: &AppHandle, answer: CallAnswer) {
+    {
         let mut watch = watch();
+        if watch.answered(answer.kind()).is_none() {
+            return;
+        }
         overlay::hide_call_prompt(app);
-        watch.answered()
-    };
-    if answered.is_none() || !accept {
-        return;
     }
     let app = app.clone();
-    std::thread::spawn(move || {
-        let Some(manager) = app.try_state::<Arc<MeetingsManager>>() else {
-            return;
-        };
-        if manager.is_recording() {
-            return;
+    match answer {
+        CallAnswer::NotNow | CallAnswer::KeepRecording => {}
+        CallAnswer::Record => {
+            std::thread::spawn(move || {
+                let Some(manager) = app.try_state::<Arc<MeetingsManager>>() else {
+                    return;
+                };
+                if manager.is_recording() {
+                    return;
+                }
+                if let Err(error) = manager.start() {
+                    error!("Recording the call failed: {error}");
+                    user_alert::show(&app, Alert::Meeting(MeetingAlert::StartFailed));
+                }
+            });
         }
-        if let Err(error) = manager.start() {
-            error!("Recording the call failed: {error}");
-            user_alert::show(&app, Alert::Meeting(MeetingAlert::StartFailed));
+        CallAnswer::StopAndTranscribe => {
+            std::thread::spawn(move || {
+                let Some(manager) = app.try_state::<Arc<MeetingsManager>>() else {
+                    return;
+                };
+                if !manager.is_recording() {
+                    return;
+                }
+                if let Err(error) = manager.stop() {
+                    error!("Stopping the meeting after its call failed: {error}");
+                }
+            });
         }
-    });
+    }
 }

@@ -663,9 +663,17 @@ test("after a sleep past the cap the pill reads the cap until the meeting stops"
 });
 
 const callLabels = (tray: Record<string, string>) => ({
+  kind: "start",
   question: tray.callRecordQuestion,
   accept: tray.callRecord,
   decline: tray.callNotNow,
+  position: "bottom",
+});
+const endedLabels = (tray: Record<string, string>) => ({
+  kind: "ended",
+  question: tray.callEndedQuestion,
+  accept: tray.callEndedStop,
+  decline: tray.callEndedKeep,
   position: "bottom",
 });
 const englishTray = trayStringsByLocale.find(
@@ -692,7 +700,35 @@ test("a call prompt asks to record the meeting and sends back Record or Not now"
   await prompt.getByRole("button", { name: "Record", exact: true }).click();
   await dispatch(page, "show-overlay-call", callLabels(englishTray));
   await prompt.getByRole("button", { name: "Not now", exact: true }).click();
-  expect(await callAnswers(page)).toEqual([true, false]);
+  expect(await callAnswers(page)).toEqual(["record", "not_now"]);
+});
+
+test("a call ended prompt offers to stop the meeting and sends back Stop and transcribe or Keep recording", async ({
+  page,
+}) => {
+  await openCallPrompt(page);
+  await dispatch(page, "show-overlay-call", endedLabels(englishTray));
+
+  const prompt = page.getByRole("alertdialog", {
+    name: "Call ended.",
+  });
+  await expect(prompt).toBeVisible();
+  await expect(prompt).toHaveText(
+    "Call ended.Keep recordingStop and transcribe",
+  );
+  expect(await callAnswers(page), "nothing is answered on its own").toEqual([]);
+
+  await prompt
+    .getByRole("button", { name: "Stop and transcribe", exact: true })
+    .click();
+  await dispatch(page, "show-overlay-call", endedLabels(englishTray));
+  await prompt
+    .getByRole("button", { name: "Keep recording", exact: true })
+    .click();
+  expect(await callAnswers(page)).toEqual([
+    "stop_and_transcribe",
+    "keep_recording",
+  ]);
 });
 
 test("a dictation, its error or the meeting pill never hide the call prompt", async ({
@@ -722,7 +758,7 @@ test("a dictation, its error or the meeting pill never hide the call prompt", as
   );
   await expect(prompt).toBeVisible();
   await prompt.getByRole("button", { name: "Record", exact: true }).click();
-  expect(await callAnswers(page)).toEqual([true]);
+  expect(await callAnswers(page)).toEqual(["record"]);
 });
 
 test("a call prompt opens from the orb", async ({ page }) => {
@@ -786,13 +822,15 @@ test("the call prompt closes when the call ends", async ({ page }) => {
   expect(await callAnswers(page)).toEqual([]);
 });
 
-for (const { locale, tray } of trayStringsByLocale) {
-  test(`the ${locale} call prompt fits its window, answers on one line`, async ({
-    page,
-  }) => {
+const callPromptCases = trayStringsByLocale.flatMap(({ locale, tray }) => [
+  { name: `${locale} call prompt`, labels: callLabels(tray) },
+  { name: `${locale} call ended prompt`, labels: endedLabels(tray) },
+]);
+
+for (const { name, labels } of callPromptCases) {
+  test(`the ${name} fits its window, answers on one line`, async ({ page }) => {
     await openCallPrompt(page);
     await page.evaluate(() => document.fonts.ready);
-    const labels = callLabels(tray);
     await dispatch(page, "show-overlay-call", labels);
     const prompt = page.getByRole("alertdialog", { name: labels.question });
     await expect(prompt).toBeVisible();
