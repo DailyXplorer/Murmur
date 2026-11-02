@@ -11,9 +11,12 @@ import {
   commands,
   events,
   type HistoryEntry,
+  type HistoryHit,
   type HistoryUpdatePayload,
 } from "@/bindings";
 import { formatDateTime } from "@/utils/dateFormat";
+import { useSearch } from "../../../hooks/useSearch";
+import { Highlighted, SearchField } from "../../shared";
 import { AudioPlayer, AudioPlayerGroup } from "../../ui/AudioPlayer";
 import { Button } from "../../ui/Button";
 import { FailureLine } from "../../ui/FailureLine";
@@ -96,6 +99,23 @@ const mergeHistoryPage = ({
   return mergedEntries;
 };
 
+/** The hits with `entry`'s new data. A changed text loses its marks. */
+const withEntry = (hits: HistoryHit[], entry: HistoryEntry): HistoryHit[] =>
+  hits.map((hit) =>
+    hit.entry.id !== entry.id
+      ? hit
+      : {
+          entry,
+          ranges:
+            entry.transcription_text === hit.entry.transcription_text
+              ? hit.ranges
+              : [],
+        },
+  );
+
+const withoutEntry = (hits: HistoryHit[], id: number) =>
+  hits.filter((hit) => hit.entry.id !== id);
+
 const stopHistoryUpdateListener = async (stopListening: () => void) => {
   try {
     await stopListening();
@@ -123,6 +143,12 @@ export const HistorySettings: React.FC = () => {
     new Map(),
   );
   const deletedDuringRequestIdsRef = useRef<Set<number>>(new Set());
+  const [query, setQuery] = useState("");
+  const { state: search, updateHits } = useSearch(
+    query,
+    commands.searchHistory,
+  );
+  const searching = search.status !== "idle";
 
   // Keep ref in sync for use in IntersectionObserver callback
   useEffect(() => {
@@ -203,7 +229,7 @@ export const HistorySettings: React.FC = () => {
     if (loading) return;
 
     const sentinel = sentinelRef.current;
-    if (!sentinel || !hasMore) return;
+    if (!sentinel || !hasMore || searching) return;
 
     const observer = new IntersectionObserver(
       (observerEntries) => {
@@ -220,7 +246,7 @@ export const HistorySettings: React.FC = () => {
 
     observer.observe(sentinel);
     return () => observer.disconnect();
-  }, [loading, hasMore, loadPage]);
+  }, [loading, hasMore, searching, loadPage]);
 
   useEffect(() => {
     let disposed = false;
@@ -247,6 +273,7 @@ export const HistorySettings: React.FC = () => {
             });
           }
           setEntries((prev) => upsertHistoryEntry(prev, payload.entry, false));
+          updateHits((hits) => withEntry(hits, payload.entry));
         } else if (payload.action === "deleted") {
           // Retention deletes rows the page still shows. Removing an id that
           // an optimistic delete already removed changes nothing.
@@ -257,6 +284,7 @@ export const HistorySettings: React.FC = () => {
           setEntries((prev) =>
             prev.filter((existingEntry) => existingEntry.id !== payload.id),
           );
+          updateHits((hits) => withoutEntry(hits, payload.id));
         }
         // "toggled" is handled by optimistic updates only, so we
         // intentionally ignore it here to avoid double-mutation.
@@ -286,24 +314,31 @@ export const HistorySettings: React.FC = () => {
         }
       });
     };
-  }, []);
+  }, [updateHits]);
 
-  const toggleSaved = async (id: number) => {
+  const flipSaved = (id: number) => {
     setEntries((prev) =>
       prev.map((e) => (e.id === id ? { ...e, saved: !e.saved } : e)),
     );
+    updateHits((hits) =>
+      hits.map((hit) =>
+        hit.entry.id === id
+          ? { ...hit, entry: { ...hit.entry, saved: !hit.entry.saved } }
+          : hit,
+      ),
+    );
+  };
+
+  const toggleSaved = async (id: number) => {
+    flipSaved(id);
     try {
       const result = await commands.toggleHistoryEntrySaved(id);
       if (result.status !== "ok") {
-        setEntries((prev) =>
-          prev.map((e) => (e.id === id ? { ...e, saved: !e.saved } : e)),
-        );
+        flipSaved(id);
       }
     } catch (error) {
       console.error("Failed to toggle saved status:", error);
-      setEntries((prev) =>
-        prev.map((e) => (e.id === id ? { ...e, saved: !e.saved } : e)),
-      );
+      flipSaved(id);
     }
   };
 
@@ -330,6 +365,7 @@ export const HistorySettings: React.FC = () => {
 
   const deleteAudioEntry = async (id: number) => {
     setEntries((prev) => prev.filter((e) => e.id !== id));
+    updateHits((hits) => withoutEntry(hits, id));
     try {
       const result = await commands.deleteHistoryEntry(id);
       if (result.status !== "ok") {
@@ -347,6 +383,7 @@ export const HistorySettings: React.FC = () => {
       throw new Error(String(result.error));
     }
     setEntries((prev) => upsertHistoryEntry(prev, result.data, false));
+    updateHits((hits) => withEntry(hits, result.data));
     return result.data;
   };
 
@@ -361,9 +398,47 @@ export const HistorySettings: React.FC = () => {
     }
   };
 
+  const rows = (
+    shown: { entry: HistoryEntry; ranges?: [number, number][] }[],
+  ) => (
+    <AudioPlayerGroup>
+      <div className="divide-y divide-mid-gray/20">
+        {shown.map(({ entry, ranges }) => (
+          <HistoryEntryComponent
+            key={entry.id}
+            entry={entry}
+            highlight={ranges}
+            onToggleSaved={() => toggleSaved(entry.id)}
+            onCopyText={() => copyToClipboard(entry.transcription_text)}
+            copyText={copyToClipboard}
+            getAudioUrl={getAudioUrl}
+            deleteAudio={deleteAudioEntry}
+            retryTranscription={retryHistoryEntry}
+          />
+        ))}
+      </div>
+    </AudioPlayerGroup>
+  );
+
   let content: React.ReactNode;
 
-  if (loading) {
+  if (search.status === "error") {
+    content = (
+      <div className="px-4 py-3 text-center text-text/60">
+        {t("search.failed")}
+      </div>
+    );
+  } else if (search.status !== "idle" && search.hits.length > 0) {
+    content = rows(search.hits);
+  } else if (search.status !== "idle") {
+    content = (
+      <div className="px-4 py-3 text-center text-text/60">
+        {search.status === "loading"
+          ? t("settings.history.loading")
+          : t("search.noResults", { query: query.trim() })}
+      </div>
+    );
+  } else if (loading) {
     content = (
       <div className="px-4 py-3 text-center text-text/60">
         {t("settings.history.loading")}
@@ -388,26 +463,7 @@ export const HistorySettings: React.FC = () => {
       </div>
     );
   } else {
-    content = (
-      <>
-        <AudioPlayerGroup>
-          <div className="divide-y divide-mid-gray/20">
-            {entries.map((entry) => (
-              <HistoryEntryComponent
-                key={entry.id}
-                entry={entry}
-                onToggleSaved={() => toggleSaved(entry.id)}
-                onCopyText={() => copyToClipboard(entry.transcription_text)}
-                copyText={copyToClipboard}
-                getAudioUrl={getAudioUrl}
-                deleteAudio={deleteAudioEntry}
-                retryTranscription={retryHistoryEntry}
-              />
-            ))}
-          </div>
-        </AudioPlayerGroup>
-      </>
-    );
+    content = rows(entries.map((entry) => ({ entry })));
   }
 
   return (
@@ -428,10 +484,19 @@ export const HistorySettings: React.FC = () => {
           </Button>
         }
       >
+        {(entries.length > 0 || query !== "") && (
+          <div className="px-4 py-3">
+            <SearchField
+              value={query}
+              onChange={setQuery}
+              placeholder={t("search.placeholder.history")}
+            />
+          </div>
+        )}
         {content}
       </SettingsGroup>
 
-      {!loading && hasMore && entries.length > 0 && (
+      {!loading && hasMore && entries.length > 0 && !searching && (
         <div ref={sentinelRef} className="h-1" />
       )}
     </SettingsPage>
@@ -440,6 +505,8 @@ export const HistorySettings: React.FC = () => {
 
 interface HistoryEntryProps {
   entry: HistoryEntry;
+  /** Search matches to mark in the transcription. */
+  highlight?: [number, number][];
   onToggleSaved: () => void;
   onCopyText: () => void;
   copyText: (text: string) => Promise<void>;
@@ -454,6 +521,7 @@ const NO_SPEECH_ERROR = "Recording contains no speech";
 
 const HistoryEntryComponent: React.FC<HistoryEntryProps> = ({
   entry,
+  highlight,
   onToggleSaved,
   onCopyText,
   copyText,
@@ -525,6 +593,9 @@ const HistoryEntryComponent: React.FC<HistoryEntryProps> = ({
   };
 
   const formattedDate = formatDateTime(String(entry.timestamp), i18n.language);
+  const transcription = (
+    <Highlighted text={entry.transcription_text} ranges={highlight ?? []} />
+  );
 
   return (
     <div className="px-4 py-2 pb-5 flex flex-col gap-3">
@@ -608,7 +679,7 @@ const HistoryEntryComponent: React.FC<HistoryEntryProps> = ({
         {retrying
           ? t("settings.history.transcribing")
           : hasTranscription
-            ? entry.transcription_text
+            ? transcription
             : hasRecording
               ? t("settings.history.transcriptionFailed")
               : t("settings.history.noRecording")}
@@ -622,6 +693,11 @@ const HistoryEntryComponent: React.FC<HistoryEntryProps> = ({
       {!retrying && entry.cleanup === "failed" && (
         <p className="-mt-3 text-xs text-text/50">
           {t("settings.history.cleanupFailed")}
+        </p>
+      )}
+      {!retrying && entry.cleanup === "short_dictation" && (
+        <p className="-mt-3 text-xs text-text/50">
+          {t("settings.history.shortDictation")}
         </p>
       )}
       {!retrying && original && (

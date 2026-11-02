@@ -277,6 +277,30 @@ jobs:
             fi
           done <<< "$RPATH_DEPS"
 
+      # Release builds are stripped. The dSYM resolves the addresses of a
+      # panic backtrace in murmur.log (src-tauri/src/panic_log.rs).
+      - name: Upload debug symbols (macOS)
+        if: steps.build-profile.outputs.profile == 'release'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: ${{ inputs.asset-prefix }}-${{ inputs.target }}-dSYM
+          path: src-tauri/target/${{ inputs.target }}/release/murmur.dSYM
+          if-no-files-found: error
+          retention-days: 90
+
+      # A bundle that crashes at launch must not reach a release. After the
+      # symbols upload, so a panic backtrace in this log can be resolved. A
+      # debug build writes ../src/bindings.ts when it starts and only runs from
+      # src-tauri, so only release builds are launched.
+      - name: Launch the built app
+        if: steps.build-profile.outputs.profile == 'release'
+        shell: bash
+        env:
+          APP: src-tauri/target/${{ inputs.target }}/${{ steps.build-profile.outputs.profile }}/bundle/macos/Murmur.app
+          # Rosetta translates the x86_64 binary when it first runs.
+          SMOKE_TIMEOUT: ${{ inputs.target == 'x86_64-apple-darwin' && '60' || '15' }}
+        run: bash scripts/smoke-macos-app.sh "$APP"
+
       - name: Remove stable signing keychain
         if: always() && env.STABLE_SIGNING_KEYCHAIN != ''
         shell: bash

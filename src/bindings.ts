@@ -283,6 +283,14 @@ async changeWhisperModeSetting(enabled: boolean) : Promise<Result<null, string>>
     else return { status: "error", error: String(e) };
 }
 },
+async changeCleanupShortDictationsSetting(enabled: boolean) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("change_cleanup_short_dictations_setting", { enabled }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
 async changeAppLanguageSetting(language: string) : Promise<Result<null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("change_app_language_setting", { language }) };
@@ -404,6 +412,12 @@ async copyNoticeAgain() : Promise<Result<null, string>> {
  */
 async fitCopyNotice(width: number, height: number) : Promise<void> {
     await TAURI_INVOKE("fit_copy_notice", { width, height });
+},
+/**
+ * The cancelled pill's Restore button.
+ */
+async restoreCancelledDictation() : Promise<void> {
+    await TAURI_INVOKE("restore_cancelled_dictation");
 },
 async getAppDirPath() : Promise<Result<string, string>> {
     try {
@@ -692,6 +706,17 @@ async getHistoryEntries(cursor: number | null, limit: number | null) : Promise<R
     else return { status: "error", error: String(e) };
 }
 },
+/**
+ * Up to 50 dictations matching `query`, best first.
+ */
+async searchHistory(query: string) : Promise<Result<HistoryHit[], string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("search_history", { query }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
 async toggleHistoryEntrySaved(id: number) : Promise<Result<null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("toggle_history_entry_saved", { id }) };
@@ -792,6 +817,17 @@ async discardMeeting(id: number) : Promise<Result<null, string>> {
 async getMeetings(cursor: number | null, limit: number | null) : Promise<Result<MeetingsPage, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("get_meetings", { cursor, limit }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
+/**
+ * Up to 50 meetings matching `query`, best first.
+ */
+async searchMeetings(query: string) : Promise<Result<MeetingHit[], string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("search_meetings", { query }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: String(e) };
@@ -1040,6 +1076,29 @@ async fitCallPrompt(width: number, height: number) : Promise<void> {
  */
 async getCallPrompt() : Promise<CallPromptLabels | null> {
     return await TAURI_INVOKE("get_call_prompt");
+},
+/**
+ * Applies from the next meeting: the one recording keeps how it started.
+ */
+async changeMeetingLiveTranscriptSetting(enabled: boolean) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("change_meeting_live_transcript_setting", { enabled }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
+/**
+ * The live transcript of meeting `id`, or the draft a crash left of it.
+ * `None` once the final transcript replaced it.
+ */
+async getLiveTranscript(id: number) : Promise<Result<LiveTranscript | null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_live_transcript", { id }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
 }
 }
 
@@ -1050,6 +1109,7 @@ export const events = __makeEvents__<{
 historyUpdatePayload: HistoryUpdatePayload,
 insightsUpdated: InsightsUpdated,
 localModelStatus: LocalModelStatus,
+meetingLiveUpdated: MeetingLiveUpdated,
 meetingProgress: MeetingProgress,
 meetingStateChanged: MeetingStateChanged,
 meetingsUpdated: MeetingsUpdated,
@@ -1059,6 +1119,7 @@ updateStatus: UpdateStatus
 historyUpdatePayload: "history-update-payload",
 insightsUpdated: "insights-updated",
 localModelStatus: "local-model-status",
+meetingLiveUpdated: "meeting-live-updated",
 meetingProgress: "meeting-progress",
 meetingStateChanged: "meeting-state-changed",
 meetingsUpdated: "meetings-updated",
@@ -1147,6 +1208,11 @@ meeting_call_prompt?: boolean;
  */
 meeting_call_policies?: Partial<{ [key in CallApp]: CallPolicy }>; 
 /**
+ * Shows the meeting's text while it records, made on this Mac when the
+ * local model is ready.
+ */
+meeting_live_transcript?: boolean; 
+/**
  * Which engine transcribes dictations.
  */
 transcription_engine?: Engine; 
@@ -1162,7 +1228,12 @@ local_model_download_wanted?: boolean;
  * The user asked to dictate on this Mac as soon as the local model is
  * ready.
  */
-switch_to_local_when_ready?: boolean }
+switch_to_local_when_ready?: boolean; 
+/**
+ * Also send dictations under 20 words to the default AI cleanup. Off:
+ * they are pasted right away.
+ */
+cleanup_short_dictations?: boolean }
 export type AudioDevice = { index: string; name: string; is_default: boolean }
 /**
  * Where a meeting's audio is.
@@ -1250,7 +1321,11 @@ export type CleanupOutcome = "cleaned" |
 /**
  * Cleanup was attempted and the raw transcript was used instead.
  */
-"failed"
+"failed" | 
+/**
+ * Too short for the default cleanup to be worth the wait: pasted as is.
+ */
+"short_dictation"
 export type ClipboardHandling = 
 /**
  * Put the user's previous clipboard back after a bounded paste window,
@@ -1315,6 +1390,10 @@ export type FallbackReason =
  */
 "model_not_ready" | 
 /**
+ * Local chosen: the model was being compiled for a new macOS version.
+ */
+"local_preparing" | 
+/**
  * Local chosen: the local run failed.
  */
 "local_failed" | 
@@ -1352,6 +1431,14 @@ raw_text: string | null; cleanup: CleanupOutcome | null; engine: Engine;
  * Set when the engine is not the one the user chose.
  */
 fallback_reason: FallbackReason | null }
+/**
+ * A dictation that matched a search.
+ */
+export type HistoryHit = { entry: HistoryEntry; 
+/**
+ * Where `entry.transcription_text` matched, in UTF-16 units.
+ */
+ranges: ([number, number])[] }
 export type HistoryUpdatePayload = { action: "added"; entry: HistoryEntry } | { action: "updated"; entry: HistoryEntry } | { action: "deleted"; id: number } | { action: "toggled"; id: number }
 export type InsightsSummary = { total_dictations: number; total_words: number; 
 /**
@@ -1371,6 +1458,46 @@ categories: CategoryUsage[];
  */
 categorized_dictations: number; apps_used: number; streaks: Streaks; heatmap: HeatmapDay[] }
 export type InsightsUpdated = null
+/**
+ * One sentence of the draft, on the meeting timeline.
+ */
+export type LiveEntry = { source: Track; start_ms: number; end_ms: number; text: string; kind: LiveEntryKind }
+export type LiveEntryKind = "speech" | 
+/**
+ * Audio the live text skipped; the final transcript has it.
+ */
+"gap"
+export type LiveState = 
+/**
+ * Recording, nothing said yet.
+ */
+{ state: "starting" } | { state: "live" } | 
+/**
+ * Over 30 s of speech wait for the model.
+ */
+{ state: "catching_up" } | { state: "unavailable"; reason: LiveUnavailable } | 
+/**
+ * The meeting stopped: the draft waits for the final transcript.
+ */
+{ state: "stopped" }
+export type LiveTranscript = { state: LiveState; 
+/**
+ * In the order they were published, which is not quite time order.
+ */
+entries: LiveEntry[] }
+export type LiveUnavailable = 
+/**
+ * The live transcript setting is off.
+ */
+"off" | "missing" | "downloading" | "preparing" | 
+/**
+ * An Intel Mac.
+ */
+"unsupported" | 
+/**
+ * Three pieces in a row failed.
+ */
+"engine_failed"
 export type LocalModelState = 
 /**
  * This Mac cannot run the models.
@@ -1380,7 +1507,12 @@ export type LocalModelState =
  * Checking models an earlier version downloaded, or loading new ones
  * once so they are compiled for this Mac.
  */
-{ state: "preparing" } | { state: "ready" } | { state: "failed"; reason: DownloadFailure }
+{ state: "preparing" } | { state: "ready" } | 
+/**
+ * Ready models Core ML compiles again, in the background, for the
+ * macOS version this Mac now runs.
+ */
+{ state: "optimizing" } | { state: "failed"; reason: DownloadFailure }
 export type LocalModelStatus = { state: LocalModelState; 
 /**
  * What the download takes on this Mac.
@@ -1451,11 +1583,32 @@ waiting_for_connection: boolean;
  * refused it. "Transcribe again" sends it all to Codex once more.
  */
 local_fallback_ms: number }
+/**
+ * A meeting that matched a search.
+ */
+export type MeetingHit = { id: number; 
+/**
+ * `None` until a summary names the meeting.
+ */
+title: Snippet | null; started_at_ms: number; duration_ms: number; status: MeetingStatus; 
+/**
+ * Up to two passages: the summary's, then the first matching turns.
+ */
+snippets: Snippet[]; 
+/**
+ * The index in `MeetingDetail::turns` of the first matching turn (of
+ * the newest it read, for a query matching very many turns).
+ */
+first_turn_seq: number | null }
 export type MeetingListItem = { id: number; 
 /**
  * `None` until a summary names the meeting.
  */
 title: string | null; started_at_ms: number; duration_ms: number; status: MeetingStatus; tracks: MeetingTracks }
+/**
+ * Sent as the live transcript of meeting `id` grows or changes state.
+ */
+export type MeetingLiveUpdated = { id: number; state: LiveState; appended: LiveEntry[] }
 /**
  * Which tab Copy and Export take their text from.
  */
@@ -1598,6 +1751,11 @@ export type ShortcutRegistrationError =
  */
 "used_by_another_action"
 export type SignInError = "port_busy" | "cancelled" | "timed_out" | "denied" | "not_entitled" | "network" | "rejected" | "save_failed" | "browser_failed"
+/**
+ * Text with the parts that matched. `ranges` are `[start, end)` offsets in
+ * UTF-16 code units, the unit JavaScript strings index by.
+ */
+export type Snippet = { text: string; ranges: ([number, number])[] }
 export type SoundTheme = "marimba" | "pop" | "custom"
 /**
  * How the speakers of a meeting were told apart.
@@ -1679,6 +1837,11 @@ export type SystemAudioSupport = "available" |
  * and `Dark` force one of the two palettes Murmur already ships.
  */
 export type Theme = "system" | "light" | "dark"
+/**
+ * Ties go to system audio: a remote question comes before the answer
+ * captured at the same moment.
+ */
+export type Track = "system" | "mic"
 /**
  * What the last update check found.
  */

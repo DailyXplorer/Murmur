@@ -11,6 +11,7 @@ import { MeetingsToggle } from "../MeetingsToggle";
 import { MeetingsAudioRetention } from "../MeetingsAudioRetention";
 import { MeetingCallPrompt } from "../MeetingCallPrompt";
 import { MeetingCallRules } from "../MeetingCallRules";
+import { MeetingLiveTranscript } from "../MeetingLiveTranscript";
 import { useSettings } from "../../../hooks/useSettings";
 import { LazyStreamClose } from "../LazyStreamClose";
 import { ShowWhatsNewOnUpdate } from "../ShowWhatsNewOnUpdate";
@@ -33,6 +34,7 @@ export const AdvancedSettings: React.FC = () => {
         <ShowOverlay descriptionMode="tooltip" grouped={true} />
         <MeetingsToggle descriptionMode="tooltip" grouped={true} />
         {meetingsEnabled && <MeetingCallPrompt />}
+        {meetingsEnabled && <MeetingLiveTranscript />}
         {meetingsEnabled && <MeetingsAudioRetention />}
       </SettingsGroup>
 

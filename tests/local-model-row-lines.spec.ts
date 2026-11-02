@@ -16,6 +16,7 @@ const STATES = [
   "models=downloading",
   "models=preparing",
   "models=ready",
+  "models=optimizing",
   "models=failed",
   "models=serverDown",
   "models=damaged",

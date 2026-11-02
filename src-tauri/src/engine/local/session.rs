@@ -10,6 +10,8 @@ use std::sync::{Arc, Mutex, Weak};
 use std::time::Duration;
 use tokio::time::Instant;
 
+use crate::meetings::protocol::Word;
+
 pub const IDLE_RELEASE: Duration = Duration::from_secs(10 * 60);
 
 pub type BoxFuture<'a, T> = Pin<Box<dyn Future<Output = T> + Send + 'a>>;
@@ -34,6 +36,23 @@ pub trait Loaded: Send {
         samples: &'a [f32],
         terms: &'a [String],
     ) -> BoxFuture<'a, anyhow::Result<String>>;
+
+    /// Transcribes one piece of a live meeting at background priority, with
+    /// each word's times in seconds from the piece's start.
+    fn transcribe_words<'a>(
+        &'a mut self,
+        _samples: &'a [f32],
+    ) -> BoxFuture<'a, anyhow::Result<Vec<Word>>> {
+        Box::pin(async { anyhow::bail!("This engine gives no word times") })
+    }
+}
+
+/// What a background request came to.
+pub enum Background {
+    Done(Vec<Word>),
+    /// A dictation records, transcribes or holds the model: try again later.
+    Busy,
+    Failed(anyhow::Error),
 }
 
 /// What the lock guards: the model, and whether a task waits to release it.
@@ -199,6 +218,47 @@ impl Session {
         result
     }
 
+    /// A live meeting's piece, which never makes a dictation wait for more
+    /// than the one piece running: it is `Busy` at once, without queuing,
+    /// while a dictation records, transcribes or waits for the lock. It
+    /// loads the model when needed, as the dictation would.
+    pub async fn transcribe_background(
+        self: &Arc<Self>,
+        samples: &[f32],
+        limit: Duration,
+    ) -> Background {
+        if (self.recording)() || self.dictations().running > 0 {
+            return Background::Busy;
+        }
+        let Ok(mut slot) = self.slot.try_lock() else {
+            return Background::Busy;
+        };
+        if let Err(error) = self.ensure_loaded(&mut slot).await {
+            return Background::Failed(error);
+        }
+        let Some(loaded) = slot.loaded.as_mut() else {
+            return Background::Failed(anyhow::anyhow!("The local model is not loaded"));
+        };
+        let result = match tokio::time::timeout(limit, loaded.transcribe_words(samples)).await {
+            Ok(result) => result,
+            Err(_) => Err(anyhow::anyhow!("Local transcription took over {limit:?}")),
+        };
+        self.touch();
+        match result {
+            Ok(words) => Background::Done(words),
+            Err(error) => {
+                slot.loaded = None;
+                Background::Failed(error)
+            }
+        }
+    }
+
+    /// Puts the idle release back, as a request would: a live meeting keeps
+    /// the model through its silences.
+    pub fn keep_loaded(&self) {
+        self.touch();
+    }
+
     /// Releases the model now, after the request running, if any, or once
     /// the dictations running end. The next request loads it again.
     pub async fn release(&self) {
@@ -309,6 +369,20 @@ mod tests {
                 Ok(format!("{} samples", samples.len()))
             })
         }
+
+        fn transcribe_words<'a>(
+            &'a mut self,
+            samples: &'a [f32],
+        ) -> BoxFuture<'a, anyhow::Result<Vec<Word>>> {
+            Box::pin(async move {
+                let text = self.transcribe(samples, &[]).await?;
+                Ok(vec![Word {
+                    w: text,
+                    s: 0.0,
+                    e: 1.0,
+                }])
+            })
+        }
     }
 
     impl Drop for FakeModel {
@@ -402,6 +476,91 @@ mod tests {
         assert_eq!(second.unwrap(), "8 samples");
         assert_eq!(counts.peak.load(Ordering::SeqCst), 1);
         assert_eq!(counts.loads.load(Ordering::SeqCst), 1);
+    }
+
+    fn done(result: Background) -> Vec<Word> {
+        match result {
+            Background::Done(words) => words,
+            Background::Busy => panic!("busy"),
+            Background::Failed(error) => panic!("{error}"),
+        }
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn background_request_yields_to_running_dictation() {
+        let (session, counts, recording) = session(Duration::from_secs(1));
+        recording.store(true, Ordering::SeqCst);
+        assert!(matches!(
+            session.transcribe_background(&[0.0; 4], LIMIT).await,
+            Background::Busy
+        ));
+        recording.store(false, Ordering::SeqCst);
+
+        let dictation = session.dictation();
+        assert!(matches!(
+            session.transcribe_background(&[0.0; 4], LIMIT).await,
+            Background::Busy
+        ));
+        drop(dictation);
+
+        let running = tokio::spawn({
+            let session = Arc::clone(&session);
+            async move { session.transcribe(&[0.0; 8], &[], LIMIT).await }
+        });
+        wait(Duration::from_millis(100)).await;
+        assert!(matches!(
+            session.transcribe_background(&[0.0; 4], LIMIT).await,
+            Background::Busy
+        ));
+        assert_eq!(running.await.unwrap().unwrap(), "8 samples");
+        assert_eq!(counts.peak.load(Ordering::SeqCst), 1);
+
+        assert_eq!(
+            done(session.transcribe_background(&[0.0; 4], LIMIT).await)[0].w,
+            "4 samples"
+        );
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn dictation_waits_at_most_one_background_piece() {
+        let (session, counts, _) = session(Duration::from_secs(2));
+        session.warm().await.unwrap();
+        let live = tokio::spawn({
+            let session = Arc::clone(&session);
+            async move {
+                let mut pieces = 0;
+                while pieces < 3 {
+                    match session.transcribe_background(&[0.0; 4], LIMIT).await {
+                        Background::Done(_) => pieces += 1,
+                        Background::Busy => tokio::time::sleep(Duration::from_millis(250)).await,
+                        Background::Failed(error) => panic!("{error}"),
+                    }
+                }
+            }
+        });
+        wait(Duration::from_millis(500)).await;
+        let asked = Instant::now();
+        let text = session.transcribe(&[0.0; 8], &[], LIMIT).await.unwrap();
+        let waited = asked.elapsed();
+        assert_eq!(text, "8 samples");
+        assert!(
+            waited <= Duration::from_millis(3_600),
+            "the dictation waited {waited:?}"
+        );
+        live.await.unwrap();
+        assert_eq!(counts.peak.load(Ordering::SeqCst), 1);
+        assert_eq!(counts.loads.load(Ordering::SeqCst), 1);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn a_failed_background_piece_drops_the_model() {
+        let (session, counts, _) = session(Duration::from_millis(100));
+        assert!(matches!(
+            session.transcribe_background(&[-1.0], LIMIT).await,
+            Background::Failed(_)
+        ));
+        assert!(!session.is_loaded().await);
+        assert_eq!(counts.released.load(Ordering::SeqCst), 1);
     }
 
     #[tokio::test(start_paused = true)]

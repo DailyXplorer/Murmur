@@ -15,6 +15,7 @@ pub mod chunking;
 pub mod coordinator;
 pub mod export;
 pub mod helper;
+pub mod live;
 pub mod merge;
 pub mod models;
 pub mod offline;
@@ -61,7 +62,7 @@ use helper::AnalysisSupport;
 use models::Models;
 use offline::{CodexHost, OfflineHold, Reachability};
 use processor::{MeetingProgress, ProcessEvents, Processor};
-use store::{MeetingDetail, MeetingsPage, MeetingsStore, ProcessingError};
+use store::{MeetingDetail, MeetingHit, MeetingsPage, MeetingsStore, ProcessingError};
 use summary::CodexSummarizer;
 use transcribe::{CodexTranscriber, CodexVerdict, LocalTranscriber, RetryPolicy, Transcriber};
 
@@ -816,6 +817,12 @@ impl MeetingsManager {
             .ok_or_else(|| anyhow::anyhow!("The local models are unavailable"))?;
         let queue = spawn_processing(app, Arc::clone(&store), root.clone(), Arc::clone(&models));
         let runtime = Arc::new(Mutex::new(MeetingRuntime::Idle));
+        let emitter = app.clone();
+        app.manage(Arc::new(live::Live::new(Box::new(move |update| {
+            if let Err(error) = update.emit(&emitter) {
+                error!("Failed to emit the live transcript: {error}");
+            }
+        }))));
         let notifier = AppNotifier {
             app: app.clone(),
             runtime: Arc::clone(&runtime),
@@ -902,7 +909,21 @@ impl MeetingsManager {
     pub fn discard(&self, id: i64) -> Result<(), String> {
         self.coordinator()
             .discard(id)
-            .map_err(|error| error.to_string())
+            .map_err(|error| error.to_string())?;
+        self.forget_live(id);
+        Ok(())
+    }
+
+    fn forget_live(&self, id: i64) {
+        if let Some(live) = self.app.try_state::<Arc<live::Live>>() {
+            live.forget(id);
+        }
+    }
+
+    /// The live transcript of meeting `id`, or the draft left of it.
+    pub fn live_transcript(&self, id: i64) -> Option<live::LiveTranscript> {
+        let live = self.app.try_state::<Arc<live::Live>>()?;
+        live::transcript_of(&live, &paths::meeting_dir(&self.root, id), id)
     }
 
     /// Decides under the lock, so two quick presses never start two meetings.
@@ -921,11 +942,18 @@ impl MeetingsManager {
             .map_err(|error| error.to_string())
     }
 
+    pub fn search(&self, query: &str) -> Result<Vec<MeetingHit>, String> {
+        self.store
+            .search(query, crate::search::SEARCH_LIMIT)
+            .map_err(|error| crate::search::search_failed("Meeting", &error))
+    }
+
     pub fn delete(&self, id: i64) -> Result<(), String> {
         self.queue.cancel(id);
         self.coordinator()
             .delete(id)
             .map_err(|error| error.to_string())?;
+        self.forget_live(id);
         self.updated(id);
         Ok(())
     }

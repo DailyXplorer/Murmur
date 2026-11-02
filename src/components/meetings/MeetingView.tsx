@@ -11,12 +11,16 @@ import {
   type MeetingStage,
   type SystemAudioPermission,
 } from "@/bindings";
-import { downloadPercent, useLocalModel } from "../../hooks/useLocalModel";
+import { useLocalModel } from "../../hooks/useLocalModel";
 import { Button } from "../ui/Button";
 import { panelId, tabId, Tabs } from "../ui/Tabs";
 import { AudioRow } from "./AudioRow";
+import { LiveEntries } from "./LiveEntries";
+import { LocalModelAction } from "./LocalModelAction";
+import { useLiveDraft } from "./useLiveDraft";
 import { RenameSpeakersDialog } from "./RenameSpeakersDialog";
 import { SummaryTab } from "./SummaryTab";
+import type { InitialTextSearch } from "./TabHeaderBar";
 import { TranscriptTab } from "./TranscriptTab";
 
 type Tab = "summary" | "transcript";
@@ -229,44 +233,15 @@ const SpeakerNotice: React.FC<{
   ) {
     return null;
   }
-  const download = async () => {
-    const result = await commands.downloadLocalModel();
-    if (result.status === "error") toast.error(t("meetings.models.error"));
-  };
-  const state = models?.state;
-  const action = (() => {
-    switch (state?.state) {
-      case "ready":
-        return (
-          <Button onClick={onSeparate} disabled={starting}>
-            {t("meetings.speakers.separate")}
-          </Button>
-        );
-      case "missing":
-      case "failed":
-        return (
-          <Button onClick={() => void download()}>
-            {t("meetings.models.download")}
-          </Button>
-        );
-      case "downloading":
-        return (
-          <span className="text-sm text-text/60 tabular-nums">
-            {t("meetings.models.downloading", {
-              percent: downloadPercent(models),
-            })}
-          </span>
-        );
-      case "preparing":
-        return (
-          <span className="text-sm text-text/60">
-            {t("meetings.models.preparing")}
-          </span>
-        );
-      default:
-        return null;
-    }
-  })();
+  const state = models?.state.state;
+  const action =
+    state === "ready" || state === "optimizing" ? (
+      <Button onClick={onSeparate} disabled={starting}>
+        {t("meetings.speakers.separate")}
+      </Button>
+    ) : (
+      <LocalModelAction models={models} />
+    );
   return (
     <div
       role="status"
@@ -311,12 +286,30 @@ const SystemAudioNotice: React.FC = () => {
   );
 };
 
+export const BackButton: React.FC<{ onBack: () => void }> = ({ onBack }) => {
+  const { t } = useTranslation();
+  return (
+    <Button size="chip" onClick={onBack}>
+      {/* eslint-disable-next-line murmur/no-icon-in-text-button -- the one text button that keeps its icon */}
+      <ArrowLeftIcon size={15} aria-hidden="true" />
+      <span>{t("meetings.view.back")}</span>
+    </Button>
+  );
+};
+
 interface MeetingViewProps {
   id: number;
   onBack: () => void;
+  /** The transcript search to open with, its items being the turns. A
+   * matching turn opens the Transcript tab first. */
+  initialSearch?: InitialTextSearch;
 }
 
-export const MeetingView: React.FC<MeetingViewProps> = ({ id, onBack }) => {
+export const MeetingView: React.FC<MeetingViewProps> = ({
+  id,
+  onBack,
+  initialSearch,
+}) => {
   const { t, i18n } = useTranslation();
   const [meeting, setMeeting] = useState<MeetingDetail | null>(null);
   const [failed, setFailed] = useState(false);
@@ -327,6 +320,10 @@ export const MeetingView: React.FC<MeetingViewProps> = ({ id, onBack }) => {
     null,
   );
   const models = useLocalModel();
+  const draft = useLiveDraft(
+    id,
+    meeting !== null && meeting.turns.length === 0,
+  );
 
   const load = useCallback(async () => {
     try {
@@ -405,13 +402,7 @@ export const MeetingView: React.FC<MeetingViewProps> = ({ id, onBack }) => {
     void load();
   };
 
-  const back = (
-    <Button size="chip" onClick={onBack}>
-      {/* eslint-disable-next-line murmur/no-icon-in-text-button -- the one text button that keeps its icon */}
-      <ArrowLeftIcon size={15} aria-hidden="true" />
-      <span>{t("meetings.view.back")}</span>
-    </Button>
-  );
+  const back = <BackButton onBack={onBack} />;
 
   if (!meeting) {
     return (
@@ -428,7 +419,10 @@ export const MeetingView: React.FC<MeetingViewProps> = ({ id, onBack }) => {
     date: formatMeetingDate(meeting.started_at_ms, i18n.language),
   });
   const tab =
-    chosenTab ?? (meeting.status === "ready" ? "summary" : "transcript");
+    chosenTab ??
+    (meeting.status === "ready" && (initialSearch?.item ?? null) === null
+      ? "summary"
+      : "transcript");
   const hasAudio = meeting.audio !== "deleted";
 
   const retrySummary = async () => {
@@ -508,6 +502,17 @@ export const MeetingView: React.FC<MeetingViewProps> = ({ id, onBack }) => {
             meeting={meeting}
             onRenameSpeaker={(focus) => setRenaming({ focus })}
             onRetry={hasAudio ? () => void retry() : undefined}
+            draft={
+              meeting.turns.length === 0 && draft?.entries.length ? (
+                <div className="space-y-2">
+                  <p role="status" className="px-1 text-xs text-text/60">
+                    {t("meetings.live.draftNotice")}
+                  </p>
+                  <LiveEntries entries={draft.entries} muted={true} />
+                </div>
+              ) : undefined
+            }
+            initialSearch={initialSearch}
           />
         )}
       </div>

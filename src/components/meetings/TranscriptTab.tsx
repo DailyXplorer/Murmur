@@ -10,7 +10,11 @@ import { formatDuration } from "@/lib/meetings/format";
 import { speakerColor } from "@/lib/meetings/speakerColors";
 import { Button } from "../ui/Button";
 import { IconButton } from "../ui/IconButton";
-import { TabHeaderBar, useTextSearch } from "./TabHeaderBar";
+import {
+  type InitialTextSearch,
+  TabHeaderBar,
+  useTextSearch,
+} from "./TabHeaderBar";
 import { useMeetingMarkdown } from "./useMeetingMarkdown";
 
 /** The speaker key of a part that could not be transcribed. */
@@ -22,12 +26,17 @@ interface TranscriptTabProps {
   onRenameSpeaker: (key: string | null) => void;
   /** Absent when the meeting cannot be processed again. */
   onRetry?: () => void;
+  draft?: React.ReactNode;
+  /** The search the tab opens with, its items being the turns. */
+  initialSearch?: InitialTextSearch;
 }
 
 export const TranscriptTab: React.FC<TranscriptTabProps> = ({
   meeting,
   onRenameSpeaker,
   onRetry,
+  draft,
+  initialSearch,
 }) => {
   const { t } = useTranslation();
   const { copy, exportMarkdown } = useMeetingMarkdown(meeting.id, "transcript");
@@ -52,7 +61,7 @@ export const TranscriptTab: React.FC<TranscriptTabProps> = ({
       ),
     [meeting.turns],
   );
-  const search = useTextSearch(texts);
+  const search = useTextSearch(texts, initialSearch);
 
   const hasText = meeting.turns.some(
     (turn) => turn.speaker_key !== PLACEHOLDER_SPEAKER,
@@ -93,7 +102,9 @@ export const TranscriptTab: React.FC<TranscriptTabProps> = ({
         </IconButton>
       </TabHeaderBar>
 
-      {meeting.turns.length === 0 ? (
+      {meeting.turns.length === 0 && draft ? (
+        draft
+      ) : meeting.turns.length === 0 ? (
         <p className="px-1 py-6 text-center text-sm text-mid-gray">
           {meeting.status === "ready" || meeting.status === "failed"
             ? t("meetings.transcript.empty")

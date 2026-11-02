@@ -9,6 +9,7 @@ import { SettingsGroup } from "../../ui/SettingsGroup";
 import { SettingsPage } from "../../ui/SettingsPage";
 import { RadioOption } from "../../ui/RadioOption";
 import { AiCleanup } from "../AiCleanup";
+import { CleanupShortDictations } from "../CleanupShortDictations";
 import { DictationStyleSetting } from "../DictationStyle";
 import { CustomWords } from "../CustomWords";
 import { WindowNames } from "../WindowNames";
@@ -114,6 +115,7 @@ export const TranscriptionSettings: React.FC = () => {
           grouped={true}
           needsAccount={noAccount}
         />
+        <CleanupShortDictations noAccount={noAccount} />
         <DictationStyleSetting noAccount={noAccount} />
         <WindowNames descriptionMode="tooltip" grouped={true} />
         <WhisperMode descriptionMode="tooltip" grouped={true} />

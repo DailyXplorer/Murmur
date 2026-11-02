@@ -516,6 +516,12 @@ impl Processor {
                 built.identity.as_deref(),
                 built.score,
             )?;
+            if !built.turns.is_empty() {
+                let dir = paths::meeting_dir(&self.root, id);
+                if let Err(error) = super::live::draft::remove(&dir) {
+                    log::warn!("Meeting {id}: cannot delete the live transcript: {error}");
+                }
+            }
         }
         stages.push(("aligning", started.elapsed()));
 

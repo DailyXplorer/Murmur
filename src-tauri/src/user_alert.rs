@@ -21,6 +21,8 @@ pub enum Alert {
     LongRecording,
     RecordingLimitSoon,
     NothingToPaste,
+    /// The meeting paste shortcut found no new live text.
+    NothingNewInMeeting,
     ShortcutUnavailable {
         shortcut: String,
     },
@@ -73,6 +75,7 @@ impl Alert {
             Self::LongRecording => strings.warning_long_recording.clone(),
             Self::RecordingLimitSoon => strings.warning_recording_limit.clone(),
             Self::NothingToPaste => strings.notice_nothing_to_paste.clone(),
+            Self::NothingNewInMeeting => strings.notice_nothing_new_in_meeting.clone(),
             Self::ShortcutUnavailable { shortcut } => strings
                 .error_shortcut_unavailable
                 .replace("{{shortcut}}", &display_shortcut(shortcut)),
