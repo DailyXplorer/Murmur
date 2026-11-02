@@ -1,4 +1,4 @@
-//! The models that tell speakers apart (FluidAudio: Parakeet v3 for word
+//! The models that tell speakers apart (FluidAudio: Parakeet Ultra for word
 //! times, pyannote Community-1 for diarization) are the shared local models
 //! (`local_models`), one download with dictation. Meetings add one rule: a
 //! meeting start fetches them while it records, unless the user deleted

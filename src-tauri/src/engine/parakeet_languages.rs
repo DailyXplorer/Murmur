@@ -1,5 +1,5 @@
-//! The languages Parakeet TDT 0.6B v3 transcribes, as the dictation
-//! language setting names them.
+//! The languages Parakeet Ultra transcribes, the 25 of v3 it was trained
+//! from, as the dictation language setting names them.
 
 const LANGUAGES: [&str; 25] = [
     "bg", "cs", "da", "de", "el", "en", "es", "et", "fi", "fr", "hr", "hu", "it", "lt", "lv", "mt",

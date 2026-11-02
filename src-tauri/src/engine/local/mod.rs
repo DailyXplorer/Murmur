@@ -1,4 +1,4 @@
-//! Parakeet TDT 0.6B v3 on this Mac. Apple silicon runs the Core ML models
+//! Parakeet Ultra on this Mac. Apple silicon runs the Core ML models
 //! in the meetings helper (`fluid`), other Macs the GGUF model on the CPU in
 //! the app (`cpu`). Both get pieces short enough for one pass, cut at pauses.
 
@@ -10,6 +10,7 @@ mod fluid;
 #[cfg(test)]
 mod real_engine;
 pub mod session;
+pub mod unknown;
 
 use crate::audio_toolkit::constants::TARGET_SAMPLE_RATE;
 use crate::audio_toolkit::pauses::speech_pieces;
@@ -140,9 +141,7 @@ fn runtime(app: &AppHandle, models: &LocalModels) -> Option<Box<dyn Runtime>> {
 #[cfg(not(target_arch = "aarch64"))]
 fn runtime(_app: &AppHandle, models: &LocalModels) -> Option<Box<dyn Runtime>> {
     Some(Box::new(cpu::CpuRuntime {
-        model: models
-            .dir()
-            .join(crate::local_models::manifest::gguf_path()),
+        models: models.dir().to_path_buf(),
     }))
 }
 

@@ -59,6 +59,9 @@ impl Host for AppHost {
                 "prepare".into(),
                 "--models-dir".into(),
                 dir.into_os_string(),
+                // Only the models being made ready are prepared.
+                "--asr".into(),
+                manifest::Asr::Current.helper_name().into(),
             ];
             match helper::run(&program, &args, &operation, PREPARE_TIMEOUT, |_| {}).await {
                 Ok(Ended::Done) => Prepared::Done,

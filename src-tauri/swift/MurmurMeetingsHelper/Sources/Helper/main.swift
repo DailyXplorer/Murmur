@@ -1,9 +1,9 @@
 // murmur-meetings-helper: on-device analysis of a recorded meeting.
 //
-//   prepare  --models-dir <dir>
-//   analyze  --models-dir <dir> [--system <wav>] [--mic <wav>]
-//   diarize  --models-dir <dir> (--system <wav> | --mic <wav>)
-//   serve    --models-dir <dir>
+//   prepare  --models-dir <dir> --asr <ultra|v3>
+//   analyze  --models-dir <dir> --asr <ultra|v3> [--system <wav>] [--mic <wav>]
+//   diarize  --models-dir <dir> --asr <ultra|v3> (--system <wav> | --mic <wav>)
+//   serve    --models-dir <dir> --asr <ultra|v3>
 //
 // Murmur downloads the models itself (`local_models`). `prepare` loads them
 // once, so Core ML compiles them for this Mac; `analyze` prints the words
@@ -12,7 +12,8 @@
 // transcribes each WAV named on stdin, boosting the terms named with it when
 // the optional CTC model is downloaded. Prints one JSON object per line on
 // stdout (see `meetings/protocol.rs`). None of them downloads: missing
-// models are reported as an error.
+// models are reported as an error. `--asr` names the Parakeet Murmur has
+// ready: Ultra, or v3 while Ultra downloads beside it.
 
 import FluidAudio
 import Foundation
@@ -124,17 +125,28 @@ func compileProgress(from: Double, to: Double) -> ProgressHandler {
     }
 }
 
-func asrDirectory(_ models: URL) -> URL {
-    models.appendingPathComponent(Repo.parakeetV3.folderName, isDirectory: true)
+/// The Parakeet `--asr` names, and the folder FluidAudio keeps it in.
+struct Asr {
+    let version: AsrModelVersion
+    let repo: Repo
+
+    static let named: [String: Asr] = [
+        "ultra": Asr(version: .ultra, repo: .parakeetUltra),
+        "v3": Asr(version: .v3, repo: .parakeetV3),
+    ]
+
+    func load(_ models: URL, progressHandler: ProgressHandler? = nil) async throws -> AsrModels {
+        try await AsrModels.load(
+            from: models.appendingPathComponent(repo.folderName, isDirectory: true),
+            version: version, progressHandler: progressHandler)
+    }
 }
 
 /// The first load compiles the models for this Mac; later loads are fast.
-func prepare(models: URL) async -> Int32 {
+func prepare(models: URL, asr: Asr) async -> Int32 {
     ModelHub.offlineMode = true
     do {
-        _ = try await AsrModels.load(
-            from: asrDirectory(models), version: .v3,
-            progressHandler: compileProgress(from: 0, to: 0.8))
+        _ = try await asr.load(models, progressHandler: compileProgress(from: 0, to: 0.8))
         _ = try await OfflineDiarizerModels.load(
             from: models, progressHandler: compileProgress(from: 0.8, to: 1))
         // Optional: without it, dictation is not boosted.
@@ -193,13 +205,13 @@ func tracks(in arguments: [String]) -> [(String, URL)] {
     }
 }
 
-func analyze(models: URL, arguments: [String]) async -> Int32 {
+func analyze(models: URL, asr: Asr, arguments: [String]) async -> Int32 {
     // Everything the analysis needs is already on disk.
     ModelHub.offlineMode = true
     do {
-        let asr = try await AsrModels.load(from: asrDirectory(models), version: .v3)
+        let loaded = try await asr.load(models)
         for (track, url) in tracks(in: arguments) {
-            await transcribe(url, track: track, models: asr)
+            await transcribe(url, track: track, models: loaded)
         }
     } catch {
         fail("asr", error)
@@ -296,12 +308,11 @@ final class Booster {
 
 /// Loads Parakeet once, then answers each request read on stdin until
 /// Murmur closes it. Pieces are at most 15 s, one pass of the encoder.
-func serve(models: URL) async -> Int32 {
+func serve(models: URL, asr: Asr) async -> Int32 {
     ModelHub.offlineMode = true
     let manager = AsrManager(config: .default)
     do {
-        try await manager.loadModels(
-            try await AsrModels.load(from: asrDirectory(models), version: .v3))
+        try await manager.loadModels(try await asr.load(models))
     } catch {
         fail("load", error)
         return 1
@@ -341,10 +352,11 @@ func serve(models: URL) async -> Int32 {
 AppLogger.minimumLevel = .warning
 
 let arguments = Array(CommandLine.arguments.dropFirst())
-guard let command = arguments.first, let modelsPath = value(of: "--models-dir", in: arguments)
+guard let command = arguments.first, let modelsPath = value(of: "--models-dir", in: arguments),
+    let asr = value(of: "--asr", in: arguments).flatMap({ Asr.named[$0] })
 else {
     FileHandle.standardError.write(
-        Data("usage: prepare|analyze|diarize|serve --models-dir <dir> …\n".utf8))
+        Data("usage: prepare|analyze|diarize|serve --models-dir <dir> --asr ultra|v3 …\n".utf8))
     exit(2)
 }
 
@@ -361,13 +373,13 @@ if command != "serve" {
 let models = URL(fileURLWithPath: modelsPath, isDirectory: true)
 switch command {
 case "prepare":
-    exit(await prepare(models: models))
+    exit(await prepare(models: models, asr: asr))
 case "analyze":
-    exit(await analyze(models: models, arguments: arguments))
+    exit(await analyze(models: models, asr: asr, arguments: arguments))
 case "diarize":
     exit(await diarize(models: models, arguments: arguments))
 case "serve":
-    exit(await serve(models: models))
+    exit(await serve(models: models, asr: asr))
 default:
     FileHandle.standardError.write(Data("unknown command \(command)\n".utf8))
     exit(2)
