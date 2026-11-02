@@ -717,6 +717,8 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::meetings::answer_call_prompt,
             overlay::fit_call_prompt,
             overlay::get_call_prompt,
+            commands::meetings::change_meeting_live_transcript_setting,
+            commands::meetings::get_live_transcript,
         ])
         .events(collect_events![
             managers::history::HistoryUpdatePayload,
@@ -726,7 +728,8 @@ fn specta_builder() -> Builder<tauri::Wry> {
             meetings::processor::MeetingProgress,
             local_models::LocalModelStatus,
             local_models::SwitchedToLocal,
-            updates::UpdateStatus
+            updates::UpdateStatus,
+            meetings::live::MeetingLiveUpdated
         ])
 }
 

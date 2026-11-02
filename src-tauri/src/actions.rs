@@ -718,6 +718,10 @@ pub static ACTION_MAP: Lazy<HashMap<String, Arc<dyn ShortcutAction>>> = Lazy::ne
         crate::meetings::BINDING_ID.to_string(),
         Arc::new(crate::meetings::MeetingToggleAction) as Arc<dyn ShortcutAction>,
     );
+    map.insert(
+        crate::meetings::live::PASTE_BINDING_ID.to_string(),
+        Arc::new(crate::meetings::live::paste::PasteNewAction) as Arc<dyn ShortcutAction>,
+    );
     map
 });
 

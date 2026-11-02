@@ -124,9 +124,9 @@ The Windows source lives on the `beta` branch for now, not on `main`.
   or unsatisfying transcription can be sent again from its recording
 - Insights: total words, words per minute over the last 30 days, current and
   longest streak with a 20-week heatmap, and usage by app category
-- Meetings: record a call (Control+Option+Command+M or the menu bar), then
-  get a transcript with speakers told apart and a summary with a title. See
-  [Meetings](#meetings)
+- Meetings: record a call (Control+Option+Command+M or the menu bar), read
+  it live while it records, then get a transcript with speakers told apart
+  and a summary with a title. See [Meetings](#meetings)
 - A minimal waveform overlay at the top or bottom of the screen, which can be
   turned off
 - Audio feedback, tray controls, and automatic updates
@@ -189,6 +189,14 @@ warning 5 minutes before.
   only. When another app played sound during a meeting but its system audio
   holds nothing but silence while you spoke, the meeting says so and links
   to the privacy settings.
+- While a meeting records, open it in Meetings to read a live transcript, a
+  few seconds behind speech, with "You" for the microphone and "Others" for
+  system audio. It is made on the Mac by the local model, never in the cloud,
+  and a dictation always goes first. Without the local model, the meeting
+  view says so and the transcript is made after Stop as usual. The "Paste new
+  meeting text" shortcut, unbound until you pick keys under Meetings, pastes
+  what was said since its last use. The live transcript is a draft: the
+  transcript made after Stop replaces it. Turn it off in Settings → Advanced.
 - After you stop, Codex transcribes the tracks in pieces of up to 10 minutes,
   at most 3 at a time. Processing resumes after a quit, without sending a
   transcribed piece again. Pieces Codex refuses are transcribed on the Mac

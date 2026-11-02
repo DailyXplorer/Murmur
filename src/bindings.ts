@@ -1003,6 +1003,29 @@ async fitCallPrompt(width: number, height: number) : Promise<void> {
  */
 async getCallPrompt() : Promise<CallPromptLabels | null> {
     return await TAURI_INVOKE("get_call_prompt");
+},
+/**
+ * Applies from the next meeting: the one recording keeps how it started.
+ */
+async changeMeetingLiveTranscriptSetting(enabled: boolean) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("change_meeting_live_transcript_setting", { enabled }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
+/**
+ * The live transcript of meeting `id`, or the draft a crash left of it.
+ * `None` once the final transcript replaced it.
+ */
+async getLiveTranscript(id: number) : Promise<Result<LiveTranscript | null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_live_transcript", { id }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
 }
 }
 
@@ -1013,6 +1036,7 @@ export const events = __makeEvents__<{
 historyUpdatePayload: HistoryUpdatePayload,
 insightsUpdated: InsightsUpdated,
 localModelStatus: LocalModelStatus,
+meetingLiveUpdated: MeetingLiveUpdated,
 meetingProgress: MeetingProgress,
 meetingStateChanged: MeetingStateChanged,
 meetingsUpdated: MeetingsUpdated,
@@ -1022,6 +1046,7 @@ updateStatus: UpdateStatus
 historyUpdatePayload: "history-update-payload",
 insightsUpdated: "insights-updated",
 localModelStatus: "local-model-status",
+meetingLiveUpdated: "meeting-live-updated",
 meetingProgress: "meeting-progress",
 meetingStateChanged: "meeting-state-changed",
 meetingsUpdated: "meetings-updated",
@@ -1103,6 +1128,11 @@ meetings_enabled?: boolean; meeting_capture_mode?: MeetingCaptureMode; meeting_a
  * while meetings are on.
  */
 meeting_call_prompt?: boolean; 
+/**
+ * Shows the meeting's text while it records, made on this Mac when the
+ * local model is ready.
+ */
+meeting_live_transcript?: boolean; 
 /**
  * Which engine transcribes dictations.
  */
@@ -1284,6 +1314,46 @@ categories: CategoryUsage[];
  */
 categorized_dictations: number; apps_used: number; streaks: Streaks; heatmap: HeatmapDay[] }
 export type InsightsUpdated = null
+/**
+ * One sentence of the draft, on the meeting timeline.
+ */
+export type LiveEntry = { source: Track; start_ms: number; end_ms: number; text: string; kind: LiveEntryKind }
+export type LiveEntryKind = "speech" | 
+/**
+ * Audio the live text skipped; the final transcript has it.
+ */
+"gap"
+export type LiveState = 
+/**
+ * Recording, nothing said yet.
+ */
+{ state: "starting" } | { state: "live" } | 
+/**
+ * Over 30 s of speech wait for the model.
+ */
+{ state: "catching_up" } | { state: "unavailable"; reason: LiveUnavailable } | 
+/**
+ * The meeting stopped: the draft waits for the final transcript.
+ */
+{ state: "stopped" }
+export type LiveTranscript = { state: LiveState; 
+/**
+ * In the order they were published, which is not quite time order.
+ */
+entries: LiveEntry[] }
+export type LiveUnavailable = 
+/**
+ * The live transcript setting is off.
+ */
+"off" | "missing" | "downloading" | "preparing" | 
+/**
+ * An Intel Mac.
+ */
+"unsupported" | 
+/**
+ * Three pieces in a row failed.
+ */
+"engine_failed"
 export type LocalModelState = 
 /**
  * This Mac cannot run the models.
@@ -1369,6 +1439,10 @@ export type MeetingListItem = { id: number;
  * `None` until a summary names the meeting.
  */
 title: string | null; started_at_ms: number; duration_ms: number; status: MeetingStatus; tracks: MeetingTracks }
+/**
+ * Sent as the live transcript of meeting `id` grows or changes state.
+ */
+export type MeetingLiveUpdated = { id: number; state: LiveState; appended: LiveEntry[] }
 /**
  * Which tab Copy and Export take their text from.
  */
@@ -1571,6 +1645,11 @@ export type SystemAudioSupport = "available" |
  * and `Dark` force one of the two palettes Murmur already ships.
  */
 export type Theme = "system" | "light" | "dark"
+/**
+ * Ties go to system audio: a remote question comes before the answer
+ * captured at the same moment.
+ */
+export type Track = "system" | "mic"
 /**
  * What the last update check found.
  */

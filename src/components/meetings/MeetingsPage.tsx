@@ -13,9 +13,11 @@ import {
   type SystemAudioSupport,
 } from "@/bindings";
 import { formatDuration } from "@/lib/meetings/format";
+import { LiveMeetingView } from "./LiveMeetingView";
 import { formatMeetingDate, MeetingView } from "./MeetingView";
 import { SpeakerModels } from "./SpeakerModels";
 import { useLocalModel } from "../../hooks/useLocalModel";
+import { useNow } from "../../hooks/useNow";
 import { useSettings } from "../../hooks/useSettings";
 import { Button } from "../ui/Button";
 import { Dialog } from "../ui/Dialog";
@@ -36,30 +38,32 @@ const STATUS_KEYS: Record<MeetingStatus, string> = {
   failed: "meetings.status.failed",
 };
 
-/** The current time, refreshed every second while `active`. */
-const useNow = (active: boolean) => {
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    if (!active) return;
-    setNow(Date.now());
-    const timer = window.setInterval(() => setNow(Date.now()), 1000);
-    return () => window.clearInterval(timer);
-  }, [active]);
-  return now;
-};
-
 export const MeetingsPage: React.FC = () => {
-  const [selected, setSelected] = useState<number | null>(null);
-  return selected === null ? (
-    <MeetingsList onOpen={setSelected} />
+  const [selected, setSelected] = useState<{
+    id: number;
+    live: boolean;
+  } | null>(null);
+  const stopped = useCallback(
+    () => setSelected((current) => current && { ...current, live: false }),
+    [],
+  );
+  if (selected === null) {
+    return <MeetingsList onOpen={(id, live) => setSelected({ id, live })} />;
+  }
+  return selected.live ? (
+    <LiveMeetingView
+      id={selected.id}
+      onBack={() => setSelected(null)}
+      onStopped={stopped}
+    />
   ) : (
-    <MeetingView id={selected} onBack={() => setSelected(null)} />
+    <MeetingView id={selected.id} onBack={() => setSelected(null)} />
   );
 };
 
-const MeetingsList: React.FC<{ onOpen: (id: number) => void }> = ({
-  onOpen,
-}) => {
+const MeetingsList: React.FC<{
+  onOpen: (id: number, live: boolean) => void;
+}> = ({ onOpen }) => {
   const { t, i18n } = useTranslation();
   const { getSetting, updateSetting, isUpdating } = useSettings();
   const [runtime, setRuntime] = useState<MeetingRuntime>({ state: "idle" });
@@ -240,6 +244,7 @@ const MeetingsList: React.FC<{ onOpen: (id: number) => void }> = ({
           </div>
         </SettingContainer>
         <ShortcutInput shortcutId="meeting_toggle" grouped={true} />
+        <ShortcutInput shortcutId="meeting_paste_new" grouped={true} />
         <SettingContainer
           title={t("meetings.captureMode.title")}
           description={t("meetings.captureMode.description")}
@@ -304,8 +309,7 @@ const MeetingsList: React.FC<{ onOpen: (id: number) => void }> = ({
                 >
                   <button
                     type="button"
-                    disabled={live}
-                    onClick={() => onOpen(meeting.id)}
+                    onClick={() => onOpen(meeting.id, live)}
                     className="min-w-0 flex-1 cursor-pointer rounded-md text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-text disabled:cursor-default"
                   >
                     <p className="truncate text-sm font-medium">

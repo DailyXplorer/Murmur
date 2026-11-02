@@ -13,8 +13,11 @@ import type {
   HistoryEntry,
   InsightsSummary,
   MeetingDetail,
+  LiveState,
+  LiveTranscript,
   LocalModelStatus,
   MeetingListItem,
+  MeetingLiveUpdated,
   MeetingProgress,
   MeetingRuntime,
   MeetingStage,
@@ -31,6 +34,7 @@ declare global {
       emitProgress: (progress: MeetingProgress) => Promise<void>;
       emitMeetingsUpdated: (id: number) => Promise<void>;
       emitMeetingState: (runtime: MeetingRuntime) => Promise<void>;
+      emitLive: (update: MeetingLiveUpdated) => Promise<void>;
       /** Keeps list loads waiting, each with the list as it was asked for. */
       holdMeetingLoads: () => void;
       releaseMeetingLoads: () => void;
@@ -238,6 +242,13 @@ const SETTINGS: AppSettings = {
       id: "meeting_toggle",
       name: "Start or stop a meeting",
     },
+    meeting_paste_new: {
+      current_binding: "",
+      default_binding: "",
+      description: "Pastes what was said in the meeting since the last paste.",
+      id: "meeting_paste_new",
+      name: "Paste new meeting text",
+    },
     paste_last: {
       current_binding: "option+shift+v",
       default_binding: "option+shift+v",
@@ -267,6 +278,7 @@ const SETTINGS: AppSettings = {
   meeting_audio_retention: "keep",
   meeting_call_prompt: true,
   meeting_capture_mode: "both",
+  meeting_live_transcript: true,
   meetings_enabled: meetingsEnabled,
   mute_while_recording: false,
   onboarding_completed: !showOnboarding,
@@ -540,6 +552,35 @@ const detailOf = (item: MeetingListItem): MeetingDetail => ({
 });
 const DETAILS = new Map(MEETINGS.map((item) => [item.id, detailOf(item)]));
 
+const liveParam = params.get("live") ?? "starting";
+const LIVE_STATES = ["starting", "live", "catching_up", "stopped"];
+const LIVE_DRAFTS = new Map<number, LiveTranscript>(
+  meetingRecording
+    ? [
+        [
+          4,
+          {
+            entries: [],
+            state: (LIVE_STATES.includes(liveParam)
+              ? { state: liveParam }
+              : { reason: liveParam, state: "unavailable" }) as LiveState,
+          },
+        ],
+      ]
+    : [],
+);
+const emitLive = (update: MeetingLiveUpdated) => {
+  const draft = LIVE_DRAFTS.get(update.id) ?? {
+    entries: [],
+    state: update.state,
+  };
+  LIVE_DRAFTS.set(update.id, {
+    entries: [...draft.entries, ...update.appended],
+    state: update.state,
+  });
+  return events.meetingLiveUpdated.emit(update);
+};
+
 /** Commands whose answer depends on their arguments or changes the data. */
 let meetingLoadsHeld: Promise<void> | null = null;
 let releaseMeetingLoads = () => {};
@@ -598,6 +639,11 @@ const handleMeetingCommand = (
     case "delete_meeting_audio":
       if (meeting) Object.assign(meeting, { audio: "deleted", audio_bytes: 0 });
       return { handled: true, value: null };
+    case "get_live_transcript":
+      return {
+        handled: true,
+        value: structuredClone(LIVE_DRAFTS.get(args.id as number) ?? null),
+      };
     default:
       return { handled: false };
   }
@@ -772,6 +818,7 @@ window.settingsPages = {
   emitProgress: (progress) => events.meetingProgress.emit(progress),
   emitMeetingsUpdated: (id) => events.meetingsUpdated.emit({ id }),
   emitMeetingState: (runtime) => events.meetingStateChanged.emit(runtime),
+  emitLive,
   holdMeetingLoads: () => {
     meetingLoadsHeld = new Promise((resolve) => {
       releaseMeetingLoads = () => {
@@ -827,6 +874,11 @@ mockIPC(
       });
     }
     if (command === "stop_meeting") {
+      const stopped = DETAILS.get(4);
+      if (meetingRecording && stopped) {
+        Object.assign(stopped, { stage: "transcribing", status: "processing" });
+        void emitLive({ appended: [], id: 4, state: { state: "stopped" } });
+      }
       void events.meetingStateChanged.emit({ state: "idle" });
     }
     // The update's download stops at 42% so its progress stays on screen.

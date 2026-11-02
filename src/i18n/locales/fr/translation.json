@@ -37,6 +37,9 @@
     "callRecord": "Enregistrer",
     "callNotNow": "Pas maintenant",
     "noticeNothingToPaste": "Aucune transcription à coller pour l’instant.",
+    "noticeNothingNewInMeeting": "Rien de nouveau pour l’instant.",
+    "liveYou": "Vous",
+    "liveOthers": "Les autres",
     "startMeeting": "Démarrer une réunion",
     "stopMeeting": "Arrêter la réunion",
     "meetingSystemAudioUnavailable": "L’audio du système n’est pas disponible : la réunion n’enregistre que votre microphone.",
@@ -177,6 +180,7 @@
         "none": "Aucun raccourci configuré",
         "notFound": "Raccourci non trouvé",
         "pressKeys": "Appuyez sur les touches...",
+        "notSet": "Aucun",
         "bindings": {
           "transcribe": {
             "name": "Raccourci de transcription",
@@ -193,6 +197,10 @@
           "meeting_toggle": {
             "name": "Raccourci de réunion",
             "description": "Démarre l’enregistrement d’une réunion ou arrête celle en cours."
+          },
+          "meeting_paste_new": {
+            "name": "Coller le nouveau texte de la réunion",
+            "description": "Colle ce qui a été dit dans la réunion depuis le dernier collage, ou pendant la dernière minute."
           }
         },
         "errors": {
@@ -336,6 +344,10 @@
       "meetingCallPrompt": {
         "label": "Proposer d’enregistrer les appels",
         "description": "Quand Zoom, Google Meet, Teams, Slack, FaceTime, Webex ou Discord démarre un appel, demander s’il faut l’enregistrer. La question reste affichée jusqu’à votre réponse ou la fin de l’appel. Murmur n’enregistre jamais sans un clic."
+      },
+      "meetingLiveTranscript": {
+        "label": "Transcription en direct des réunions",
+        "description": "Affiche le texte de la réunion pendant l’enregistrement. Il est produit sur ce Mac par le modèle local, jamais dans le cloud."
       },
       "meetingsAudio": {
         "title": "Supprimer l’audio des réunions",
@@ -867,7 +879,22 @@
         "description": "Codex transcrit à nouveau l'enregistrement, et la transcription et le résumé sont remplacés. Un titre que vous avez choisi est conservé."
       }
     },
-    "localFallback": "Codex était indisponible pendant {{duration}} de cette réunion, cette partie a donc été transcrite sur ce Mac."
+    "localFallback": "Codex était indisponible pendant {{duration}} de cette réunion, cette partie a donc été transcrite sur ce Mac.",
+    "live": {
+      "title": "Transcription en direct",
+      "you": "Vous",
+      "others": "Les autres",
+      "starting": "À l’écoute… le texte apparaît quelques secondes après chaque prise de parole.",
+      "catchingUp": "Rattrapage en cours",
+      "gap": "… (passage manquant, la transcription finale l’inclura)",
+      "unavailable": "Le texte en direct a besoin du modèle vocal local.",
+      "off": "La transcription en direct est désactivée. La transcription sera faite après l’arrêt.",
+      "unsupported": "Le texte en direct demande un Mac avec puce Apple. La transcription sera faite après l’arrêt.",
+      "failed": "Le texte en direct s’est arrêté. L’enregistrement continue et la transcription sera faite après l’arrêt.",
+      "copyAll": "Tout copier",
+      "pasteHint": "Pour coller ce qui vient d’être dit dans une autre app, choisissez des touches pour coller le nouveau texte de la réunion, dans la page Réunions.",
+      "draftNotice": "Brouillon. La transcription finale le remplace à la fin du traitement."
+    }
   },
   "localSttCard": {
     "title": "Nouveau : transcription locale, sans quota.",

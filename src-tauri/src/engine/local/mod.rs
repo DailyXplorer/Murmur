@@ -7,6 +7,8 @@ pub mod boost;
 mod cpu;
 #[cfg(target_arch = "aarch64")]
 mod fluid;
+#[cfg(all(test, target_arch = "aarch64"))]
+mod live_replay;
 #[cfg(test)]
 mod real_engine;
 pub mod session;
@@ -102,6 +104,19 @@ impl LocalEngine {
             texts.push(text.trim().to_string());
         }
         Ok(join(texts))
+    }
+
+    /// One piece of a live meeting, at most one pass long, with its words'
+    /// times. Dictation goes first: see `Session::transcribe_background`.
+    pub async fn transcribe_live(&self, samples: &[f32]) -> session::Background {
+        let piece = padded(samples);
+        let limit = RUN_ALLOWANCE + seconds(piece.len());
+        self.session.transcribe_background(&piece, limit).await
+    }
+
+    /// Keeps the model loaded through a live meeting's silences.
+    pub fn keep_loaded(&self) {
+        self.session.keep_loaded();
     }
 }
 
