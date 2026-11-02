@@ -681,6 +681,7 @@ pub fn hide_call_prompt(app_handle: &AppHandle) {
         // left on, the window would be freed twice.
         let window = match handle.get_webview_panel(CALL_PROMPT_WINDOW) {
             Ok(panel) => {
+                panel.hide();
                 let window = panel.to_window();
                 panel.set_released_when_closed(false);
                 window
