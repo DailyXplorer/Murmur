@@ -345,7 +345,11 @@ fn is_corruption(error: &anyhow::Error) -> bool {
     })
 }
 
-fn init_database(db_path: &Path) -> Result<()> {
+pub(crate) fn migrations() -> Migrations<'static> {
+    Migrations::new(MIGRATIONS.to_vec())
+}
+
+pub(crate) fn init_database(db_path: &Path) -> Result<()> {
     info!("Initializing database at {:?}", db_path);
 
     let mut conn = Connection::open(db_path)?;
@@ -361,7 +365,7 @@ fn init_database(db_path: &Path) -> Result<()> {
 
     migrate_from_tauri_plugin_sql(&conn)?;
 
-    let migrations = Migrations::new(MIGRATIONS.to_vec());
+    let migrations = migrations();
 
     #[cfg(debug_assertions)]
     migrations.validate().expect("Invalid migrations");

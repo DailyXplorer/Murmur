@@ -306,6 +306,8 @@ const SETTINGS: AppSettings = {
   meeting_audio_retention: "keep",
   meeting_call_prompt: true,
   meeting_capture_mode: "both",
+  mcp_enabled: params.get("mcp") === "1",
+  mcp_include_dictations: params.get("mcpDictations") === "1",
   meetings_enabled: meetingsEnabled,
   mute_while_recording: false,
   onboarding_completed: !showOnboarding,
@@ -774,6 +776,9 @@ const handleAccountCommand = (
 };
 
 const RESPONSES: Record<string, unknown> = {
+  change_mcp_enabled_setting: null,
+  change_mcp_include_dictations_setting: null,
+  get_mcp_setup: { command: "/Applications/Murmur.app/Contents/MacOS/murmur" },
   change_meeting_audio_retention_setting: null,
   change_meeting_call_prompt_setting: null,
   change_meeting_capture_mode_setting: null,
