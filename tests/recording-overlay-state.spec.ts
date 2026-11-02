@@ -6,9 +6,10 @@ import {
   entranceFinished,
   ERROR_WINDOW,
   fitCopyWindow,
+  MEETING_WINDOW,
   openCallPrompt,
   openOverlay,
-  RECORDING_WINDOW,
+  ORB_WINDOW,
 } from "./overlayHarness";
 
 const LOUD = Array(16).fill(0.9);
@@ -35,19 +36,20 @@ const COPY_LABELS = {
   note: "There was no text field to paste into.",
 };
 
-const centerBarHeight = (page: Page) =>
-  page
-    .locator(".ov-wave i")
-    .nth(6)
-    .evaluate((bar) => bar.getBoundingClientRect().height);
+// The drawn size of the orb's ring, which the voice pushes out.
+const ringSize = (page: Page) =>
+  page.locator(".ov-orb-ring").evaluate((ring: SVGGraphicsElement) => {
+    const box = ring.getBBox();
+    return Math.max(box.width, box.height);
+  });
 
 // Feeds a speech-like stream at the host's ~30 Hz (words of ~5 syllables a
 // second, short pauses, per-event noise; fixed seed) and samples the capsule
-// and bars on every animation frame.
+// and the ring on every animation frame.
 const sampleWhileSpeaking = (page: Page, seconds: number) =>
   page.evaluate(async (durationMs) => {
     const capsule = document.querySelector<HTMLElement>(".ov-capsule")!;
-    const bars = [...document.querySelectorAll<HTMLElement>(".ov-wave i")];
+    const ring = document.querySelector<SVGGraphicsElement>(".ov-orb-ring")!;
     let seed = 7;
     const noise = () => {
       seed = (seed * 16807) % 2147483647;
@@ -69,21 +71,20 @@ const sampleWhileSpeaking = (page: Page, seconds: number) =>
     const frames: Array<{
       left: number;
       right: number;
+      width: number;
       height: number;
-      barLayoutHeights: number[];
-      centerBarDrawnHeight: number;
+      ring: number;
     }> = [];
     await new Promise<void>((resolve) => {
       requestAnimationFrame(function sample() {
         const box = capsule.getBoundingClientRect();
+        const drawn = ring.getBBox();
         frames.push({
           left: box.left,
           right: box.right,
+          width: box.width,
           height: box.height,
-          barLayoutHeights: bars.map((bar) =>
-            parseFloat(getComputedStyle(bar).height),
-          ),
-          centerBarDrawnHeight: bars[6].getBoundingClientRect().height,
+          ring: Math.max(drawn.width, drawn.height),
         });
         if (performance.now() - start < durationMs) {
           requestAnimationFrame(sample);
@@ -118,10 +119,10 @@ test("an error that arrives while the overlay loads its settings stays on screen
 
   await expect(page.getByRole("alert")).toHaveText("Microphone access is off");
   await expect(page.getByRole("alert")).toBeVisible();
-  await expect(page.locator(".ov-wave")).toHaveCount(0);
+  await expect(page.locator(".ov-orb")).toHaveCount(0);
 });
 
-test("recording shows only a waveform that follows the voice", async ({
+test("recording shows only the orb, whose ring follows the voice", async ({
   page,
 }) => {
   await openOverlay(page);
@@ -131,64 +132,37 @@ test("recording shows only a waveform that follows the voice", async ({
   await dispatch(page, "recording-ready");
   await expect(page.locator(".ov-capsule")).toHaveClass(/live/);
   await entranceFinished(page);
-  expect(await centerBarHeight(page)).toBeCloseTo(4, 1);
-  expect(await capsuleWidth(page)).toBe(108);
+  expect(await ringSize(page), "at rest").toBeLessThan(18.5);
+  expect(await capsuleWidth(page)).toBe(34);
 
   await dispatch(page, "mic-level", LOUD);
-  await expect.poll(() => centerBarHeight(page)).toBeGreaterThan(16);
-  await expect.poll(() => capsuleWidth(page)).toBeGreaterThanOrEqual(120);
+  await expect.poll(() => ringSize(page)).toBeGreaterThan(21);
+  expect(await capsuleWidth(page), "the orb never grows").toBe(34);
 
-  await expect(page.locator(".ov-wave i")).toHaveCount(13);
+  await expect(page.locator(".ov-orb")).toHaveCount(1);
   await expect(page.locator(".ov-stage")).toHaveText("");
   await expect(page.locator(".ov-stage button")).toHaveCount(0);
-  await expect(page.locator(".ov-stage svg")).toHaveCount(0);
 });
 
 test("the capsule holds still while the voice wobbles", async ({ page }) => {
-  await page.setViewportSize(RECORDING_WINDOW);
+  await page.setViewportSize(ORB_WINDOW);
   await openOverlay(page);
   await dispatch(page, "show-overlay", "recording");
   await dispatch(page, "recording-ready");
   await expect(page.locator(".ov-capsule")).toHaveClass(/live/);
   await entranceFinished(page);
 
-  const seconds = 3;
-  const frames = await sampleWhileSpeaking(page, seconds);
-  const lefts = frames.map((frame) => frame.left);
-  const steps = lefts.slice(1).map((left, i) => left - lefts[i]);
-  const moves = steps.filter((step) => step !== 0);
-  const reversals = moves
-    .slice(1)
-    .filter((step, i) => Math.sign(step) !== Math.sign(moves[i])).length;
-  const drawn = frames.map((frame) => frame.centerBarDrawnHeight);
-  const relayouts = frames
-    .slice(1)
-    .filter(
-      (frame, i) =>
-        frame.barLayoutHeights.join() !== frames[i].barLayoutHeights.join(),
-    ).length;
-  test.info().annotations.push({
-    type: "jitter",
-    description: JSON.stringify({
-      frames: frames.length,
-      edgeMoves: moves.length,
-      reversals,
-      fractionalEdges: lefts.filter((left) => !Number.isInteger(left)).length,
-      barRelayouts: relayouts,
-    }),
-  });
+  const frames = await sampleWhileSpeaking(page, 3);
+  const rings = frames.map((frame) => frame.ring);
 
-  expect(new Set(frames.map((frame) => frame.height))).toEqual(new Set([30]));
-  expect(lefts.every(Number.isInteger)).toBe(true);
   expect(
-    frames.every(
-      (frame) => frame.left + frame.right === RECORDING_WINDOW.width,
-    ),
+    new Set(frames.map((frame) => `${frame.width}x${frame.height}`)),
+  ).toEqual(new Set(["34x34"]));
+  expect(frames.every((frame) => Number.isInteger(frame.left))).toBe(true);
+  expect(
+    frames.every((frame) => frame.left + frame.right === ORB_WINDOW.width),
   ).toBe(true);
-  expect(moves.length).toBeLessThanOrEqual(4 * seconds);
-  expect(reversals).toBeLessThanOrEqual(3);
-  expect(Math.max(...drawn) - Math.min(...drawn)).toBeGreaterThan(6);
-  expect(relayouts).toBe(0);
+  expect(Math.max(...rings) - Math.min(...rings)).toBeGreaterThan(3);
 });
 
 test("a hands-free recording looks the same as push-to-talk", async ({
@@ -204,36 +178,40 @@ test("a hands-free recording looks the same as push-to-talk", async ({
   await expect(page.locator(".ov-capsule")).toHaveClass(/live/);
 });
 
-test("transcribing pulses the waveform without any text", async ({ page }) => {
+test("transcribing runs an arc round the orb without any text", async ({
+  page,
+}) => {
   await openOverlay(page);
   await dispatch(page, "show-overlay", "recording");
   await dispatch(page, "recording-ready");
   await dispatch(page, "mic-level", LOUD);
-  await expect.poll(() => centerBarHeight(page)).toBeGreaterThan(16);
+  await expect.poll(() => ringSize(page)).toBeGreaterThan(21);
 
   await dispatch(page, "show-overlay", "transcribing");
   await expect(page.locator(".ov-capsule")).toHaveClass(/processing/);
   await expect(page.locator(".ov-stage")).toHaveText("");
-  await expect.poll(() => capsuleWidth(page)).toBe(108);
+  expect(await capsuleWidth(page)).toBe(34);
+  expect(await ringSize(page), "the ring is still again").toBeLessThan(17.5);
 
-  const heights = new Set<number>();
+  const arc = page.locator(".ov-orb-arc");
+  await expect(arc).toHaveCount(1);
+  const turns = new Set<string>();
   await expect
     .poll(async () => {
-      heights.add(await centerBarHeight(page));
-      return heights.size;
+      turns.add(await arc.evaluate((a) => getComputedStyle(a).transform));
+      return turns.size;
     })
     .toBeGreaterThan(2);
-  expect(Math.max(...heights)).toBeLessThanOrEqual(10);
 });
 
-test("an error replaces the waveform with the message", async ({ page }) => {
+test("an error replaces the orb with the message", async ({ page }) => {
   await openOverlay(page);
   await dispatch(page, "show-overlay", "transcribing");
   await dispatch(page, "show-overlay-error", "Couldn't reach Codex.");
 
   await expect(page.getByRole("alert")).toHaveText("Couldn't reach Codex.");
   await expect(page.getByRole("alert")).toBeVisible();
-  await expect(page.locator(".ov-wave")).toHaveCount(0);
+  await expect(page.locator(".ov-orb")).toHaveCount(0);
 });
 
 for (const { locale, messages } of errorStringsByLocale) {
@@ -250,7 +228,7 @@ for (const { locale, messages } of errorStringsByLocale) {
       await expect(alert).toHaveText(message);
 
       const fit = await alert.evaluate((capsule) => {
-        const text = capsule.querySelector("span")!;
+        const text = capsule.querySelector(".ov-error-text")!;
         const box = capsule.getBoundingClientRect();
         return {
           clipped: text.scrollHeight > text.clientHeight,
@@ -274,7 +252,7 @@ test("without a text field the pill says so and is one Copy button that confirms
   await expect(button).toHaveAccessibleDescription(COPY_LABELS.note);
   await expect(page.locator(".ov-stage button")).toHaveCount(1);
   await expect(button.getByText(COPY_LABELS.note)).toBeVisible();
-  await expect(page.locator(".ov-wave")).toHaveCount(0);
+  await expect(page.locator(".ov-orb")).toHaveCount(0);
   const copyCalls = () =>
     page.evaluate(() => window.overlayHarness.copyCalls());
   expect(await copyCalls(), "the pill asks for no copy on its own").toBe(0);
@@ -287,7 +265,7 @@ test("without a text field the pill says so and is one Copy button that confirms
   expect(await copyCalls()).toBe(1);
 });
 
-test("the copy pill widens from the rest capsule to fit its one-line note", async ({
+test("the copy pill opens from the orb to fit its one-line note", async ({
   page,
 }) => {
   await openOverlay(page);
@@ -310,7 +288,7 @@ test("the copy pill widens from the rest capsule to fit its one-line note", asyn
 
   expect(sizes.length, "the pill showed").toBeGreaterThan(10);
   const widths = sizes.map(([width]) => width);
-  expect(widths[0], "width starts at rest").toBeLessThanOrEqual(112);
+  expect(widths[0], "width starts at the orb").toBeLessThanOrEqual(40);
   const final = widths[widths.length - 1];
   expect(final, "width ends fitted to the note").toBeGreaterThan(180);
   const steps = widths.slice(1).map((width, i) => width - widths[i]);
@@ -321,7 +299,7 @@ test("the copy pill widens from the rest capsule to fit its one-line note", asyn
   expect(
     new Set(sizes.map(([, height]) => height)),
     "a one-line note keeps the capsule height throughout",
-  ).toEqual(new Set([30]));
+  ).toEqual(new Set([34]));
 });
 
 test("a refused copy leaves the pill on Copy and says why in the log", async ({
@@ -375,7 +353,7 @@ test("the copy pill hides on request and gives way to a new recording", async ({
   await expect(page.getByRole("button", { name: "Copy" })).toBeVisible();
   await dispatch(page, "show-overlay", "recording");
   await expect(page.locator(".ov-stage button")).toHaveCount(0);
-  await expect(page.locator(".ov-wave")).toBeVisible();
+  await expect(page.locator(".ov-orb")).toBeVisible();
 });
 
 // A system font standing in for Instrument Sans, should it fail to load, is
@@ -444,6 +422,10 @@ for (const { locale, tray } of trayStringsByLocale) {
             const lines = [...text.getClientRects()];
             const action = capsule.querySelector(".ov-copy-action")!;
             const actionBox = action.getBoundingClientRect();
+            const glyphBox = capsule
+              .querySelector(".ov-glyph")!
+              .getBoundingClientRect();
+            const glyphInset = glyphBox.left - box.left;
             const linesLeft = Math.min(...lines.map((line) => line.left));
             const linesRight = Math.max(...lines.map((line) => line.right));
             const gapToAction = actionBox.left - linesRight;
@@ -485,6 +467,7 @@ for (const { locale, tray } of trayStringsByLocale) {
                 box.bottom <= window.innerHeight,
               noteLines: Math.round(rects[0].height / lineHeight),
               gapToAction,
+              glyphInset,
               noteInset,
               actionInset,
               linesEndingInHyphen: lineTexts.filter((line) =>
@@ -514,13 +497,25 @@ for (const { locale, tray } of trayStringsByLocale) {
           `${label}: note ends by the action`,
         ).toBeLessThan(12);
         expect(
-          fit.noteInset,
-          `${label}: note clears the rounded edge`,
-        ).toBeGreaterThanOrEqual(12);
+          fit.glyphInset,
+          `${label}: the orb clears the rounded edge`,
+        ).toBeGreaterThanOrEqual(8);
         expect(
-          Math.abs(fit.actionInset - fit.noteInset),
-          `${label}: the action is as far from its edge (${fit.actionInset}px) as the note from its edge (${fit.noteInset}px)`,
-        ).toBeLessThanOrEqual(1);
+          fit.glyphInset,
+          `${label}: the orb sits in the rounded end`,
+        ).toBeLessThanOrEqual(12);
+        expect(
+          fit.noteInset,
+          `${label}: the note starts after the orb`,
+        ).toBeGreaterThan(fit.glyphInset + 15);
+        expect(
+          fit.actionInset,
+          `${label}: the action sits in the rounded end`,
+        ).toBeGreaterThanOrEqual(4);
+        expect(
+          fit.actionInset,
+          `${label}: the action sits in the rounded end`,
+        ).toBeLessThanOrEqual(7);
         expect(fit, label).toEqual({
           pillWidth: fit.pillWidth,
           shown: [labels.note, label],
@@ -528,6 +523,7 @@ for (const { locale, tray } of trayStringsByLocale) {
           insideWindow: true,
           noteLines: fit.noteLines,
           gapToAction: fit.gapToAction,
+          glyphInset: fit.glyphInset,
           noteInset: fit.noteInset,
           actionInset: fit.actionInset,
           linesEndingInHyphen: [],
@@ -554,7 +550,7 @@ test("reduced motion shows the copy pill without any animation", async ({
   expect(await page.evaluate(() => document.getAnimations().length)).toBe(0);
 });
 
-test("reduced motion shows static bars that ignore the voice", async ({
+test("reduced motion shows a still orb that ignores the voice", async ({
   page,
 }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
@@ -562,25 +558,27 @@ test("reduced motion shows static bars that ignore the voice", async ({
   await dispatch(page, "show-overlay", "recording");
   await dispatch(page, "recording-ready");
   await dispatch(page, "mic-level", LOUD);
+  const ring = page.locator(".ov-orb-ring");
+  const still = await ring.getAttribute("d");
   await page.waitForTimeout(300);
 
-  expect(await centerBarHeight(page)).toBeCloseTo(10.4, 1);
-  expect(await capsuleWidth(page)).toBe(108);
+  expect(await ring.getAttribute("d")).toBe(still);
+  expect(await ringSize(page)).toBeLessThan(17.5);
+  expect(await capsuleWidth(page)).toBe(34);
 
   await dispatch(page, "show-overlay", "transcribing");
   await expect(page.locator(".ov-capsule")).toHaveClass(/processing/);
-  await page.waitForTimeout(300);
-  expect(await centerBarHeight(page)).toBeCloseTo(10.4, 1);
+  expect(await page.evaluate(() => document.getAnimations().length)).toBe(0);
 });
 
-test("the meeting pill ticks without moving, turns amber near the cap and gives way to dictation", async ({
+test("the meeting pill ticks without moving, turns its time red near the cap and gives way to dictation", async ({
   page,
 }) => {
   const now = Date.parse("2026-10-17T10:00:00Z");
   const cap = 3 * 3600 * 1000;
   await page.clock.install({ time: now - 1_000 });
   await page.clock.pauseAt(now);
-  await page.setViewportSize(RECORDING_WINDOW);
+  await page.setViewportSize(MEETING_WINDOW);
   await openOverlay(page);
   const pill = page.locator(".ov-meeting");
   const startedAt = now - 65_000;
@@ -601,11 +599,15 @@ test("the meeting pill ticks without moving, turns amber near the cap and gives 
   await expect(pill).toHaveText("01:07");
   expect(await edges()).toEqual(before);
   await expect(pill).not.toHaveClass(/warning/);
+  await expect(pill.locator(".ov-glyph.rec")).toHaveCount(1);
+  const white = await pill.evaluate(
+    (capsule) => getComputedStyle(capsule).color,
+  );
 
   // A dictation takes the overlay over; the backend sends the pill back after.
   await dispatch(page, "show-overlay", "recording");
   await expect(pill).toHaveCount(0);
-  await expect(page.locator(".ov-wave")).toBeVisible();
+  await expect(page.locator(".ov-orb")).toBeVisible();
 
   const nearCap = now + 2_000 - (cap - 4 * 60 * 1000);
   await dispatch(page, "show-overlay-meeting", {
@@ -614,6 +616,13 @@ test("the meeting pill ticks without moving, turns amber near the cap and gives 
   });
   await expect(pill).toHaveText("2:56:00");
   await expect(pill).toHaveClass(/warning/);
+  await expect(pill).toHaveCSS("color", "rgb(255, 69, 58)");
+  expect(white).not.toBe("rgb(255, 69, 58)");
+  // The orb keeps its white ring and red core.
+  await expect(pill.locator(".ov-glyph")).toHaveCSS(
+    "border-top-color",
+    "rgba(255, 255, 255, 0.94)",
+  );
 });
 
 test("after a sleep past the cap the pill reads the cap until the meeting stops", async ({
@@ -623,7 +632,7 @@ test("after a sleep past the cap the pill reads the cap until the meeting stops"
   const cap = 3 * 3600 * 1000;
   await page.clock.install({ time: now - 1_000 });
   await page.clock.pauseAt(now);
-  await page.setViewportSize(RECORDING_WINDOW);
+  await page.setViewportSize(MEETING_WINDOW);
   await openOverlay(page);
   const startedAt = now - cap - 20 * 60 * 1000;
 
@@ -635,7 +644,6 @@ test("after a sleep past the cap the pill reads the cap until the meeting stops"
 });
 
 const callLabels = (tray: Record<string, string>) => ({
-  app: "Google Meet",
   kind: "start",
   question: tray.callRecordQuestion,
   accept: tray.callRecord,
@@ -643,9 +651,8 @@ const callLabels = (tray: Record<string, string>) => ({
   position: "bottom",
 });
 const endedLabels = (tray: Record<string, string>) => ({
-  app: "Google Meet",
   kind: "ended",
-  question: tray.callEndedQuestion.replace("{{app}}", "Google Meet"),
+  question: tray.callEndedQuestion,
   accept: tray.callEndedStop,
   decline: tray.callEndedKeep,
   position: "bottom",
@@ -666,7 +673,9 @@ test("a call prompt asks to record the meeting and sends back Record or Not now"
     name: "Record this meeting?",
   });
   await expect(prompt).toBeVisible();
-  await expect(prompt).toHaveAccessibleDescription("Google Meet");
+  await expect(prompt, "the question alone, without the app").toHaveText(
+    "Record this meeting?Not nowRecord",
+  );
   expect(await callAnswers(page), "nothing is answered on its own").toEqual([]);
 
   await prompt.getByRole("button", { name: "Record", exact: true }).click();
@@ -682,11 +691,12 @@ test("a call ended prompt offers to stop the meeting and sends back Stop and tra
   await dispatch(page, "show-overlay-call", endedLabels(englishTray));
 
   const prompt = page.getByRole("alertdialog", {
-    name: "Google Meet left the call. Murmur is still recording.",
+    name: "Call ended.",
   });
   await expect(prompt).toBeVisible();
-  await expect(prompt, "the app is named once").toHaveAccessibleDescription("");
-  await expect(prompt.getByText("Google Meet", { exact: true })).toHaveCount(0);
+  await expect(prompt).toHaveText(
+    "Call ended.Keep recordingStop and transcribe",
+  );
   expect(await callAnswers(page), "nothing is answered on its own").toEqual([]);
 
   await prompt
@@ -804,16 +814,23 @@ for (const { name, labels } of callPromptCases) {
           oneLine: rect.height <= 28,
         };
       });
+      const question = capsule.querySelector(".ov-call-question")!;
+      const lines = document.createRange();
+      lines.selectNodeContents(question);
       return {
         inWindow:
           box.left >= 0 &&
           box.top >= 0 &&
           box.right <= window.innerWidth &&
           box.bottom <= window.innerHeight,
+        questionLines: new Set(
+          [...lines.getClientRects()].map((line) => Math.round(line.top)),
+        ).size,
         answers,
       };
     });
     expect(layout.inWindow, "capsule in its window").toBe(true);
+    expect(layout.questionLines, "the question on one line").toBe(1);
     expect(layout.answers, "answers").toEqual([
       { inside: true, oneLine: true },
       { inside: true, oneLine: true },

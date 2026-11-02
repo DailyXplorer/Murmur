@@ -147,7 +147,7 @@ fn tick(app: &AppHandle, seen: &mut Vec<String>, browser_calls: &mut BTreeMap<Br
                 PromptKind::Start => info!("{} started a call: offering to record it", call.name()),
                 PromptKind::Ended => info!("{} left the call: offering to stop", call.name()),
             }
-            overlay::show_call_prompt(app, kind, call.name());
+            overlay::show_call_prompt(app, kind);
         }
         Some(Action::Hide) => overlay::hide_call_prompt(app),
         None => {}

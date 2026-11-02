@@ -15,14 +15,10 @@ import { commands } from "@/bindings";
 import { CAP_WARNING_MS, formatDuration } from "@/lib/meetings/format";
 import {
   approach,
-  BAR_COUNT,
-  BAR_MAX_PX,
-  BAR_MIN_PX,
-  barHeights,
-  type Envelope,
-  followPhrase,
-  growStep,
-  STATIC_HEIGHTS,
+  ORB_RADIUS,
+  ORB_SIZE,
+  orbPath,
+  RESTING_PATH,
   voiceLevel,
 } from "./waveform";
 
@@ -47,8 +43,6 @@ interface CopyLabels {
   copy: string;
   copied: string;
   note: string;
-  /** Says the microphone went away during the dictation, when it did. */
-  warning: string | null;
 }
 
 /** Payload of `show-overlay-cancelled`, from `overlay::CancelledNoticeLabels`. */
@@ -75,10 +69,17 @@ const MeetingPillView: React.FC<{ startedAtMs: number; stopsAtMs: number }> = ({
       className={`ov-capsule ov-meeting${warning ? " warning" : ""}`}
       role="timer"
     >
+      <Glyph kind="rec" />
       <span>{formatDuration(elapsed)}</span>
     </div>
   );
 };
+
+/** The orb, small, at the start of a pill: what the pill is about, in the
+ * dictation's own shape. */
+const Glyph: React.FC<{
+  kind: "ring" | "done" | "off" | "dim" | "alert" | "rec";
+}> = ({ kind }) => <span className={`ov-glyph ${kind}`} aria-hidden="true" />;
 
 /** A balanced paragraph that wraps keeps the width it wrapped at, wider than
  * its lines; narrowed to its longest line, the pill hugs its text and its
@@ -98,8 +99,6 @@ const hugWrappedLines = (body: HTMLElement) => {
     text.style.width = `${Math.ceil((right - left) / scale)}px`;
   }
 };
-
-const CENTER = (BAR_COUNT - 1) / 2;
 
 // The window renders no text until its first message, so without this the
 // font would still be loading when the copy pill measures its fitted size.
@@ -124,8 +123,7 @@ const RecordingOverlay: React.FC = () => {
     getReducedMotion,
   );
   const levelsRef = useRef<number[]>([]);
-  const capsuleRef = useRef<HTMLDivElement>(null);
-  const waveRef = useRef<HTMLDivElement>(null);
+  const ringRef = useRef<SVGPathElement>(null);
   const noticeBodyRef = useRef<HTMLSpanElement>(null);
   const noticeId = useId();
 
@@ -223,36 +221,24 @@ const RecordingOverlay: React.FC = () => {
   const animating = view.kind === "recording" && view.live && !reducedMotion;
 
   // Levels arrive at ~30 Hz; easing them every animation frame outside React
-  // keeps the bars smooth without re-rendering.
+  // keeps the outline smooth without re-rendering.
   useEffect(() => {
-    const capsule = capsuleRef.current;
-    const wave = waveRef.current;
-    if (!animating || !capsule || !wave) return;
-    const bars = Array.from(wave.children) as HTMLElement[];
-    let heights = bars.map(() => BAR_MIN_PX);
-    let envelope: Envelope = { level: 0, quietSeconds: 0 };
-    let step = 0;
+    const ring = ringRef.current;
+    if (!animating || !ring) return;
+    let level = 0;
     let last = performance.now();
     let frame = requestAnimationFrame(function tick(now) {
       const dt = Math.min(0.1, (now - last) / 1000);
       last = now;
-      const targets = barHeights(levelsRef.current);
-      heights = heights.map((h, i) => approach(h, targets[i], dt));
-      bars.forEach((bar, i) => {
-        bar.style.setProperty("--s", (heights[i] / BAR_MAX_PX).toFixed(3));
-      });
-      envelope = followPhrase(envelope, voiceLevel(levelsRef.current), dt);
-      const next = growStep(step, envelope.level);
-      if (next !== step) {
-        step = next;
-        capsule.style.setProperty("--grow-step", String(step));
-      }
+      level = approach(level, voiceLevel(levelsRef.current), dt);
+      ring.setAttribute("d", orbPath(level, now / 1000));
+      ring.style.fillOpacity = (0.1 + 0.25 * level).toFixed(3);
       frame = requestAnimationFrame(tick);
     });
     return () => {
       cancelAnimationFrame(frame);
-      bars.forEach((bar) => bar.style.removeProperty("--s"));
-      capsule.style.removeProperty("--grow-step");
+      ring.setAttribute("d", RESTING_PATH);
+      ring.style.removeProperty("fill-opacity");
     };
   }, [animating]);
 
@@ -269,13 +255,7 @@ const RecordingOverlay: React.FC = () => {
   useLayoutEffect(() => {
     const body = noticeBodyRef.current;
     if (!fittedView || !body) return;
-    // The copy pill without the warning keeps the width it had before.
-    if (
-      fittedView.kind === "warning" ||
-      (fittedView.kind === "copy" && fittedView.labels.warning)
-    ) {
-      hugWrappedLines(body);
-    }
+    if (fittedView.kind === "warning") hugWrappedLines(body);
     const observer = new ResizeObserver(([entry]) => {
       const [box] = entry.borderBoxSize;
       commands
@@ -288,7 +268,7 @@ const RecordingOverlay: React.FC = () => {
     return () => observer.disconnect();
   }, [fittedView]);
 
-  // The pill opens as the rest capsule and grows to fit its body. CSS cannot
+  // The pill opens as the orb's circle and grows to fit its body. CSS cannot
   // transition to an auto size, so the fitted size is measured before the
   // first paint and the growth runs towards it. The body keeps its own size
   // and is clipped meanwhile, so the note never rewraps as the pill grows.
@@ -299,8 +279,8 @@ const RecordingOverlay: React.FC = () => {
     const growth = pill.animate(
       [
         {
-          width: style.getPropertyValue("--ov-rest-w"),
-          height: style.getPropertyValue("--ov-h"),
+          width: style.getPropertyValue("--ov-orb"),
+          height: style.getPropertyValue("--ov-orb"),
         },
         { width: `${pill.offsetWidth}px`, height: `${pill.offsetHeight}px` },
       ],
@@ -337,12 +317,6 @@ const RecordingOverlay: React.FC = () => {
         });
     };
     const Icon = view.copied ? CheckIcon : CopyIcon;
-    const { warning } = view.labels;
-    const note = (
-      <span id={`${noticeId}-note`} className="ov-copy-note">
-        {view.labels.note}
-      </span>
-    );
     return (
       <div className={`ov-stage ${position}`}>
         <button
@@ -350,27 +324,14 @@ const RecordingOverlay: React.FC = () => {
           dir="auto"
           className={`ov-capsule ov-copy${view.copied ? " copied" : ""}`}
           aria-labelledby={`${noticeId}-action`}
-          aria-describedby={
-            warning
-              ? `${noticeId}-warning ${noticeId}-note`
-              : `${noticeId}-note`
-          }
+          aria-describedby={`${noticeId}-note`}
           onClick={copyAgain}
         >
           <span ref={noticeBodyRef} className="ov-copy-body">
-            {warning ? (
-              <span className="ov-copy-text">
-                <span
-                  id={`${noticeId}-warning`}
-                  className="ov-copy-note ov-copy-warning"
-                >
-                  {warning}
-                </span>
-                {note}
-              </span>
-            ) : (
-              note
-            )}
+            <Glyph kind={view.copied ? "done" : "ring"} />
+            <span id={`${noticeId}-note`} className="ov-copy-note">
+              {view.labels.note}
+            </span>
             <span className="ov-copy-action">
               <Icon size={14} weight="bold" aria-hidden="true" />
               <span className="ov-copy-label">
@@ -405,6 +366,7 @@ const RecordingOverlay: React.FC = () => {
           onClick={restore}
         >
           <span ref={noticeBodyRef} className="ov-copy-body">
+            <Glyph kind="dim" />
             <span id={`${noticeId}-note`} className="ov-copy-note">
               {view.labels.note}
             </span>
@@ -429,6 +391,7 @@ const RecordingOverlay: React.FC = () => {
       <div className={`ov-stage ${position}`}>
         <div className="ov-capsule ov-warning" role="status" dir="auto">
           <span ref={noticeBodyRef} className="ov-copy-body">
+            <Glyph kind="off" />
             <span className="ov-copy-note ov-copy-warning">{view.message}</span>
           </span>
         </div>
@@ -440,7 +403,10 @@ const RecordingOverlay: React.FC = () => {
     return (
       <div className={`ov-stage ${position}`}>
         <div className="ov-capsule ov-error" role="alert">
-          <span dir="auto">{view.message}</span>
+          <Glyph kind="alert" />
+          <span className="ov-error-text" dir="auto">
+            {view.message}
+          </span>
         </div>
       </div>
     );
@@ -451,20 +417,22 @@ const RecordingOverlay: React.FC = () => {
 
   return (
     <div className={`ov-stage ${position}`}>
-      <div ref={capsuleRef} className={`ov-capsule ${phase}`}>
-        <div ref={waveRef} className="ov-wave" aria-hidden="true">
-          {STATIC_HEIGHTS.map((height, i) => (
-            <i
-              key={i}
-              style={
-                {
-                  "--d": Math.abs(i - CENTER),
-                  "--s": reducedMotion ? height / BAR_MAX_PX : undefined,
-                } as React.CSSProperties
-              }
+      <div className={`ov-capsule ov-dictation ${phase}`}>
+        <svg
+          className="ov-orb"
+          viewBox={`0 0 ${ORB_SIZE} ${ORB_SIZE}`}
+          aria-hidden="true"
+        >
+          <path ref={ringRef} className="ov-orb-ring" d={RESTING_PATH} />
+          {phase === "processing" && (
+            <circle
+              className="ov-orb-arc"
+              cx={ORB_SIZE / 2}
+              cy={ORB_SIZE / 2}
+              r={ORB_RADIUS}
             />
-          ))}
-        </div>
+          )}
+        </svg>
       </div>
     </div>
   );

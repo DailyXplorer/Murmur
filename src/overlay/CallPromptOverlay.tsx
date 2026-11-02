@@ -26,8 +26,8 @@ const ANSWERS: Record<PromptKind, { accept: CallAnswer; decline: CallAnswer }> =
     ended: { accept: "stop_and_transcribe", decline: "keep_recording" },
   };
 
-/** "Record this meeting?", or "Zoom left the call" while the meeting
- * records, in a window of its own: only the call watcher shows or hides it,
+/** "Record this meeting?", or "Call ended." while the meeting records, in
+ * a window of its own: only the call watcher shows or hides it,
  * so nothing the overlay shows takes its place. */
 const CallPromptOverlay: React.FC = () => {
   const [labels, setLabels] = useState<CallPromptLabels | null>(null);
@@ -97,8 +97,6 @@ const CallPromptOverlay: React.FC = () => {
       console.warn("Answering the call prompt failed:", error);
     });
   };
-  // The question that the call ended already names the app.
-  const showsApp = labels.kind === "start";
 
   return (
     <div className={`ov-stage ${labels.position}`}>
@@ -107,18 +105,11 @@ const CallPromptOverlay: React.FC = () => {
         dir="auto"
         className="ov-capsule ov-call"
         aria-labelledby={`${id}-question`}
-        aria-describedby={showsApp ? `${id}-app` : undefined}
       >
         <span ref={bodyRef} className="ov-call-body">
-          <span className="ov-call-text">
-            <span id={`${id}-question`} className="ov-call-question">
-              {labels.question}
-            </span>
-            {showsApp && (
-              <span id={`${id}-app`} className="ov-call-app">
-                {labels.app}
-              </span>
-            )}
+          <span className="ov-glyph rec" aria-hidden="true" />
+          <span id={`${id}-question`} className="ov-call-question">
+            {labels.question}
           </span>
           <button
             type="button"

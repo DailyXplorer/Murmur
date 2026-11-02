@@ -19,7 +19,6 @@ const tray = (
 // Rust builds the panel when a call raises the prompt, so the labels are
 // stored before the page exists and never reach it as an event.
 const RAISED = {
-  app: "Zoom",
   kind: "start",
   question: tray.callRecordQuestion,
   accept: tray.callRecord,
@@ -28,9 +27,8 @@ const RAISED = {
 };
 
 const ENDED = {
-  app: "Zoom",
   kind: "ended",
-  question: tray.callEndedQuestion.replace("{{app}}", "Zoom"),
+  question: tray.callEndedQuestion,
   accept: tray.callEndedStop,
   decline: tray.callEndedKeep,
   position: "bottom",
@@ -47,7 +45,9 @@ test("a panel built for a raised prompt shows it without an event", async ({
 
   const prompt = page.getByRole("alertdialog", { name: RAISED.question });
   await expect(prompt).toBeVisible();
-  await expect(prompt).toContainText(RAISED.app);
+  await expect(prompt).toHaveText(
+    `${RAISED.question}${RAISED.decline}${RAISED.accept}`,
+  );
 
   await prompt.getByRole("button", { name: RAISED.accept }).click();
   expect(

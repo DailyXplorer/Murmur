@@ -1278,10 +1278,6 @@ export type CallAnswer = "record" | "not_now" | "stop_and_transcribe" | "keep_re
  */
 export type CallPromptLabels = { 
 /**
- * The call app's name.
- */
-app: string; 
-/**
  * Which answers the buttons send.
  */
 kind: PromptKind; question: string; 

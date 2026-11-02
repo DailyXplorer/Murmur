@@ -642,7 +642,7 @@ mod tests {
         let operation = ProcessingOperation::new(OperationId(14));
 
         let outcome = offer_copy(&operation, "hello".into(), write, |text, write| {
-            crate::overlay::hold_copy_notice(text, write);
+            crate::overlay::hold_copy_notice(text, write, false);
             true
         });
         assert_eq!(outcome, PasteOutcome::CopyOffered);

@@ -39,7 +39,7 @@
     "callRecordQuestion": "Record this meeting?",
     "callRecord": "Record",
     "callNotNow": "Not now",
-    "callEndedQuestion": "{{app}} left the call. Murmur is still recording.",
+    "callEndedQuestion": "Call ended.",
     "callEndedStop": "Stop and transcribe",
     "callEndedKeep": "Keep recording",
     "noticeNothingToPaste": "There is no transcription to paste yet.",

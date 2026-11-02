@@ -35,13 +35,17 @@ tauri_panel! {
 // ignores the mouse except while a fitted pill shows, so that margin never
 // blocks clicks.
 const CARD_MARGIN: f64 = 16.0;
-// Capsule: 30 high, 108 wide at rest, up to 126 at full voice level. The width
-// stays even so the centred capsule's edges sit on whole points.
-const OVERLAY_WIDTH: f64 = 126.0 + 2.0 * CARD_MARGIN;
-const OVERLAY_HEIGHT: f64 = 30.0 + 2.0 * CARD_MARGIN;
-// Error capsule: at most 280 wide and four lines of text, so the longest
-// message fits in every locale whatever the fallback font.
-const ERROR_OVERLAY_WIDTH: f64 = 280.0 + 2.0 * CARD_MARGIN;
+// Dictation: the 34-point orb. Its size never changes.
+const ORB_OVERLAY_SIZE: f64 = 34.0 + 2.0 * CARD_MARGIN;
+// Meeting pill: 108 wide and 34 high, the least size of a fitted pill's
+// window too. The width stays even so the centred capsule's edges sit on
+// whole points.
+const OVERLAY_WIDTH: f64 = 108.0 + 2.0 * CARD_MARGIN;
+const OVERLAY_HEIGHT: f64 = 34.0 + 2.0 * CARD_MARGIN;
+// Error capsule: at most 304 wide (the orb, then the text) and four lines of
+// text, so the longest message fits in every locale whatever the fallback
+// font.
+const ERROR_OVERLAY_WIDTH: f64 = 304.0 + 2.0 * CARD_MARGIN;
 const ERROR_OVERLAY_HEIGHT: f64 = 84.0 + 2.0 * CARD_MARGIN;
 const ERROR_DISPLAY_TIME: Duration = Duration::from_secs(4);
 // Copy capsule: its note wraps, so only the webview knows its size; it
@@ -64,10 +68,13 @@ static OVERLAY_GENERATION: AtomicU64 = AtomicU64::new(0);
 enum Notice {
     Error,
     /// No text field had the focus; `write` puts the text on the clipboard
-    /// only if the user clicks Copy.
+    /// only if the user clicks Copy. With `mic_lost_next`, the microphone
+    /// went away too, and its warning shows once this pill goes: one
+    /// message at a time.
     Copy {
         text: String,
         write: ClipboardWriter,
+        mic_lost_next: bool,
     },
     /// The microphone went away during the dictation, so its text ends
     /// early.
@@ -115,8 +122,6 @@ struct CopyNoticeLabels {
     copied: String,
     /// Says there was no text field to paste into.
     note: String,
-    /// Says the microphone went away, when it did.
-    warning: Option<String>,
 }
 
 /// Payload of `show-overlay-cancelled`.
@@ -138,8 +143,6 @@ const CALL_PROMPT_OFFSET: f64 = 84.0 + 8.0;
 /// Payload of `show-overlay-call`, and what `get_call_prompt` answers.
 #[derive(Clone, serde::Serialize, specta::Type)]
 pub struct CallPromptLabels {
-    /// The call app's name.
-    app: String,
     /// Which answers the buttons send.
     kind: PromptKind,
     question: String,
@@ -371,7 +374,7 @@ fn show_overlay_state(app_handle: &AppHandle, state: &str) {
     let state = state.to_string();
     let _ = app_handle.run_on_main_thread(move || {
         if let Some(window) =
-            present_overlay_window(&handle, &state, OVERLAY_WIDTH, OVERLAY_HEIGHT, false)
+            present_overlay_window(&handle, &state, ORB_OVERLAY_SIZE, ORB_OVERLAY_SIZE, false)
         {
             let _ = window.emit("show-overlay", state);
         }
@@ -421,14 +424,20 @@ pub fn show_error_overlay(app_handle: &AppHandle, message: String) -> bool {
 }
 
 /// Keeps `text` as the copy notice's, for its Copy click to hand to `write`.
-pub(crate) fn hold_copy_notice(text: String, write: ClipboardWriter) {
-    *notice() = Some(Notice::Copy { text, write });
+/// With `mic_lost`, the microphone warning follows the pill.
+pub(crate) fn hold_copy_notice(text: String, write: ClipboardWriter, mic_lost: bool) {
+    *notice() = Some(Notice::Copy {
+        text,
+        write,
+        mic_lost_next: mic_lost,
+    });
 }
 
 /// Shows the copy pill, a short note and a "Copy" action, because no text
-/// field had the focus, with the microphone warning above the note when
-/// `mic_lost`. A click hands the text to `write`, Escape dismisses it.
-/// Returns false when the overlay is disabled, so there is no pill to click.
+/// field had the focus. A click hands the text to `write`, Escape dismisses
+/// it. With `mic_lost`, the microphone warning shows once the pill goes, so
+/// the two never share a pill. Returns false when the overlay is disabled,
+/// so there is no pill to click.
 pub fn show_copy_notice(
     app_handle: &AppHandle,
     text: String,
@@ -444,9 +453,8 @@ pub fn show_copy_notice(
         copy: strings.overlay_copy,
         copied: strings.overlay_copied,
         note: strings.overlay_not_pasted,
-        warning: mic_lost.then_some(strings.overlay_mic_disconnected),
     };
-    hold_copy_notice(text, write);
+    hold_copy_notice(text, write, mic_lost);
     let generation = OVERLAY_GENERATION.fetch_add(1, Ordering::SeqCst) + 1;
     let handle = app_handle.clone();
     let _ = app_handle.run_on_main_thread(move || {
@@ -465,7 +473,7 @@ pub fn show_copy_notice(
 }
 
 /// Holds the microphone warning as `operation`'s notice, unless the copy
-/// pill shows: it carries the warning already, and its Copy must keep its
+/// pill shows: the warning follows it already, and its Copy must keep its
 /// text. A cancelled operation holds nothing: a newer dictation may own the
 /// overlay since its cancel.
 fn hold_mic_lost_notice(notice: &mut Option<Notice>, operation: &ProcessingOperation) -> bool {
@@ -490,7 +498,14 @@ pub fn show_mic_lost_notice(app_handle: &AppHandle, operation: &ProcessingOperat
     if !hold_mic_lost_notice(&mut held, operation) {
         return;
     }
-    let message = get_tray_translations(Some(settings.app_language)).overlay_mic_disconnected;
+    present_mic_lost_notice(app_handle, held);
+}
+
+/// Shows the microphone warning `held` holds, and lets the lock go once the
+/// pill is queued.
+fn present_mic_lost_notice(app_handle: &AppHandle, held: MutexGuard<'static, Option<Notice>>) {
+    let language = settings::get_settings(app_handle).app_language;
+    let message = get_tray_translations(Some(language)).overlay_mic_disconnected;
     let generation = OVERLAY_GENERATION.fetch_add(1, Ordering::SeqCst) + 1;
     let handle = app_handle.clone();
     let _ = app_handle.run_on_main_thread(move || {
@@ -599,13 +614,13 @@ fn create_call_prompt(app_handle: &AppHandle) {
     }
 }
 
-/// Asks whether to record the call `app` started, with "Record" and "Not
-/// now", or, once it left the call a meeting records, whether to stop, with
+/// Asks whether to record the call that started, with "Record" and "Not
+/// now", or, once the call a meeting records ended, whether to stop, with
 /// "Stop and transcribe" and "Keep recording", in a panel of its own: a
 /// dictation, an error or the meeting pill never hides it. It shows even
 /// with the overlay off: the call prompt has a setting of its own. The
 /// panel never takes the focus from the call.
-pub fn show_call_prompt(app_handle: &AppHandle, kind: PromptKind, app: &str) {
+pub fn show_call_prompt(app_handle: &AppHandle, kind: PromptKind) {
     let settings = settings::get_settings(app_handle);
     let strings = get_tray_translations(Some(settings.app_language));
     let (question, accept, decline) = match kind {
@@ -615,13 +630,12 @@ pub fn show_call_prompt(app_handle: &AppHandle, kind: PromptKind, app: &str) {
             strings.call_not_now,
         ),
         PromptKind::Ended => (
-            strings.call_ended_question.replace("{{app}}", app),
+            strings.call_ended_question,
             strings.call_ended_stop,
             strings.call_ended_keep,
         ),
     };
     let labels = CallPromptLabels {
-        app: app.to_string(),
         kind,
         question,
         accept,
@@ -787,7 +801,7 @@ fn copy_window_size(capsule: (f64, f64), work_area: (f64, f64)) -> (f64, f64) {
 /// Hands the copy notice's text to its writer, outside the notice lock.
 pub(crate) fn copy_held_notice() -> Result<(), String> {
     let (text, write) = match &*notice() {
-        Some(Notice::Copy { text, write }) => (text.clone(), Arc::clone(write)),
+        Some(Notice::Copy { text, write, .. }) => (text.clone(), Arc::clone(write)),
         _ => return Err("The copy notice is no longer showing".to_string()),
     };
     write(&text)
@@ -833,8 +847,26 @@ fn dismiss_notice_after(
 }
 
 fn dismiss_notice(app_handle: &AppHandle) {
-    *notice() = None;
+    let mut held = notice();
+    *held = notice_after(held.take());
+    if matches!(*held, Some(Notice::MicLost)) {
+        present_mic_lost_notice(app_handle, held);
+        return;
+    }
+    drop(held);
     hide_recording_overlay(app_handle);
+}
+
+/// The notice that takes the place of `gone`: the microphone warning a copy
+/// pill held back, or none.
+fn notice_after(gone: Option<Notice>) -> Option<Notice> {
+    match gone {
+        Some(Notice::Copy {
+            mic_lost_next: true,
+            ..
+        }) => Some(Notice::MicLost),
+        _ => None,
+    }
 }
 
 fn dismiss_fitted_notice(app_handle: &AppHandle) {
@@ -1100,7 +1132,7 @@ mod tests {
     fn copy_window_wraps_the_measured_capsule_in_its_margins() {
         let screen = (1440.0, 875.0);
         assert_eq!(copy_window_size((300.4, 62.0), screen), (333.0, 94.0));
-        assert_eq!(copy_window_size((340.0, 30.0), screen), (372.0, 62.0));
+        assert_eq!(copy_window_size((340.0, 34.0), screen), (372.0, 66.0));
     }
 
     #[test]
@@ -1127,6 +1159,7 @@ mod tests {
                 written.lock().unwrap().push(text.to_string());
                 Ok(())
             }),
+            mic_lost_next: false,
         });
         (notice, pasteboard)
     }
@@ -1134,14 +1167,13 @@ mod tests {
     /// Clicks Copy as `copy_held_notice` does.
     fn click_copy(notice: &Option<Notice>) -> Result<(), String> {
         match notice {
-            Some(Notice::Copy { text, write }) => write(text),
+            Some(Notice::Copy { text, write, .. }) => write(text),
             _ => Err("The copy notice is no longer showing".to_string()),
         }
     }
 
     #[test]
     fn a_late_transcribing_state_or_warning_leaves_the_copy_pills_text() {
-        // The copy pill shows, its note under the microphone warning.
         let (mut notice, pasteboard) = copy_pill("the dictated text");
 
         assert!(!dictation_takes_overlay(&mut notice, "transcribing"));
@@ -1154,6 +1186,28 @@ mod tests {
             "a new recording replaces it"
         );
         assert!(notice.is_none());
+    }
+
+    #[test]
+    fn a_copy_pill_and_the_microphone_warning_show_one_after_the_other() {
+        let (mut both, _) = copy_pill("the dictated text");
+        if let Some(Notice::Copy { mic_lost_next, .. }) = both.as_mut() {
+            *mic_lost_next = true;
+        }
+        assert!(
+            !hold_mic_lost_notice(&mut both, &operation(1)),
+            "the warning waits for the copy pill"
+        );
+        let next = notice_after(both);
+        assert!(
+            matches!(next, Some(Notice::MicLost)),
+            "the warning shows once the copy pill goes"
+        );
+        assert!(notice_after(next).is_none(), "then nothing");
+
+        assert!(notice_after(copy_pill("text").0).is_none());
+        assert!(notice_after(Some(Notice::Error)).is_none());
+        assert!(notice_after(Some(Notice::Cancelled)).is_none());
     }
 
     #[test]
