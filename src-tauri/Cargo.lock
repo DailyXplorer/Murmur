@@ -3134,6 +3134,7 @@ dependencies = [
  "transcribe-cpp",
  "unicode-normalization",
  "url",
+ "zeroize",
 ]
 
 [[package]]

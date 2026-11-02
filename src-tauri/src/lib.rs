@@ -28,6 +28,7 @@ mod operation;
 mod overlay;
 mod paste_last;
 mod paste_tx;
+mod recently_cancelled;
 mod settings;
 mod settings_window;
 mod shortcut;
@@ -415,6 +416,7 @@ fn initialize_core_logic(app_handle: &AppHandle) {
     meetings::init(app_handle, true);
     meetings::call_watch::sync(app_handle);
     app_handle.manage(tray::CurrentTrayIconState::new());
+    app_handle.manage(Arc::new(recently_cancelled::RecentlyCancelled::default()));
     updates::init(app_handle);
 
     // Note: Shortcuts are NOT initialized here.
@@ -455,6 +457,9 @@ fn initialize_core_logic(app_handle: &AppHandle) {
             }
             "paste_last_transcript" => {
                 paste_last::request(app);
+            }
+            tray::RESTORE_CANCELLED_ITEM_ID => {
+                recently_cancelled::request_restore(app);
             }
             meetings::TRAY_ITEM_ID => {
                 meetings::request_toggle(app);
@@ -680,6 +685,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::cancel_operation,
             overlay::copy_notice_again,
             overlay::fit_copy_notice,
+            recently_cancelled::restore_cancelled_dictation,
             commands::get_app_dir_path,
             commands::get_app_settings,
             commands::get_default_settings,
@@ -1031,6 +1037,10 @@ pub fn run(cli_args: CliArgs) {
                     audio.remove_mute_for_good();
                 }
                 paste_tx::settle_pending();
+                // The managers below cancel running dictations, which then try
+                // to keep their audio: the closed slot refuses. The tray's
+                // Quit closed it already; Cmd+Q never began that shutdown.
+                recently_cancelled::close(app);
                 // Close a meeting's tracks so it is kept, not left interrupted.
                 if let Some(manager) = app.try_state::<Arc<meetings::MeetingsManager>>() {
                     manager.shutdown();
@@ -1269,6 +1279,14 @@ mod exit_tests {
     #[test]
     fn quitting_settles_the_pending_paste() {
         assert!(exit_arm().contains("paste_tx::settle_pending()"));
+    }
+
+    /// A cancelled dictation lives in memory only, and is zeroed before the
+    /// process goes. A closed slot refuses a keep, so the order against the
+    /// managers' cancel does not matter.
+    #[test]
+    fn quitting_closes_the_cancelled_dictation() {
+        assert!(exit_arm().contains("recently_cancelled::close(app)"));
     }
 
     /// Cmd+Q, the Dock's Quit and a logout end in `Exit` without

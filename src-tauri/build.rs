@@ -51,6 +51,7 @@ const APP_COMMANDS: &[&str] = &[
     "cancel_operation",
     "copy_notice_again",
     "fit_copy_notice",
+    "restore_cancelled_dictation",
     "get_app_dir_path",
     "get_app_settings",
     "get_default_settings",
