@@ -58,6 +58,7 @@ enum Command {
     /// Paste the latest transcription again. Admitted only while idle, so it
     /// never interleaves with a dictation's own paste.
     PasteLast,
+    PasteMeeting,
     /// Run the last cancelled dictation through the pipeline. Admitted only
     /// while idle, like `PasteLast`.
     RestoreCancelled,
@@ -388,6 +389,17 @@ impl Worker {
                     debug!("Ignoring paste-last request: dictation in progress");
                 }
             }
+            Command::PasteMeeting => {
+                if matches!(self.stage, Stage::Idle) {
+                    let operation = self.next_operation();
+                    self.stage = Stage::Processing {
+                        operation: operation.clone(),
+                    };
+                    crate::meetings::live::paste::spawn(&self.app, operation);
+                } else {
+                    debug!("Ignoring meeting paste request: dictation in progress");
+                }
+            }
             Command::RestoreCancelled => {
                 if !admits_restore(&self.stage) {
                     debug!("Ignoring restore request: dictation in progress");
@@ -588,6 +600,10 @@ impl TranscriptionCoordinator {
 
     pub fn send_paste_last(&self) {
         self.send(Command::PasteLast);
+    }
+
+    pub fn send_paste_meeting(&self) {
+        self.send(Command::PasteMeeting);
     }
 
     pub fn send_restore_cancelled(&self) {

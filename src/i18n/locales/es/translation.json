@@ -40,6 +40,9 @@
     "callRecord": "Grabar",
     "callNotNow": "Ahora no",
     "noticeNothingToPaste": "Todavía no hay ninguna transcripción para pegar.",
+    "noticeNothingNewInMeeting": "Todavía no hay nada nuevo.",
+    "liveYou": "Tú",
+    "liveOthers": "Los demás",
     "startMeeting": "Iniciar reunión",
     "stopMeeting": "Detener reunión",
     "meetingSystemAudioUnavailable": "El audio del sistema no está disponible, así que la reunión solo graba su micrófono.",
@@ -180,6 +183,7 @@
         "none": "No hay atajos configurados",
         "notFound": "Atajo no encontrado",
         "pressKeys": "Presiona teclas...",
+        "notSet": "Sin asignar",
         "bindings": {
           "transcribe": {
             "name": "Atajo de transcripción",
@@ -196,6 +200,10 @@
           "meeting_toggle": {
             "name": "Atajo de reunión",
             "description": "Empieza a grabar una reunión o detiene la que está en curso."
+          },
+          "meeting_paste_new": {
+            "name": "Pegar el texto nuevo de la reunión",
+            "description": "Pega lo que se dijo en la reunión desde el último pegado, o en el último minuto."
           }
         },
         "errors": {
@@ -339,6 +347,10 @@
       "meetingCallPrompt": {
         "label": "Ofrecer grabar las llamadas",
         "description": "Cuando Zoom, Google Meet, Teams, Slack, FaceTime, Webex o Discord inicia una llamada, preguntar si se graba. La pregunta se mantiene hasta que respondas o termine la llamada. Murmur nunca graba sin un clic."
+      },
+      "meetingLiveTranscript": {
+        "label": "Transcripción en directo de las reuniones",
+        "description": "Muestra el texto de la reunión mientras grabas. Se crea en este Mac con el modelo local, nunca en la nube."
       },
       "meetingsAudio": {
         "title": "Eliminar el audio de las reuniones",
@@ -875,7 +887,22 @@
         "description": "Codex vuelve a transcribir la grabación, y la transcripción y el resumen se reemplazan. Se conserva el título que hayas puesto."
       }
     },
-    "localFallback": "Codex no estuvo disponible durante {{duration}} de esta reunión, así que esa parte se transcribió en este Mac."
+    "localFallback": "Codex no estuvo disponible durante {{duration}} de esta reunión, así que esa parte se transcribió en este Mac.",
+    "live": {
+      "title": "Transcripción en directo",
+      "you": "Tú",
+      "others": "Los demás",
+      "starting": "Escuchando… el texto aparece unos segundos después de que alguien hable.",
+      "catchingUp": "Poniéndose al día",
+      "gap": "… (hueco, la transcripción final lo incluirá)",
+      "unavailable": "El texto en directo necesita el modelo de voz local.",
+      "off": "La transcripción en directo está desactivada. La transcripción se hará después de detener.",
+      "unsupported": "El texto en directo necesita un Mac con Apple silicon. La transcripción se hará después de detener.",
+      "failed": "El texto en directo se detuvo. La grabación continúa y la transcripción se hará después de detener.",
+      "copyAll": "Copiar todo",
+      "pasteHint": "Para pegar lo que se acaba de decir en otra app, elige teclas para pegar el texto nuevo de la reunión en la página Reuniones.",
+      "draftNotice": "Borrador. La transcripción final lo reemplaza cuando termina el procesamiento."
+    }
   },
   "localSttCard": {
     "title": "Nuevo: transcripción local, sin cuota.",
