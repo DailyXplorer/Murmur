@@ -315,7 +315,7 @@ pub struct Snapshot {
 pub enum PromptKind {
     /// "Record this meeting?", for a call while no meeting records.
     Start,
-    /// "{{app}} left the call", while the meeting recording it goes on.
+    /// "Call ended.", while the meeting recording it goes on.
     Ended,
 }
 

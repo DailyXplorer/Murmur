@@ -7,6 +7,7 @@ import React, {
   useState,
 } from "react";
 import "./RecordingOverlay.css";
+import { openFromOrb } from "./openFromOrb";
 import {
   commands,
   type CallAnswer,
@@ -32,6 +33,7 @@ const ANSWERS: Record<PromptKind, { accept: CallAnswer; decline: CallAnswer }> =
 const CallPromptOverlay: React.FC = () => {
   const [labels, setLabels] = useState<CallPromptLabels | null>(null);
   const bodyRef = useRef<HTMLSpanElement>(null);
+  const capsuleRef = useRef<HTMLDivElement>(null);
   const id = useId();
 
   useEffect(() => {
@@ -89,6 +91,17 @@ const CallPromptOverlay: React.FC = () => {
     return () => observer.disconnect();
   }, [labels]);
 
+  // Opens from the orb, again when the prompt that ended a call replaces
+  // the one that asked to record it.
+  const kind = labels?.kind ?? null;
+  useLayoutEffect(() => {
+    const capsule = capsuleRef.current;
+    if (!kind || !capsule) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const growth = openFromOrb(capsule);
+    return () => growth.cancel();
+  }, [kind]);
+
   if (!labels) return null;
 
   const answers = ANSWERS[labels.kind];
@@ -101,6 +114,7 @@ const CallPromptOverlay: React.FC = () => {
   return (
     <div className={`ov-stage ${labels.position}`}>
       <div
+        ref={capsuleRef}
         role="alertdialog"
         dir="auto"
         className="ov-capsule ov-call"

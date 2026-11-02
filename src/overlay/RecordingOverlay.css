@@ -23,6 +23,9 @@
   --ov-fill: rgb(24 24 27 / 0.92);
   --ov-ink: rgb(255 255 255 / 0.94);
   --ov-highlight: rgb(255 255 255 / 0.12);
+  /* The capsule's colour without its transparency, where a glyph cuts a
+     line out of the ring or draws on the white orb. */
+  --ov-cut: rgb(24 24 27);
 
   /* The outline is what changes between themes: a dark hairline separates the
      capsule from light desktops, a light one from dark desktops. */
@@ -168,7 +171,7 @@
   top: 1.4px;
   width: 3.2px;
   height: 6.4px;
-  border: solid rgb(10 10 12);
+  border: solid var(--ov-cut);
   border-width: 0 1.8px 1.8px 0;
   transform: rotate(45deg);
 }
@@ -183,7 +186,7 @@
   margin-left: -0.8px;
   border-radius: 1px;
   background: var(--ov-ink);
-  box-shadow: 0 0 0 1.4px rgb(10 10 12);
+  box-shadow: 0 0 0 1.4px var(--ov-cut);
   transform: rotate(-45deg);
 }
 .ov-glyph.alert {
@@ -216,19 +219,29 @@
   }
 }
 
+/* Error pill: like the copy pill, a body that sizes itself and is clipped
+   while the pill opens from the orb. */
 .ov-capsule.ov-error {
   width: auto;
-  max-width: var(--ov-error-max-w);
   height: auto;
   min-height: var(--ov-error-min-h);
-  gap: 9px;
-  justify-content: flex-start;
-  padding: 8px 16px 8px 10px;
+  overflow: hidden;
   border-radius: 18px;
   box-shadow:
     inset 0 0.5px 0 var(--ov-highlight),
     0 0 0 0.5px rgb(255 105 97 / 0.8),
     var(--ov-shadow);
+}
+.ov-error-body {
+  box-sizing: border-box;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: max-content;
+  max-width: var(--ov-error-max-w);
+  min-height: var(--ov-error-min-h);
+  padding: 8px 16px 8px 10px;
 }
 .ov-error-text {
   font-size: 12.5px;
@@ -258,12 +271,11 @@
 }
 
 /* Copy pill: the whole capsule is one button around a body that sizes itself
-   from its text: the note, on one line when it fits and balanced lines
-   otherwise, then the Copy action in an inner capsule as far from the end
-   as the note is from the start. The action never shrinks; the note wraps. The webview measures the
-   body and overlay.rs fits the window to it. The body is clipped while the
-   pill grows from the rest capsule. The microphone warning sits above the
-   note, or alone in a pill of its own sized the same way. */
+   from its text: the orb, the note, on one line when it fits and balanced
+   lines otherwise, then the Copy action in an inner capsule. The action never
+   shrinks; the note wraps. The webview measures the body and overlay.rs fits
+   the window to it. The body is clipped while the pill opens from the orb.
+   The microphone warning has a pill of its own, sized the same way. */
 .ov-capsule.ov-copy,
 .ov-capsule.ov-warning {
   width: auto;
@@ -302,15 +314,6 @@
   text-wrap: balance;
   color: rgb(255 255 255 / 0.7);
   animation: ov-fade-in 260ms ease 140ms both;
-}
-.ov-copy-text {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  padding-block: 3px;
-}
-.ov-copy-text > .ov-copy-note {
-  padding-block: 0;
 }
 .ov-copy-warning {
   color: var(--ov-ink);
@@ -369,6 +372,7 @@
   width: auto;
   height: auto;
   min-width: var(--ov-orb);
+  overflow: hidden;
   border-radius: calc(var(--ov-h) / 2);
   font-size: 12.5px;
   color: var(--ov-ink);

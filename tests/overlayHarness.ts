@@ -156,6 +156,31 @@ export async function fitCopyWindow(page: Page) {
   return size;
 }
 
+/** Sends `event`, then reads the laid-out width of the capsule `selector`
+ * finds on every animation frame for 0.9 s: a pill that opens from the orb
+ * starts at its 34 points. */
+export const widthsAfter = (
+  page: Page,
+  event: string,
+  payload: unknown,
+  selector: string,
+) =>
+  page.evaluate(
+    ([name, value, capsule]) =>
+      new Promise<number[]>((resolve) => {
+        window.overlayHarness.dispatch(name as string, value);
+        const seen: number[] = [];
+        const start = performance.now();
+        requestAnimationFrame(function sample(now) {
+          const pill = document.querySelector<HTMLElement>(capsule as string);
+          if (pill) seen.push(pill.offsetWidth);
+          if (now - start < 900) requestAnimationFrame(sample);
+          else resolve(seen);
+        });
+      }),
+    [event, payload, selector] as const,
+  );
+
 // Drawn sizes include the capsule's pop-in scale until it ends.
 export const entranceFinished = (page: Page) =>
   page

@@ -1708,7 +1708,7 @@ export type PromptKind =
  */
 "start" | 
 /**
- * "{{app}} left the call", while the meeting recording it goes on.
+ * "Call ended.", while the meeting recording it goes on.
  */
 "ended"
 export type RecordingRetentionPeriod = "never" | "preserve_limit" | "days_3" | "weeks_2" | "months_3"
