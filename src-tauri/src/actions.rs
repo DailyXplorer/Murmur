@@ -727,6 +727,18 @@ impl TranscribeAction {
                             if final_text.is_empty() {
                                 if operation_was_cancelled(&operation, &rm, cancel_generation) {
                                     debug!("Transcription operation cancelled before history save");
+                                    keep_cancelled(
+                                        &ah,
+                                        samples,
+                                        captured,
+                                        Some(Transcript {
+                                            text: transcription,
+                                            dictionary_fixes,
+                                            source,
+                                            pass_language,
+                                        }),
+                                        shown,
+                                    );
                                     return;
                                 }
 
