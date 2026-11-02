@@ -187,6 +187,10 @@ impl Track for SystemCapture {
         self.writer.dropped_ms()
     }
 
+    fn live(&self, tap: crate::meetings::live::LiveTap) {
+        self.writer.live(tap);
+    }
+
     fn finish(self: Box<Self>, duration: Duration) -> Result<bool, String> {
         #[cfg(target_arch = "aarch64")]
         // SAFETY: stops the tap started in `start`; no callback runs after it.

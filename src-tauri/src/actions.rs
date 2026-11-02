@@ -727,6 +727,18 @@ impl TranscribeAction {
                             if final_text.is_empty() {
                                 if operation_was_cancelled(&operation, &rm, cancel_generation) {
                                     debug!("Transcription operation cancelled before history save");
+                                    keep_cancelled(
+                                        &ah,
+                                        samples,
+                                        captured,
+                                        Some(Transcript {
+                                            text: transcription,
+                                            dictionary_fixes,
+                                            source,
+                                            pass_language,
+                                        }),
+                                        shown,
+                                    );
                                     return;
                                 }
 
@@ -904,6 +916,10 @@ pub static ACTION_MAP: Lazy<HashMap<String, Arc<dyn ShortcutAction>>> = Lazy::ne
     map.insert(
         crate::meetings::BINDING_ID.to_string(),
         Arc::new(crate::meetings::MeetingToggleAction) as Arc<dyn ShortcutAction>,
+    );
+    map.insert(
+        crate::meetings::live::PASTE_BINDING_ID.to_string(),
+        Arc::new(crate::meetings::live::paste::PasteNewAction) as Arc<dyn ShortcutAction>,
     );
     map
 });
