@@ -99,6 +99,11 @@ pub enum Request<'a> {
         /// dictation, which runs at the highest.
         #[serde(skip_serializing_if = "Option::is_none")]
         background: Option<bool>,
+        /// The language spoken, as a code such as `fr`. Absent when the
+        /// model is to detect it.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        language: Option<&'a str>,
+        /// Asks for the words of the text with their times.
         #[serde(skip_serializing_if = "Option::is_none")]
         words: Option<bool>,
     },
@@ -114,6 +119,8 @@ pub enum Reply {
     Text {
         id: u64,
         text: String,
+        /// The words of `text` with their times, when the request asked and
+        /// the text is the one the model timed.
         #[serde(default)]
         words: Option<Vec<Word>>,
     },
@@ -263,6 +270,7 @@ mod tests {
                 wav: std::path::Path::new("/tmp/piece 7.wav"),
                 terms: &[],
                 background: None,
+                language: None,
                 words: None,
             })
             .unwrap(),
@@ -274,10 +282,11 @@ mod tests {
                 wav: std::path::Path::new("/tmp/piece 8.wav"),
                 terms: &["Siobhán".to_string(), "Kubernetes".to_string()],
                 background: Some(true),
+                language: Some("fr"),
                 words: Some(true),
             })
             .unwrap(),
-            r#"{"type":"transcribe","id":8,"wav":"/tmp/piece 8.wav","terms":["Siobhán","Kubernetes"],"background":true,"words":true}"#
+            r#"{"type":"transcribe","id":8,"wav":"/tmp/piece 8.wav","terms":["Siobhán","Kubernetes"],"background":true,"language":"fr","words":true}"#
         );
         assert_eq!(parse_reply(r#"{"type":"ready"}"#).unwrap(), Reply::Ready);
         assert_eq!(
@@ -290,17 +299,29 @@ mod tests {
         );
         assert_eq!(
             parse_reply(
-                r#"{"type":"text","id":9,"text":"Oui.","words":[{"w":"Oui.","s":0.4,"e":0.7}]}"#
+                r#"{"type":"text","id":9,"text":"Bonjour à tous.","words":[{"w":"Bonjour","s":0.32,"e":0.71},{"w":"à","s":0.8,"e":0.9},{"w":"tous.","s":0.9,"e":1.25}]}"#
             )
             .unwrap(),
             Reply::Text {
                 id: 9,
-                text: "Oui.".into(),
-                words: Some(vec![Word {
-                    w: "Oui.".into(),
-                    s: 0.4,
-                    e: 0.7
-                }]),
+                text: "Bonjour à tous.".into(),
+                words: Some(vec![
+                    Word {
+                        w: "Bonjour".into(),
+                        s: 0.32,
+                        e: 0.71
+                    },
+                    Word {
+                        w: "à".into(),
+                        s: 0.8,
+                        e: 0.9
+                    },
+                    Word {
+                        w: "tous.".into(),
+                        s: 0.9,
+                        e: 1.25
+                    },
+                ]),
             }
         );
         assert_eq!(

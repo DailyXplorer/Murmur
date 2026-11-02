@@ -2,13 +2,15 @@
 //! the app. Forced to the CPU: Intel Macs have no GPU it can use.
 //! Boost terms are not passed: transcribe-cpp 0.4.1's Parakeet does not set
 //! `TRANSCRIBE_FEATURE_VOCABULARY`, so its `RunOptions.vocabulary` is dropped.
+//! The language is not passed either, and no word times come back, so a
+//! piece is never transcribed a second time.
 
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use transcribe_cpp::{Backend, CancelToken, Model, ModelOptions, RunOptions, Session};
 
-use super::session::{BoxFuture, Loaded, Runtime};
+use super::session::{BoxFuture, Heard, Loaded, Runtime};
 
 pub struct CpuRuntime {
     pub model: PathBuf,
@@ -65,7 +67,8 @@ impl Loaded for CpuModel {
         &'a mut self,
         samples: &'a [f32],
         _terms: &'a [String],
-    ) -> BoxFuture<'a, anyhow::Result<String>> {
+        _language: Option<&'a str>,
+    ) -> BoxFuture<'a, anyhow::Result<Heard>> {
         let session = Arc::clone(&self.session);
         let cancel = self.cancel.clone();
         let samples = samples.to_vec();
@@ -85,7 +88,10 @@ impl Loaded for CpuModel {
             })
             .await??;
             abort.0 = None;
-            Ok(text)
+            Ok(Heard {
+                text,
+                words: Vec::new(),
+            })
         })
     }
 }
@@ -121,9 +127,10 @@ mod tests {
             let samples = crate::audio_toolkit::read_wav_samples(&wav).unwrap();
             let started = std::time::Instant::now();
             let text = loaded
-                .transcribe(&samples, &[])
+                .transcribe(&samples, &[], None)
                 .await
                 .unwrap()
+                .text
                 .to_lowercase();
             println!(
                 "{}: {:.1} s of audio in {:?}: {text}",
@@ -166,16 +173,22 @@ mod tests {
         .load()
         .await
         .unwrap();
-        let heard = loaded.transcribe(&samples, &[]).await.unwrap();
+        let heard = loaded.transcribe(&samples, &[], None).await.unwrap().text;
         assert!(!heard.is_empty());
 
         let part = crate::local_models::download::part_path(&model);
         std::fs::write(&part, vec![0u8; 1 << 20]).unwrap();
         std::fs::rename(&part, &model).unwrap();
-        assert_eq!(loaded.transcribe(&samples, &[]).await.unwrap(), heard);
+        assert_eq!(
+            loaded.transcribe(&samples, &[], None).await.unwrap().text,
+            heard
+        );
 
         std::fs::remove_file(&model).unwrap();
-        assert_eq!(loaded.transcribe(&samples, &[]).await.unwrap(), heard);
+        assert_eq!(
+            loaded.transcribe(&samples, &[], None).await.unwrap().text,
+            heard
+        );
         println!("still heard after replace and delete: {heard}");
     }
 }
