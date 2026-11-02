@@ -28,6 +28,7 @@ use specta::Type;
 use std::future::Future;
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use tokio::sync::watch;
@@ -128,6 +129,9 @@ pub struct LocalModels {
     download: Mutex<Option<ProcessingOperation>>,
     /// The optional sources' fetch, which ready models run on their own.
     optional: Mutex<Option<ProcessingOperation>>,
+    /// The download slot's operation is `start_upgrade`'s, which a delete
+    /// cancels instead of being refused.
+    upgrading: AtomicBool,
 }
 
 impl LocalModels {
@@ -147,6 +151,7 @@ impl LocalModels {
             state: watch::channel(LocalModelState::Missing).0,
             download: Mutex::new(None),
             optional: Mutex::new(None),
+            upgrading: AtomicBool::new(false),
         };
         let state = if support != AnalysisSupport::Available {
             LocalModelState::Unsupported { support }
@@ -261,6 +266,7 @@ impl LocalModels {
             }
             let operation = ProcessingOperation::new(OperationId(0));
             *slot = Some(operation.clone());
+            self.upgrading.store(true, Ordering::SeqCst);
             operation
         };
         let models = Arc::clone(self);
@@ -268,6 +274,7 @@ impl LocalModels {
             let result = models.fetch(&operation, false, &|_| {}).await;
             let mut slot = models.download_slot();
             *slot = None;
+            models.upgrading.store(false, Ordering::SeqCst);
             match result {
                 Ok(()) => {
                     log::info!("Local models switched to the current speech model");
@@ -507,18 +514,23 @@ impl LocalModels {
     /// Cancels the optional fetch and waits for it to stop, so it writes
     /// nothing more into the folder.
     fn stop_optional(&self) -> Result<(), String> {
-        const STOP_WITHIN: Duration = Duration::from_secs(10);
         if let Some(operation) = self.optional_slot().as_ref() {
             operation.cancel();
         }
-        let started = Instant::now();
-        while self.optional_slot().is_some() {
-            if started.elapsed() > STOP_WITHIN {
-                return Err("The models are downloading".to_string());
+        wait_until_stopped(|| self.optional_slot().is_none())
+    }
+
+    /// Cancels the background fetch of the current speech model and waits
+    /// for it to stop: the user's delete wins over it. Any other download
+    /// is left alone, and the delete refuses it.
+    fn stop_upgrade(&self) -> Result<(), String> {
+        match self.download_slot().as_ref() {
+            Some(operation) if self.upgrading.load(Ordering::SeqCst) => {
+                operation.cancel();
             }
-            std::thread::sleep(Duration::from_millis(10));
+            _ => return Ok(()),
         }
-        Ok(())
+        wait_until_stopped(|| self.download_slot().is_none())
     }
 
     /// The state stays as it is: a failure is logged, and the next launch
@@ -677,10 +689,12 @@ impl LocalModels {
             .map_or(0, |metadata| metadata.len().min(file.size))
     }
 
-    /// Deletes the models. Refused while they download; the optional files
-    /// ready models are still fetching are given up. Blocks until that fetch
-    /// stops. No download starts until it returns.
+    /// Deletes the models. Refused while they download; the current speech
+    /// model fetched beside the previous one, and the optional files ready
+    /// models are still fetching, are given up. Blocks until those fetches
+    /// stop. No download starts until it returns.
     pub fn delete(&self) -> Result<(), String> {
+        self.stop_upgrade()?;
         let slot = self.download_slot();
         if slot.is_some() {
             return Err("The models are downloading".to_string());
@@ -708,6 +722,19 @@ impl LocalModels {
         drop(slot);
         removed
     }
+}
+
+/// Polls `stopped` until it holds, for at most 10 s.
+fn wait_until_stopped(stopped: impl Fn() -> bool) -> Result<(), String> {
+    const STOP_WITHIN: Duration = Duration::from_secs(10);
+    let started = Instant::now();
+    while !stopped() {
+        if started.elapsed() > STOP_WITHIN {
+            return Err("The models are downloading".to_string());
+        }
+        std::thread::sleep(Duration::from_millis(10));
+    }
+    Ok(())
 }
 
 /// Whether this build's optional sources are in place in the models folder
