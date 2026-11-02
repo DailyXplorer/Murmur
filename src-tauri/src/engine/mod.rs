@@ -144,18 +144,23 @@ pub fn route(choice: Engine, conditions: Conditions) -> Route {
 
 /// Where a dictation goes after `failed` returned an error of `kind`, or
 /// `None` when that error stands. A fallback is never re-routed, so a
-/// dictation tries at most two engines. The caller handles cancellation
-/// before asking.
+/// dictation tries at most two engines, with one exception: Codex standing in
+/// while the local model optimizes (`LocalPreparing`) hands a failed request
+/// back to the engine the user chose, which waits for the compile. The caller
+/// handles cancellation before asking.
 pub fn reroute(failed: EngineUsed, kind: FailureKind, conditions: Conditions) -> Option<Route> {
-    if failed.fallback.is_some() {
-        return None;
-    }
-    match failed.engine {
-        Engine::Local => Some(to_cloud(FallbackReason::LocalFailed, conditions)),
-        Engine::Cloud => {
-            let local_can_serve = conditions.model == LocalReadiness::Ready
-                && parakeet_languages::supports(conditions.language);
-            local_can_serve.then(|| {
+    let local_can_serve = conditions.model != LocalReadiness::NotReady
+        && parakeet_languages::supports(conditions.language);
+    match (failed.engine, failed.fallback) {
+        (Engine::Local, None) => Some(to_cloud(FallbackReason::LocalFailed, conditions)),
+        (Engine::Cloud, Some(FallbackReason::LocalPreparing)) => {
+            local_can_serve.then_some(Route::Run(EngineUsed {
+                engine: Engine::Local,
+                fallback: None,
+            }))
+        }
+        (Engine::Cloud, None) => (local_can_serve && conditions.model == LocalReadiness::Ready)
+            .then(|| {
                 Route::Run(EngineUsed {
                     engine: Engine::Local,
                     fallback: Some(if kind == FailureKind::RateLimited {
@@ -164,8 +169,8 @@ pub fn reroute(failed: EngineUsed, kind: FailureKind, conditions: Conditions) ->
                         FallbackReason::CloudFailed
                     }),
                 })
-            })
-        }
+            }),
+        (_, Some(_)) => None,
     }
 }
 
@@ -339,12 +344,39 @@ mod tests {
             route(Engine::Local, when(OPTIMIZING, ACCOUNT, "ja")),
             cloud(Some(LanguageNotSupported))
         );
-        // A failed cloud run does not wait for the compile either.
+        // A cloud run the user did not choose does not wait for the compile.
         assert_eq!(
             reroute(
                 used(cloud(None)),
                 FailureKind::RateLimited,
                 when(OPTIMIZING, NO_ACCOUNT, "fr")
+            ),
+            None
+        );
+    }
+
+    #[test]
+    fn a_failed_stand_in_for_the_optimizing_model_goes_to_the_chosen_local_engine() {
+        let failed = used(cloud(Some(LocalPreparing)));
+        for kind in [FailureKind::Network, FailureKind::Other] {
+            for model in [OPTIMIZING, READY] {
+                assert_eq!(
+                    reroute(failed, kind, when(model, ACCOUNT, "fr")),
+                    Some(local(None)),
+                    "{kind:?} {model:?}"
+                );
+            }
+        }
+        assert_eq!(
+            reroute(failed, FailureKind::Network, when(NOT_READY, ACCOUNT, "fr")),
+            None,
+            "the models were deleted meanwhile"
+        );
+        assert_eq!(
+            reroute(
+                failed,
+                FailureKind::Network,
+                when(OPTIMIZING, ACCOUNT, "ja")
             ),
             None
         );
@@ -425,7 +457,6 @@ mod tests {
         let conditions = when(READY, ACCOUNT, "fr");
         for failed in [
             used(cloud(Some(ModelNotReady))),
-            used(cloud(Some(LocalPreparing))),
             used(cloud(Some(LocalFailed))),
             used(cloud(Some(LanguageNotSupported))),
             used(local(Some(CloudLimitReached))),
@@ -480,6 +511,20 @@ mod tests {
         assert_eq!(text, "Bonjour");
         assert_eq!(source, used(cloud(Some(LocalFailed))));
         assert_eq!(asked, [Engine::Local, Engine::Cloud]);
+    }
+
+    #[test]
+    fn an_offline_cloud_stand_in_waits_for_the_local_compile() {
+        let (result, asked) = dictate(
+            Engine::Local,
+            when(OPTIMIZING, ACCOUNT, "fr"),
+            Ok("Bonjour"),
+            Err(FailureKind::Network),
+        );
+        let (text, source) = result.unwrap();
+        assert_eq!(text, "Bonjour");
+        assert_eq!(source, used(local(None)));
+        assert_eq!(asked, [Engine::Cloud, Engine::Local]);
     }
 
     #[test]

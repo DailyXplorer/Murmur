@@ -16,7 +16,7 @@ use super::calls::{
     self, Action, Browser, CallAnswer, CallApp, CallPolicy, CallWatch, MicUser, PromptKind,
     Snapshot,
 };
-use super::coordinator::MeetingAlert;
+use super::coordinator::{MeetingAlert, MeetingError};
 use super::MeetingsManager;
 use crate::accessibility::{self, Element};
 use crate::overlay;
@@ -212,12 +212,19 @@ fn start_meeting(app: &AppHandle) -> Option<i64> {
     }
     match manager.start_returning_id() {
         Ok(id) => Some(id),
+        Err(error) if lost_a_start_race(&error) => None,
         Err(error) => {
             error!("Recording the call failed: {error}");
             user_alert::show(app, Alert::Meeting(MeetingAlert::StartFailed));
             None
         }
     }
+}
+
+/// A start by hand took the coordinator first: the call is being recorded,
+/// so there is nothing to tell.
+fn lost_a_start_race(error: &str) -> bool {
+    error == MeetingError::AlreadyRecording.to_string()
 }
 
 /// Keeps the rule the prompt's button chose, and tells an open settings
@@ -291,6 +298,16 @@ pub fn answer(app: &AppHandle, answer: CallAnswer) {
 mod tests {
     use super::*;
     use crate::settings::get_default_settings;
+
+    #[test]
+    fn a_start_that_lost_the_race_to_a_manual_start_is_not_a_failure() {
+        let from_the_coordinator = MeetingError::AlreadyRecording.to_string();
+        assert!(lost_a_start_race(&from_the_coordinator));
+        assert!(!lost_a_start_race(
+            &MeetingError::NoSource("no microphone".into()).to_string()
+        ));
+        assert!(!lost_a_start_race("Meetings are turned off"));
+    }
 
     #[test]
     fn a_rule_records_nothing_while_call_prompts_or_meetings_are_off() {

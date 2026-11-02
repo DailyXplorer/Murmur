@@ -342,7 +342,11 @@ function App() {
         const lastSection = await commands
           .getLastSettingsSection()
           .catch(() => null);
-        if (lastSection && isSidebarSection(lastSection)) {
+        if (
+          lastSection &&
+          isSidebarSection(lastSection) &&
+          SECTIONS_CONFIG[lastSection].enabled(settingsResult.data)
+        ) {
           setCurrentSection(lastSection);
         }
         setOnboardingState({ kind: "done" });

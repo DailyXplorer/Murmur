@@ -1,5 +1,5 @@
 use super::words::Words;
-use super::{follows_determiner, PassLanguage};
+use super::{after_opener, inside_noun_phrase, PassLanguage};
 
 /// "period", "point", "deux points" and "colon" are left out: each is also an
 /// everyday word.
@@ -54,7 +54,7 @@ const FR_NUMBERS: &[&str] = &[
 ];
 
 /// Turns spoken punctuation into the mark, attached to the word before it.
-/// A command needs a word before it, and never follows a determiner ("a
+/// A command needs a word before it, and never sits in a noun phrase ("a
 /// full stop", "la virgule").
 pub(super) fn apply(words: &mut Words, language: PassLanguage) {
     let marks = match language {
@@ -65,7 +65,11 @@ pub(super) fn apply(words: &mut Words, language: PassLanguage) {
     while index < words.items.len() {
         let found = marks.iter().find(|(phrase, mark)| {
             words.matches(index, phrase)
-                && !follows_determiner(words, index, language)
+                && !(if *mark == "," {
+                    after_opener(words, index, language)
+                } else {
+                    inside_noun_phrase(words, index, phrase.len(), language)
+                })
                 && !(*mark == "," && decimal(words, index, phrase.len(), language))
         });
         let Some((phrase, mark)) = found else {
