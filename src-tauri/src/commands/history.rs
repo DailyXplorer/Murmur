@@ -117,6 +117,7 @@ pub async fn retry_history_entry_transcription(
                 .await
                 .map_err(|e| e.to_string())?;
             let (transcription, source) = (transcript.text, transcript.source);
+            let pass_language = transcript.pass_language;
             // A retry is not delivered by paste, so it stays out of Insights,
             // which only counts delivered dictations.
             if transcription.is_empty() {
@@ -128,6 +129,7 @@ pub async fn retry_history_entry_transcription(
             let text = process_transcription_output(
                 &app,
                 &transcription,
+                pass_language,
                 WindowContext::default(),
                 &operation,
             )

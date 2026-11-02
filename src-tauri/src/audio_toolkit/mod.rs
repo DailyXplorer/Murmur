@@ -3,6 +3,7 @@ pub mod constants;
 pub mod gain;
 pub mod pauses;
 pub mod text;
+pub mod text_passes;
 
 pub use audio::{
     is_microphone_access_denied, is_no_input_device_error, list_input_devices, list_output_devices,
