@@ -378,6 +378,14 @@ pub struct AppSettings {
     /// ready.
     #[serde(default)]
     pub switch_to_local_when_ready: bool,
+    /// AI apps the user connects (`murmur mcp`) may read meetings. Off until
+    /// the user turns it on; `mcp::access` reads this key straight from the
+    /// settings file.
+    #[serde(default)]
+    pub mcp_enabled: bool,
+    /// Those apps may also read dictations. Needs `mcp_enabled`.
+    #[serde(default)]
+    pub mcp_include_dictations: bool,
     /// Also send dictations under 20 words to the default AI cleanup. Off:
     /// they are pasted right away.
     #[serde(default)]
@@ -643,6 +651,8 @@ pub fn get_default_settings() -> AppSettings {
         local_stt_card_dismissed: false,
         local_model_download_wanted: false,
         switch_to_local_when_ready: false,
+        mcp_enabled: false,
+        mcp_include_dictations: false,
         cleanup_short_dictations: false,
     }
 }

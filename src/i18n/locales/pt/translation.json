@@ -268,7 +268,8 @@
         "history": "Histórico",
         "experimental": "Experimental",
         "updates": "Atualizações",
-        "storage": "Armazenamento"
+        "storage": "Armazenamento",
+        "mcp": "Assistentes de IA"
       },
       "experimentalToggle": {
         "label": "Recursos experimentais",
@@ -342,6 +343,22 @@
         "add": "Adicionar",
         "remove": "Remover {{word}}",
         "duplicate": "\"{{word}}\" já existe"
+      },
+      "mcp": {
+        "label": "Permitir que agentes de IA leiam suas reuniões (MCP)",
+        "description": "Os aplicativos de IA que você conectar, como Claude ou Codex, podem listar, pesquisar e ler as transcrições e os resumos das suas reuniões. Eles podem enviar o que leem para os próprios servidores. O Murmur nunca altera nada por esse caminho.",
+        "dictations": "Incluir o histórico de ditados",
+        "dictationsDescription": "Também permite que leiam seus últimos ditados, mais pessoais que as reuniões.",
+        "setupTitle": "Conectar um aplicativo de IA",
+        "setupDescription": "Escolha seu aplicativo e cole isto nele. O aplicativo executa por conta própria o comando do Murmur, sem janela e sem porta de rede.",
+        "clientsLabel": "Aplicativo de IA",
+        "clients": {
+          "claude_code": "Claude Code",
+          "codex": "Codex",
+          "claude_desktop": "Claude Desktop"
+        },
+        "copyConfig": "Copiar a configuração para seu aplicativo de IA",
+        "copied": "Copiado"
       },
       "meetingsToggle": {
         "label": "Reuniões",
