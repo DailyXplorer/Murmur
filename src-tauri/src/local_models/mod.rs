@@ -279,7 +279,8 @@ impl LocalModels {
                 Ok(()) => {
                     log::info!("Local models switched to the current speech model");
                     models.set(LocalModelState::Ready);
-                    drop(slot);
+                    // Under the download slot, as a download does: a delete
+                    // waiting on it then finds the optional fetch and stops it.
                     models.start_optional();
                 }
                 Err(Stopped::Cancelled) => {}
@@ -342,7 +343,7 @@ impl LocalModels {
                 }
             }
             models.set(LocalModelState::Ready);
-            drop(slot);
+            // Under the download slot, as in `start_upgrade`.
             models.start_optional();
         });
     }
