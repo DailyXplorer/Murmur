@@ -24,6 +24,7 @@ import type {
   RecordedKeys,
   Snippet,
   SpeakerAnalysis,
+  OpenTarget,
 } from "../../src/bindings";
 import { events } from "../../src/bindings";
 import { findMatches } from "../../src/lib/meetings/search";
@@ -36,6 +37,7 @@ declare global {
       emitProgress: (progress: MeetingProgress) => Promise<void>;
       emitMeetingsUpdated: (id: number) => Promise<void>;
       emitMeetingState: (runtime: MeetingRuntime) => Promise<void>;
+      openMeetingNotice: (target: OpenTarget) => Promise<void>;
       /** Keeps list loads waiting, each with the list as it was asked for. */
       holdMeetingLoads: () => void;
       releaseMeetingLoads: () => void;
@@ -138,6 +140,13 @@ const pendingMainActions = new Set(
 );
 /** `lastSection=history`: the section a closed window showed last. */
 const lastSection = params.get("lastSection");
+const openMeeting = params.get("openMeeting");
+let pendingMeetingTarget: OpenTarget | null =
+  openMeeting === null
+    ? null
+    : openMeeting === "all"
+      ? "meetings"
+      : { meeting: Number(openMeeting) };
 const UPDATE = {
   body: "",
   currentVersion: "1.3.7",
@@ -849,6 +858,7 @@ const RESPONSES: Record<string, unknown> = {
   initialize_enigo: null,
   initialize_shortcuts: null,
   report_settings_view: null,
+  report_opened_meeting: null,
   get_last_settings_section: lastSection,
   hold_settings_window: null,
   release_settings_window: null,
@@ -866,6 +876,10 @@ window.settingsPages = {
   emitProgress: (progress) => events.meetingProgress.emit(progress),
   emitMeetingsUpdated: (id) => events.meetingsUpdated.emit({ id }),
   emitMeetingState: (runtime) => events.meetingStateChanged.emit(runtime),
+  openMeetingNotice: (target) => {
+    pendingMeetingTarget = target;
+    return emit("open-meetings");
+  },
   holdMeetingLoads: () => {
     meetingLoadsHeld = new Promise((resolve) => {
       releaseMeetingLoads = () => {
@@ -969,6 +983,11 @@ mockIPC(
     if (command === "take_main_action") {
       return pendingMainActions.delete((args as { action: string }).action);
     }
+    if (command === "take_meetings_action") {
+      const target = pendingMeetingTarget;
+      pendingMeetingTarget = null;
+      return target;
+    }
     if (command === "get_history_entries" && historyFails) {
       historyFails = false;
       return Promise.reject("database disk image is malformed");
@@ -1019,7 +1038,13 @@ const renderFixture = async () => {
   await i18n.changeLanguage(language);
   document.documentElement.dataset.accentColor = SETTINGS.accent_color;
   ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
-    <App />,
+    params.get("strict") === "1" ? (
+      <React.StrictMode>
+        <App />
+      </React.StrictMode>
+    ) : (
+      <App />
+    ),
   );
 };
 

@@ -40,6 +40,7 @@ import {
 import { isWindows } from "@/lib/platform";
 import { LocalSttCard } from "./components/LocalSttCard";
 import { LocalModelPill } from "./components/LocalModelPill";
+import type { MeetingOpenRequest } from "./components/meetings/MeetingsPage";
 
 /** A new install goes model → permissions → account → style (when AI
  * cleanup can run) → finish (on this Mac only) → done. `returning`: setup
@@ -145,11 +146,19 @@ const revealMainWindowForPermissions = async () => {
 const isSidebarSection = (value: string): value is SidebarSection =>
   value in SECTIONS_CONFIG;
 
-const renderSettingsContent = (section: SidebarSection) => {
+const renderSettingsContent = (
+  section: SidebarSection,
+  meetingOpenRequest: MeetingOpenRequest | null,
+) => {
   const ActiveComponent = SECTIONS_CONFIG[section].component;
+  const MeetingsComponent = SECTIONS_CONFIG.meetings.component;
   return (
     <Suspense fallback={null}>
-      <ActiveComponent />
+      {section === "meetings" ? (
+        <MeetingsComponent openRequest={meetingOpenRequest} />
+      ) : (
+        <ActiveComponent />
+      )}
     </Suspense>
   );
 };
@@ -161,6 +170,8 @@ function App() {
     useState<OnboardingState | null>(null);
   const [currentSection, setCurrentSection] =
     useState<SidebarSection>("general");
+  const [meetingOpenRequest, setMeetingOpenRequest] =
+    useState<MeetingOpenRequest | null>(null);
   const { settings, updateSetting, refreshSettings } = useSettings();
   const refreshAudioDevices = useSettingsStore(
     (state) => state.refreshAudioDevices,
@@ -302,6 +313,31 @@ function App() {
         console.warn("Failed to report the settings view:", error);
       });
   }, [settingsView, currentSection]);
+
+  const settingsShown = onboardingState?.kind === "done";
+  useEffect(() => {
+    if (!settingsShown) return;
+    let disposed = false;
+    const takeOpen = async () => {
+      if (disposed) return;
+      try {
+        const target = await commands.takeMeetingsAction();
+        if (disposed || target === null) return;
+        setMeetingOpenRequest({ target });
+        setCurrentSection("meetings");
+      } catch (error) {
+        console.warn("Failed to read the meeting navigation action:", error);
+      }
+    };
+    const unlisten = listen("open-meetings", () => void takeOpen());
+    void unlisten.then(takeOpen).catch((error: unknown) => {
+      console.warn("Failed to listen for meeting navigation:", error);
+    });
+    return () => {
+      disposed = true;
+      void unlisten.then((stop) => stop());
+    };
+  }, [settingsShown]);
 
   // A switch made while this window was closed is told once it opens: the
   // toaster renders from then on.
@@ -579,7 +615,10 @@ function App() {
         <div className="flex-1 flex overflow-hidden">
           <Sidebar
             activeSection={currentSection}
-            onSectionChange={setCurrentSection}
+            onSectionChange={(section) => {
+              setMeetingOpenRequest(null);
+              setCurrentSection(section);
+            }}
           />
           <div className="flex-1 flex flex-col overflow-hidden">
             <div className="flex-1 overflow-y-auto">
@@ -593,7 +632,7 @@ function App() {
                 {!isWindows && <AccessibilityPermissions />}
                 {(currentSection === "general" ||
                   currentSection === "transcription") && <LocalSttCard />}
-                {renderSettingsContent(currentSection)}
+                {renderSettingsContent(currentSection, meetingOpenRequest)}
               </div>
             </div>
           </div>

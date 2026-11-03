@@ -21,6 +21,7 @@ enum Tone {
 
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
 struct MeetingNoticeLabels {
+    meeting_id: Option<i64>,
     tone: Tone,
     headline: String,
     detail: Option<String>,
@@ -143,6 +144,10 @@ fn counted(one: &str, other: &str, count: usize) -> String {
 }
 
 fn labels(content: Content, strings: &TrayStrings) -> MeetingNoticeLabels {
+    let meeting_id = match &content {
+        Content::One { finished, .. } => Some(finished.id),
+        Content::Batch { .. } => None,
+    };
     let (tone, headline, detail, copy, default_name) = match content {
         Content::One { finished, name } => {
             let default_name = name.title.is_none().then(|| DefaultName {
@@ -199,6 +204,7 @@ fn labels(content: Content, strings: &TrayStrings) -> MeetingNoticeLabels {
         ),
     };
     MeetingNoticeLabels {
+        meeting_id,
         tone,
         headline,
         detail,
@@ -724,6 +730,7 @@ mod tests {
             assert_eq!(mixed_labels.detail.as_deref(), Some(mixed));
             assert_eq!(mixed_labels.tone, Tone::Ready);
             for labels in [only_ready, only_failed, mixed_labels] {
+                assert_eq!(labels.meeting_id, None);
                 assert_eq!(labels.copy, None);
                 assert_eq!(labels.default_name, None);
             }
@@ -762,6 +769,7 @@ mod tests {
             .unwrap();
             assert_eq!(template, source["meetings"]["list"]["untitled"].as_str());
             assert_eq!(labels.copy.is_some(), outcome == Outcome::Ready);
+            assert_eq!(labels.meeting_id, Some(7));
         }
     }
 }
