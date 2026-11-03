@@ -312,6 +312,7 @@ checkCapability(
   [
     "core:event:allow-listen",
     "core:event:allow-unlisten",
+    "core:event:allow-emit-to",
     "os:allow-locale",
     "allow-get-app-settings",
     "allow-cancel-operation",

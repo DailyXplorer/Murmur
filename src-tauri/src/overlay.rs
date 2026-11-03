@@ -113,11 +113,13 @@ pub(crate) type ClipboardWriter = Arc<dyn Fn(&str) -> Result<(), String> + Send 
 struct Notices {
     current: Option<Notice>,
     pending_meetings: Option<Batch>,
+    meeting_listener_ready: bool,
 }
 
 static NOTICE: Mutex<Notices> = Mutex::new(Notices {
     current: None,
     pending_meetings: None,
+    meeting_listener_ready: false,
 });
 
 fn notice() -> MutexGuard<'static, Notices> {
@@ -136,8 +138,8 @@ type EscapeMonitor = objc2::rc::Retained<objc2::runtime::AnyObject>;
 
 #[cfg(target_os = "macos")]
 thread_local! {
-    /// The fitted pills' Escape monitor, on the main thread.
-    static ESCAPE_MONITOR: RefCell<Option<EscapeMonitor>> = const { RefCell::new(None) };
+    /// The fitted pills' Escape monitors, on the main thread.
+    static ESCAPE_MONITORS: RefCell<Vec<EscapeMonitor>> = const { RefCell::new(Vec::new()) };
 }
 
 /// Payload of `show-overlay-copy`.
@@ -449,6 +451,7 @@ pub fn create_recording_overlay(app_handle: &AppHandle) {
 /// Creates the recording overlay panel and keeps it hidden by default.
 #[cfg(target_os = "macos")]
 pub fn create_recording_overlay(app_handle: &AppHandle) {
+    meeting_notice::listen_for_page(app_handle);
     match PanelBuilder::<_, RecordingOverlayPanel>::new(app_handle, "recording_overlay")
         .url(WebviewUrl::App("src/overlay/index.html".into()))
         .title("Recording")
@@ -1175,34 +1178,56 @@ fn set_interactive(
     interactive: bool,
 ) {
     let _ = window.set_ignore_cursor_events(!interactive);
-    ESCAPE_MONITOR.with(|slot| {
-        let mut monitor = slot.borrow_mut();
-        if interactive && monitor.is_none() {
-            *monitor = add_escape_monitor(app_handle);
+    ESCAPE_MONITORS.with(|slot| {
+        let mut monitors = slot.borrow_mut();
+        if interactive && monitors.is_empty() {
+            *monitors = add_escape_monitors(app_handle);
         } else if !interactive {
-            if let Some(monitor) = monitor.take() {
+            for monitor in monitors.drain(..) {
                 unsafe { objc2_app_kit::NSEvent::removeMonitor(&monitor) };
             }
         }
     });
 }
 
-/// The panel never becomes key, so Escape is watched globally, passively:
-/// the key still reaches the app that has the focus.
 #[cfg(target_os = "macos")]
-fn add_escape_monitor(app_handle: &AppHandle) -> Option<EscapeMonitor> {
+fn escape_dismissal(key_code: u16) -> Option<Dismissal> {
+    (key_code == ESCAPE_KEY_CODE).then_some(Dismissal::Escape)
+}
+
+#[cfg(target_os = "macos")]
+fn dismiss_escape_key(app_handle: &AppHandle, key_code: u16) {
+    if let Some(dismissal) = escape_dismissal(key_code) {
+        // Dismissing removes the monitors, so it runs outside their handlers.
+        let app = app_handle.clone();
+        std::thread::spawn(move || dismiss_notice(&app, dismissal));
+    }
+}
+
+/// Global monitors exclude Murmur's own events. The local monitor leaves those
+/// events unchanged so Escape still reaches the focused Settings control.
+#[cfg(target_os = "macos")]
+fn add_escape_monitors(app_handle: &AppHandle) -> Vec<EscapeMonitor> {
     let app = app_handle.clone();
-    let handler = RcBlock::new(move |event: NonNull<objc2_app_kit::NSEvent>| {
-        if unsafe { event.as_ref() }.keyCode() == ESCAPE_KEY_CODE {
-            // Dismissing removes this monitor, so it runs outside the handler.
-            let app = app.clone();
-            std::thread::spawn(move || dismiss_notice(&app, Dismissal::Escape));
-        }
+    let global_handler = RcBlock::new(move |event: NonNull<objc2_app_kit::NSEvent>| {
+        dismiss_escape_key(&app, unsafe { event.as_ref() }.keyCode());
     });
-    objc2_app_kit::NSEvent::addGlobalMonitorForEventsMatchingMask_handler(
+    let global = objc2_app_kit::NSEvent::addGlobalMonitorForEventsMatchingMask_handler(
         NSEventMask::KeyDown,
-        &handler,
-    )
+        &global_handler,
+    );
+    let app = app_handle.clone();
+    let local_handler = RcBlock::new(move |event: NonNull<objc2_app_kit::NSEvent>| {
+        dismiss_escape_key(&app, unsafe { event.as_ref() }.keyCode());
+        event.as_ptr()
+    });
+    let local = unsafe {
+        objc2_app_kit::NSEvent::addLocalMonitorForEventsMatchingMask_handler(
+            NSEventMask::KeyDown,
+            &local_handler,
+        )
+    };
+    [global, local].into_iter().flatten().collect()
 }
 
 fn present_overlay_window(
@@ -1596,6 +1621,32 @@ mod tests {
             "Escape leaves an error"
         );
         assert!(matches!(error, Some(Notice::Error)));
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn escape_monitors_only_dismiss_fitted_notices_for_the_escape_key() {
+        for key in [0, 36, 51, ESCAPE_KEY_CODE] {
+            let (mut notice, _) = copy_pill("text");
+            let after = escape_dismissal(key).and_then(|dismissal| {
+                dismiss(&mut notice, dismissal, 1, OverlayStyle::Minimal)
+            });
+            if key == ESCAPE_KEY_CODE {
+                assert_eq!(after, Some(AfterDismissal::Settled));
+                assert!(notice.is_none());
+            } else {
+                assert_eq!(after, None);
+                assert!(copy_pill_showing(&notice));
+            }
+        }
+        let mut notice = Some(Notice::Error);
+        assert_eq!(
+            escape_dismissal(ESCAPE_KEY_CODE).and_then(|dismissal| {
+                dismiss(&mut notice, dismissal, 1, OverlayStyle::Minimal)
+            }),
+            None
+        );
+        assert!(matches!(notice, Some(Notice::Error)));
     }
 
     /// A copy pill whose warning follows it.

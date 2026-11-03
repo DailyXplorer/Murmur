@@ -12,6 +12,26 @@ const calls = (page: Page) =>
   page.evaluate(() => window.overlayHarness.meetingNoticeCalls());
 
 test.describe("meeting notice", () => {
+  test("replays a meeting notice that was available before the overlay mounted", async ({
+    page,
+  }) => {
+    await openOverlay(page, { meetingNotice: MEETING_NOTICES.ready });
+    const notice = page.getByRole("status");
+    await expect(
+      notice.getByText(MEETING_NOTICES.ready.headline, { exact: true }),
+    ).toBeVisible();
+    await expect(
+      notice.getByText("Transcript ready", { exact: true }),
+    ).toBeVisible();
+    await expect(
+      notice.getByRole("button", { name: "Open", exact: true }),
+    ).toBeVisible();
+    await expect(
+      notice.getByRole("button", { name: "Copy", exact: true }),
+    ).toBeVisible();
+    expect(await calls(page)).toEqual([]);
+  });
+
   test("shows the ready meeting with named actions and fits its window", async ({
     page,
   }) => {

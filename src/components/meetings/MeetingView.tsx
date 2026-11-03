@@ -326,29 +326,36 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
   const [renaming, setRenaming] = useState<{ focus: string | null } | null>(
     null,
   );
+  const requestRef = useRef(0);
   const models = useLocalModel();
 
   const load = useCallback(async () => {
+    const request = ++requestRef.current;
     try {
       const result = await commands.getMeeting(id);
+      if (request !== requestRef.current) return;
       if (result.status === "error") throw new Error(result.error);
       setMeeting(result.data);
       if (result.data.status !== "processing") setProgress(null);
     } catch (error) {
+      if (request !== requestRef.current) return;
       console.error("Failed to load the meeting:", error);
       setFailed(true);
     }
   }, [id]);
 
   useEffect(() => {
+    let disposed = false;
     void load();
     const updated = events.meetingsUpdated.listen((event) => {
-      if (event.payload.id === id) void load();
+      if (!disposed && event.payload.id === id) void load();
     });
     const progressed = events.meetingProgress.listen((event) => {
-      if (event.payload.id === id) setProgress(event.payload);
+      if (!disposed && event.payload.id === id) setProgress(event.payload);
     });
     return () => {
+      disposed = true;
+      requestRef.current += 1;
       void updated.then((stop) => stop());
       void progressed.then((stop) => stop());
     };

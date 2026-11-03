@@ -125,6 +125,12 @@ test("cleans every settled overlay listener exactly once", async ({ page }) => {
         if (command === "get_app_settings") return Promise.resolve({});
 
         if (command === "plugin:event|unlisten") return Promise.resolve();
+        if (
+          command === "plugin:event|emit_to" &&
+          args?.event === "meeting-notice-listener-ready"
+        ) {
+          return Promise.resolve();
+        }
 
         throw new Error(`Unexpected Tauri command: ${command}`);
       },

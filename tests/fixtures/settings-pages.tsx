@@ -41,6 +41,8 @@ declare global {
       /** Keeps list loads waiting, each with the list as it was asked for. */
       holdMeetingLoads: () => void;
       releaseMeetingLoads: () => void;
+      holdMeetingDetail: (id: number) => void;
+      releaseMeetingDetail: (id: number) => void;
       /** The local model finished downloading, as the backend reports it. */
       finishModelDownload: () => void;
       /** The browser sign-in saved a session. */
@@ -605,6 +607,10 @@ const snippetOf = (text: string, query: string): Snippet => ({
 /** Commands whose answer depends on their arguments or changes the data. */
 let meetingLoadsHeld: Promise<void> | null = null;
 let releaseMeetingLoads = () => {};
+const heldMeetingDetails = new Map<
+  number,
+  { waiting: Promise<void>; release: () => void }
+>();
 
 const handleMeetingCommand = (
   command: string,
@@ -633,9 +639,15 @@ const handleMeetingCommand = (
         1,
       );
       return { handled: true, value: null };
-    case "get_meeting":
+    case "get_meeting": {
       // A copy, as the real IPC returns: React sees each load as new data.
-      return { handled: true, value: structuredClone(meeting) };
+      const detail = structuredClone(meeting);
+      const held = meeting ? heldMeetingDetails.get(meeting.id) : undefined;
+      return {
+        handled: true,
+        value: held ? held.waiting.then(() => detail) : detail,
+      };
+    }
     case "rename_meeting":
       if (meeting) {
         const title = String(args.title).trim();
@@ -889,6 +901,18 @@ window.settingsPages = {
     });
   },
   releaseMeetingLoads: () => releaseMeetingLoads(),
+  holdMeetingDetail: (id) => {
+    let release = () => {};
+    const waiting = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    heldMeetingDetails.set(id, { waiting, release });
+  },
+  releaseMeetingDetail: (id) => {
+    const held = heldMeetingDetails.get(id);
+    heldMeetingDetails.delete(id);
+    held?.release();
+  },
   finishModelDownload: () => {
     setModel(MODELS.ready);
     switchIfAsked();

@@ -134,6 +134,7 @@ export const MeetingsPage: React.FC<{
     />
   ) : (
     <MeetingView
+      key={opened.id}
       id={opened.id}
       initialSearch={opened.initialSearch}
       onBack={() => {
