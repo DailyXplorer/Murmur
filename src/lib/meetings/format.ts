@@ -1,3 +1,12 @@
+export const formatMeetingDate = (milliseconds: number, locale: string) =>
+  new Intl.DateTimeFormat(locale, {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(milliseconds));
+
 /** "04:07" under an hour, "1:02:09" from one hour on. */
 export const formatDuration = (milliseconds: number): string => {
   const totalSeconds = Math.max(0, Math.floor(milliseconds / 1000));

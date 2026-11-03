@@ -18,6 +18,7 @@ import { AudioRow } from "./AudioRow";
 import { LiveEntries } from "./LiveEntries";
 import { LocalModelAction } from "./LocalModelAction";
 import { useLiveDraft } from "./useLiveDraft";
+import { formatMeetingDate } from "@/lib/meetings/format";
 import { RenameSpeakersDialog } from "./RenameSpeakersDialog";
 import { SummaryTab } from "./SummaryTab";
 import type { InitialTextSearch } from "./TabHeaderBar";
@@ -36,15 +37,6 @@ const SAVED_STAGE_LABELS: Record<MeetingStage, string> = {
 const formatChipDate = (milliseconds: number, locale: string) =>
   new Intl.DateTimeFormat(locale, {
     month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(new Date(milliseconds));
-
-export const formatMeetingDate = (milliseconds: number, locale: string) =>
-  new Intl.DateTimeFormat(locale, {
-    year: "numeric",
-    month: "long",
     day: "numeric",
     hour: "2-digit",
     minute: "2-digit",
@@ -319,6 +311,7 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
   const [renaming, setRenaming] = useState<{ focus: string | null } | null>(
     null,
   );
+  const requestRef = useRef(0);
   const models = useLocalModel();
   const draft = useLiveDraft(
     id,
@@ -326,26 +319,32 @@ export const MeetingView: React.FC<MeetingViewProps> = ({
   );
 
   const load = useCallback(async () => {
+    const request = ++requestRef.current;
     try {
       const result = await commands.getMeeting(id);
+      if (request !== requestRef.current) return;
       if (result.status === "error") throw new Error(result.error);
       setMeeting(result.data);
       if (result.data.status !== "processing") setProgress(null);
     } catch (error) {
+      if (request !== requestRef.current) return;
       console.error("Failed to load the meeting:", error);
       setFailed(true);
     }
   }, [id]);
 
   useEffect(() => {
+    let disposed = false;
     void load();
     const updated = events.meetingsUpdated.listen((event) => {
-      if (event.payload.id === id) void load();
+      if (!disposed && event.payload.id === id) void load();
     });
     const progressed = events.meetingProgress.listen((event) => {
-      if (event.payload.id === id) setProgress(event.payload);
+      if (!disposed && event.payload.id === id) setProgress(event.payload);
     });
     return () => {
+      disposed = true;
+      requestRef.current += 1;
       void updated.then((stop) => stop());
       void progressed.then((stop) => stop());
     };

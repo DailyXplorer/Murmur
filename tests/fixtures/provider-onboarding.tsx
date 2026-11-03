@@ -229,6 +229,7 @@ mockIPC(
       case "show_main_window_command":
       case "report_settings_view":
       case "get_last_settings_section":
+      case "take_meetings_action":
         return null;
       case "take_main_action":
         return false;

@@ -350,6 +350,9 @@ async showMainWindowCommand() : Promise<Result<null, string>> {
 async reportSettingsView(view: SettingsView) : Promise<void> {
     await TAURI_INVOKE("report_settings_view", { view });
 },
+async reportOpenedMeeting(id: number | null) : Promise<void> {
+    await TAURI_INVOKE("report_opened_meeting", { id });
+},
 async getLastSettingsSection() : Promise<string | null> {
     return await TAURI_INVOKE("get_last_settings_section");
 },
@@ -371,6 +374,9 @@ async releaseSettingsWindow() : Promise<void> {
  */
 async takeMainAction(action: MainAction) : Promise<boolean> {
     return await TAURI_INVOKE("take_main_action", { action });
+},
+async takeMeetingsAction() : Promise<OpenTarget | null> {
+    return await TAURI_INVOKE("take_meetings_action");
 },
 /**
  * Restarts into the installed update and shows the settings window again.
@@ -411,6 +417,17 @@ async copyNoticeAgain() : Promise<Result<null, string>> {
     if(e instanceof Error) throw e;
     else return { status: "error", error: String(e) };
 }
+},
+async copyMeetingNotice() : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("copy_meeting_notice") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
+async openMeetingNotice() : Promise<void> {
+    await TAURI_INVOKE("open_meeting_notice");
 },
 /**
  * Fits a fitted pill's window, the copy pill's or the microphone
@@ -1512,7 +1529,7 @@ export type LogLevel = "trace" | "debug" | "info" | "warn" | "error"
  * Something that happened while the settings window was gone, for the
  * next one to act on.
  */
-export type MainAction = "check_updates" | "switched_to_local"
+export type MainAction = "check_updates" | "switched_to_local" | { open_meetings: OpenTarget }
 /**
  * What an AI app needs to launch the read-only server.
  */
@@ -1674,6 +1691,7 @@ set_aside_bytes: number }
  * A meeting's row or transcript changed: lists and open views reload it.
  */
 export type MeetingsUpdated = { id: number }
+export type OpenTarget = { meeting: number } | "meetings"
 export type OverlayPosition = "top" | "bottom"
 export type OverlayStyle = "none" | "minimal"
 export type PaginatedHistory = { entries: HistoryEntry[]; has_more: boolean }
