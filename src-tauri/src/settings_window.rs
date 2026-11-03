@@ -428,7 +428,11 @@ mod tests {
             (true, true, false, Some(7), 8),
         ] {
             assert!(!suppress_meeting_notice(
-                visible, active, minimized, reported, finished
+                visible,
+                active,
+                minimized,
+                reported,
+                finished
             ));
         }
     }

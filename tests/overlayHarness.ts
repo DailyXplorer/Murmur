@@ -39,13 +39,8 @@ export async function openOverlay(
     meetingNotice,
   };
   await page.addInitScript((configuration) => {
-    const {
-      hold,
-      copyRejection,
-      shownPrompt,
-      holdMeetingCopy,
-      meetingNotice,
-    } = configuration;
+    const { hold, copyRejection, shownPrompt, holdMeetingCopy, meetingNotice } =
+      configuration;
     const callbacks = new Map<number, (event: unknown) => unknown>();
     const listeners = new Map<number, string>();
     const pendingSettings: Array<(settings: unknown) => void> = [];
