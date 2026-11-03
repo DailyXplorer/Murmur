@@ -63,9 +63,19 @@ impl Runtime for FluidRuntime {
                 .await;
             std::fs::create_dir_all(&scratch)?;
             let spawned = Instant::now();
-            let mut serve = Serve::spawn(&program, &models, scratch)?;
             let loaded = async {
-                serve.ready().await?;
+                let asr = crate::local_models::asr_in_use(&models);
+                let mut serve = Serve::spawn(&program, &models, scratch.clone(), asr)?;
+                if let Err(error) = serve.ready().await {
+                    let now = crate::local_models::asr_in_use(&models);
+                    if now == asr {
+                        return Err(error);
+                    }
+                    // The switch to the current model deleted the previous
+                    // one before the helper opened it.
+                    serve = Serve::spawn(&program, &models, scratch, now)?;
+                    serve.ready().await?;
+                }
                 log::info!("Local model ready in {} ms", spawned.elapsed().as_millis());
                 // The first run after a load is slower: this one takes that
                 // cost off the dictation, and finds a broken model before it.
@@ -74,12 +84,12 @@ impl Runtime for FluidRuntime {
                     .transcribe(&vec![0.0; SAMPLES_PER_SECOND], &[], None)
                     .await?;
                 log::info!("Local model prewarm {} ms", prewarm.elapsed().as_millis());
-                anyhow::Ok(())
+                anyhow::Ok(serve)
             };
-            match tokio::time::timeout(LOAD_TIMEOUT, loaded).await {
+            let serve = match tokio::time::timeout(LOAD_TIMEOUT, loaded).await {
                 Ok(result) => result?,
                 Err(_) => anyhow::bail!("The helper did not load the models in {LOAD_TIMEOUT:?}"),
-            }
+            };
             Ok(Box::new(serve) as Box<dyn Loaded>)
         })
     }
@@ -106,14 +116,19 @@ impl Drop for Scratch {
 }
 
 impl Serve {
-    fn spawn(program: &Path, models: &Path, scratch: PathBuf) -> std::io::Result<Self> {
+    fn spawn(
+        program: &Path,
+        models: &Path,
+        scratch: PathBuf,
+        asr: crate::local_models::manifest::Asr,
+    ) -> std::io::Result<Self> {
         let boosting = crate::local_models::optional_ready(models);
         let mut child = Command::new(program)
             .arg("serve")
             .arg("--models-dir")
             .arg(models)
             .arg("--asr")
-            .arg(crate::local_models::asr_in_use(models).helper_name())
+            .arg(asr.helper_name())
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
@@ -517,6 +532,48 @@ done"#
         assert!(error.to_string().contains("bad audio"), "{error}");
         let heard = model.transcribe(&samples(), &[], None).await.unwrap();
         assert_eq!(heard.text, "ok");
+    }
+
+    /// The switch to Ultra deletes v3 between the choice of model and the
+    /// helper opening it: the load starts the helper again on Ultra. A
+    /// failure with no switch in between stays a failure.
+    #[tokio::test]
+    async fn a_load_that_lost_v3_to_the_switch_starts_again_on_ultra() {
+        let dir = tempfile::tempdir().unwrap();
+        let models = dir.path().join("models");
+        let marker = models.join(".murmur-ready");
+        let log = dir.path().join("asr");
+        let script = |switch: &str| {
+            format!(
+                r#"echo "$5" >> "{log}"
+if [ "$5" = v3 ]; then
+{switch}
+echo '{{"type":"error","stage":"load","code":"model_missing","message":"no v3"}}'
+exit 1
+fi
+echo '{{"type":"ready"}}'
+{READ_REQUESTS}
+{ANSWER}
+done"#,
+                log = log.display(),
+            )
+        };
+        std::fs::create_dir_all(&models).unwrap();
+
+        std::fs::write(&marker, crate::local_models::manifest::PREVIOUS.ready_id).unwrap();
+        let switched = runtime(
+            dir.path(),
+            &script(&format!("printf ultra > \"{}\"", marker.display())),
+        );
+        switched.load().await.unwrap();
+        assert_eq!(std::fs::read_to_string(&log).unwrap(), "v3\nultra\n");
+
+        std::fs::remove_file(&log).unwrap();
+        std::fs::write(&marker, crate::local_models::manifest::PREVIOUS.ready_id).unwrap();
+        let broken = runtime(dir.path(), &script(":"));
+        let error = broken.load().await.err().unwrap();
+        assert!(error.to_string().contains("ModelMissing"), "{error}");
+        assert_eq!(std::fs::read_to_string(&log).unwrap(), "v3\n");
     }
 
     #[tokio::test]

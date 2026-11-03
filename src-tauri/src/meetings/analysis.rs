@@ -146,44 +146,13 @@ impl Analyzer for HelperAnalyzer {
                     AnalyzerOutcome::Unavailable(SpeakerAnalysis::NoModels)
                 };
             }
-            let mut analysis = Analysis::default();
             let Some(program) = helper::helper_path() else {
                 log::error!("The meetings helper is missing from the app");
-                return AnalyzerOutcome::Ran(analysis);
+                return AnalyzerOutcome::Ran(Analysis::default());
             };
             let started = std::time::Instant::now();
-            let asr = crate::local_models::asr_in_use(models.dir());
-            // The words first: what was said on each track picks the one
-            // whose voices are told apart.
-            let mut ended = run_helper(
-                &program,
-                "analyze",
-                &models,
-                asr,
-                &request.tracks,
-                &operation,
-                &mut analysis,
-            )
-            .await;
-            if ended == Some(Ended::Done) && !analysis.models_missing {
-                let diarize = diarized_track(&analysis.words, request.by_levels);
-                analysis.diarized = Some(diarize);
-                let track: Vec<(Track, PathBuf)> = request
-                    .tracks
-                    .into_iter()
-                    .filter(|(track, _)| *track == diarize)
-                    .collect();
-                ended = run_helper(
-                    &program,
-                    "diarize",
-                    &models,
-                    asr,
-                    &track,
-                    &operation,
-                    &mut analysis,
-                )
-                .await;
-            }
+            let (mut analysis, ended, asr) =
+                analyze_on_the_model_in_use(&program, &models, &request, &operation).await;
             match ended {
                 Some(Ended::Done) => analysis.complete = true,
                 Some(Ended::Cancelled) => return AnalyzerOutcome::Cancelled,
@@ -203,6 +172,68 @@ impl Analyzer for HelperAnalyzer {
             AnalyzerOutcome::Ran(analysis)
         })
     }
+}
+
+/// `analyze_and_diarize` with the speech model the folder names, and the
+/// model it ran. When the switch to the current model deleted the previous
+/// one before the helper opened it, it runs again on the current one.
+async fn analyze_on_the_model_in_use(
+    program: &Path,
+    models: &Models,
+    request: &AnalysisRequest,
+    operation: &ProcessingOperation,
+) -> (Analysis, Option<Ended>, Asr) {
+    let asr = crate::local_models::asr_in_use(models.dir());
+    let (analysis, ended) = analyze_and_diarize(program, models, asr, request, operation).await;
+    let now = crate::local_models::asr_in_use(models.dir());
+    if !analysis.models_missing || now == asr {
+        return (analysis, ended, asr);
+    }
+    let (analysis, ended) = analyze_and_diarize(program, models, now, request, operation).await;
+    (analysis, ended, now)
+}
+
+/// The words first: what was said on each track picks the one whose voices
+/// are told apart.
+async fn analyze_and_diarize(
+    program: &Path,
+    models: &Models,
+    asr: Asr,
+    request: &AnalysisRequest,
+    operation: &ProcessingOperation,
+) -> (Analysis, Option<Ended>) {
+    let mut analysis = Analysis::default();
+    let mut ended = run_helper(
+        program,
+        "analyze",
+        models,
+        asr,
+        &request.tracks,
+        operation,
+        &mut analysis,
+    )
+    .await;
+    if ended == Some(Ended::Done) && !analysis.models_missing {
+        let diarize = diarized_track(&analysis.words, request.by_levels);
+        analysis.diarized = Some(diarize);
+        let track: Vec<(Track, PathBuf)> = request
+            .tracks
+            .iter()
+            .filter(|(track, _)| *track == diarize)
+            .cloned()
+            .collect();
+        ended = run_helper(
+            program,
+            "diarize",
+            models,
+            asr,
+            &track,
+            operation,
+            &mut analysis,
+        )
+        .await;
+    }
+    (analysis, ended)
 }
 
 /// Runs one helper `command` on `tracks`, adding what it prints to
@@ -246,6 +277,87 @@ fn track_arg(track: Track) -> &'static str {
 mod tests {
     use super::*;
     use crate::meetings::protocol::parse_line;
+
+    struct NoHost;
+
+    impl crate::local_models::Host for NoHost {
+        fn notify(&self, _: crate::local_models::LocalModelStatus) {}
+        fn remember_wanted(&self, _: bool) {}
+        fn free_bytes(&self, _: &Path) -> Option<u64> {
+            None
+        }
+        fn prepare(
+            &self,
+            _: PathBuf,
+            _: ProcessingOperation,
+        ) -> crate::local_models::PrepareFuture {
+            Box::pin(async { crate::local_models::Prepared::Done })
+        }
+    }
+
+    /// The switch to Ultra deletes v3 before the helper opens it: the
+    /// analysis runs again on Ultra instead of waiting for models that are
+    /// not missing.
+    #[tokio::test]
+    async fn an_analysis_that_lost_v3_to_the_switch_runs_again_on_ultra() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("models");
+        std::fs::create_dir_all(&path).unwrap();
+        let marker = path.join(".murmur-ready");
+        std::fs::write(&marker, crate::local_models::manifest::PREVIOUS.ready_id).unwrap();
+        let models = Models::new(
+            path,
+            crate::local_models::manifest::this_mac(),
+            AnalysisSupport::Available,
+            "http://127.0.0.1:9".to_string(),
+            Arc::new(NoHost),
+        );
+        let log = dir.path().join("runs");
+        let program = dir.path().join("helper.sh");
+        std::fs::write(
+            &program,
+            format!(
+                r#"#!/bin/sh
+echo "$1 $5" >> "{log}"
+if [ "$5" = v3 ]; then
+printf ultra > "{marker}"
+echo '{{"type":"error","stage":"load","code":"model_missing","message":"no v3"}}'
+exit 1
+fi
+if [ "$1" = analyze ]; then
+echo '{{"type":"words","track":"mic","words":[{{"w":"oui","s":1,"e":1.2}}]}}'
+else
+echo '{{"type":"diarization","track":"mic","segments":[{{"spk":"A","s":0,"e":2}}]}}'
+fi
+echo '{{"type":"done"}}'"#,
+                log = log.display(),
+                marker = marker.display(),
+            ),
+        )
+        .unwrap();
+        std::fs::set_permissions(&program, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let request = AnalysisRequest {
+            tracks: vec![(Track::Mic, dir.path().join("mic.wav"))],
+            by_levels: Track::Mic,
+        };
+
+        let (analysis, ended, asr) = analyze_on_the_model_in_use(
+            &program,
+            &models,
+            &request,
+            &ProcessingOperation::new(crate::OperationId(1)),
+        )
+        .await;
+        assert_eq!(
+            std::fs::read_to_string(&log).unwrap(),
+            "analyze v3\nanalyze ultra\ndiarize ultra\n"
+        );
+        assert_eq!(ended, Some(Ended::Done));
+        assert_eq!(asr, Asr::Current);
+        assert!(!analysis.models_missing);
+        assert_eq!(analysis.outcome(), SpeakerAnalysis::Separated);
+    }
 
     #[test]
     fn helper_messages_fill_the_analysis() {
