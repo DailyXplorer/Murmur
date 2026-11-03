@@ -128,7 +128,13 @@ pub fn char_before(focused: &impl FocusedText, deadline: Instant) -> Option<Befo
         // The first grapheme may have lost its base at the window's left edge.
         let _ = graphemes.next();
     }
-    Before::from_graphemes(graphemes.next_back()?, graphemes.next_back())
+    let last = graphemes.next_back()?;
+    let previous = graphemes.next_back();
+    // A cut elision letter must not turn its apostrophe into a field-start quote.
+    if start != 0 && previous.is_none() {
+        return None;
+    }
+    Before::from_graphemes(last, previous)
 }
 
 /// The excerpt around the focused element's selection. Never reads a secure
@@ -524,12 +530,12 @@ mod tests {
     #[test]
     fn leading_space_does_not_guess_a_previous_base_at_a_cut_window_edge() {
         for text in [
-            format!("xl{}’", "\u{301}".repeat(30)),
             format!("l{}’", "\u{301}".repeat(31)),
+            format!("xl{}’", "\u{301}".repeat(30)),
             format!("😀{}’", "\u{301}".repeat(30)),
         ] {
             let fake = Fake::new(&text, at(text.encode_utf16().count()));
-            assert_eq!(preceding_chars(&fake), Some(('’', None)), "after {text:?}");
+            assert_eq!(preceding_chars(&fake), None, "after {text:?}");
         }
 
         for text in [
@@ -540,6 +546,35 @@ mod tests {
             assert_eq!(
                 preceding_chars(&fake),
                 Some(('’', Some('l'))),
+                "after {text:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn leading_space_does_not_insert_after_a_truncated_elision() {
+        let text = format!("l{}’", "\u{301}".repeat(31));
+        let fake = Fake::new(&text, at(text.encode_utf16().count()));
+        let before = char_before(&fake, later());
+        assert!(
+            !before.is_some_and(|before| crate::leading_space::needs_leading_space(before, "été")),
+            "a cut elision must leave the dictated text unchanged"
+        );
+    }
+
+    #[test]
+    fn leading_space_preserves_decisions_with_complete_caret_context() {
+        for (text, previous, expected) in [
+            ("’".to_string(), None, true),
+            (format!("{}l’", "x".repeat(40)), Some('l'), false),
+            (format!("{}word", "x".repeat(40)), Some('r'), true),
+        ] {
+            let fake = Fake::new(&text, at(text.encode_utf16().count()));
+            let before = char_before(&fake, later()).unwrap();
+            assert_eq!(before.previous, previous, "after {text:?}");
+            assert_eq!(
+                crate::leading_space::needs_leading_space(before, "été"),
+                expected,
                 "after {text:?}"
             );
         }
