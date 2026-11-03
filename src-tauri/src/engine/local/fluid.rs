@@ -83,6 +83,8 @@ impl Serve {
             .arg("serve")
             .arg("--models-dir")
             .arg(models)
+            .arg("--asr")
+            .arg(crate::local_models::asr_in_use(models).helper_name())
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())

@@ -98,7 +98,8 @@ The Windows source lives on the `beta` branch for now, not on `main`.
 - A cancel shortcut (Escape by default), active only while Murmur records or transcribes
 - A shortcut (Control+Command+V by default) and tray item that paste the latest transcription again
 - Transcription on this Mac or in the cloud, chosen in Settings →
-  Transcription. On the Mac, NVIDIA Parakeet TDT 0.6B v3 covers 25 European
+  Transcription. On the Mac, Parakeet Ultra (Moondream's post-trained NVIDIA
+  Parakeet TDT 0.6B v3) covers 25 European
   languages with no quota. When it can't serve a dictation (model not
   downloaded yet, failure, another language), Murmur uses the cloud if
   ChatGPT is connected; when ChatGPT refuses in cloud mode, a downloaded model

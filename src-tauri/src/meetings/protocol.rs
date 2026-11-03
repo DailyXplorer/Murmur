@@ -2,7 +2,7 @@
 //! Unknown message types are ignored, so the helper can grow without
 //! breaking an older app.
 
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 
 use super::align::TimedWord;
 use super::merge::Track;
@@ -63,6 +63,7 @@ pub enum Message {
     },
     Words {
         track: Track,
+        #[serde(deserialize_with = "known_words")]
         words: Vec<Word>,
     },
     Diarization {
@@ -78,6 +79,17 @@ pub enum Message {
     Done,
     #[serde(other)]
     Unknown,
+}
+
+// The model's `<unk>` tokens never leave the parser (`engine::local::unknown`).
+fn known_text<'de, D: Deserializer<'de>>(deserializer: D) -> Result<String, D::Error> {
+    let text = String::deserialize(deserializer)?;
+    Ok(crate::engine::local::unknown::text_without_unknown(&text))
+}
+
+fn known_words<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Vec<Word>, D::Error> {
+    let words = Vec::<Word>::deserialize(deserializer)?;
+    Ok(crate::engine::local::unknown::words_without_unknown(words))
 }
 
 pub fn parse_line(line: &str) -> serde_json::Result<Message> {
@@ -107,6 +119,7 @@ pub enum Reply {
     Ready,
     Text {
         id: u64,
+        #[serde(deserialize_with = "known_text")]
         text: String,
     },
     /// A failed request, or without `id` a failed load.
@@ -369,6 +382,28 @@ mod tests {
                 start_ms: 0,
                 end_ms: 1_250
             }]
+        );
+    }
+
+    #[test]
+    fn unknown_tokens_from_the_model_never_reach_the_app() {
+        assert_eq!(
+            parse_reply(
+                r#"{"type":"text","id":3,"text":"Le mot <unk> civis <unk> signifie citoyen <unk>."}"#
+            )
+            .unwrap(),
+            Reply::Text {
+                id: 3,
+                text: "Le mot civis signifie citoyen.".into(),
+            }
+        );
+        assert_eq!(
+            parse_line(r#"{"type":"words","track":"system","words":[{"w":"<unk>","s":1,"e":2},{"w":"Bonjour","s":2,"e":3}]}"#)
+                .unwrap(),
+            Message::Words {
+                track: Track::System,
+                words: vec![Word { w: "Bonjour".into(), s: 2.0, e: 3.0 }],
+            }
         );
     }
 }

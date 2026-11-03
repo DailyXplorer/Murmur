@@ -66,23 +66,23 @@ jobs:
         shell: bash
         run: |
           helper=binaries/murmur-meetings-helper-aarch64-apple-darwin
-          out=$("$helper" analyze --models-dir "$RUNNER_TEMP/no-models" < <(sleep 3600))
+          out=$("$helper" analyze --models-dir "$RUNNER_TEMP/no-models" --asr ultra < <(sleep 3600))
           echo "$out"
           grep -q '"code":"model_missing"' <<<"$out"
           grep -q '"type":"done"' <<<"$out"
-          if out=$("$helper" prepare --models-dir "$RUNNER_TEMP/no-models" < <(sleep 3600)); then
+          if out=$("$helper" prepare --models-dir "$RUNNER_TEMP/no-models" --asr ultra < <(sleep 3600)); then
             echo "prepare succeeded without models" >&2
             exit 1
           fi
           echo "$out"
           grep -q '"code":"model_missing"' <<<"$out"
-          if out=$("$helper" serve --models-dir "$RUNNER_TEMP/no-models" < <(sleep 3600)); then
+          if out=$("$helper" serve --models-dir "$RUNNER_TEMP/no-models" --asr ultra < <(sleep 3600)); then
             echo "serve started without models" >&2
             exit 1
           fi
           echo "$out"
           grep -q '"code":"model_missing"' <<<"$out"
-          test ! -e "$RUNNER_TEMP/no-models/parakeet-tdt-0.6b-v3"
+          test ! -e "$RUNNER_TEMP/no-models/parakeet-ultra"
           test ! -e "$RUNNER_TEMP/no-models/speaker-diarization"
 
       - name: Install cargo-audit

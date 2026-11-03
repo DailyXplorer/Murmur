@@ -165,7 +165,7 @@ jobs:
         working-directory: src-tauri
         shell: bash
         env:
-          MURMUR_SMOKE_GGUF: ${{ runner.temp }}/models/parakeet-tdt-0.6b-v3/parakeet-tdt-0.6b-v3-Q8_0.gguf
+          MURMUR_SMOKE_MODELS: ${{ runner.temp }}/models
           MURMUR_SMOKE_CLIPS: ${{ runner.temp }}/clips
         run: |
           set -euo pipefail

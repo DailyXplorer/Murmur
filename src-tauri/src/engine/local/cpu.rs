@@ -11,12 +11,13 @@ use transcribe_cpp::{Backend, CancelToken, Model, ModelOptions, RunOptions, Sess
 use super::session::{BoxFuture, Loaded, Runtime};
 
 pub struct CpuRuntime {
-    pub model: PathBuf,
+    /// The models folder: which GGUF file it runs is read at each load.
+    pub models: PathBuf,
 }
 
 impl Runtime for CpuRuntime {
     fn load(&self) -> BoxFuture<'static, anyhow::Result<Box<dyn Loaded>>> {
-        let path = self.model.clone();
+        let models = self.models.clone();
         Box::pin(async move {
             let model = tokio::task::spawn_blocking(move || -> anyhow::Result<CpuModel> {
                 #[cfg(target_os = "windows")]
@@ -28,7 +29,17 @@ impl Runtime for CpuRuntime {
                     // place, only replaced by a rename.
                     no_mmap: false,
                 };
-                let mut session = Model::load_with(&path, &options)?.session()?;
+                let asr = crate::local_models::asr_in_use(&models);
+                let model = match Model::load_with(models.join(asr.gguf_path()), &options) {
+                    // The switch to the current model deleted the previous
+                    // one between the choice and the open.
+                    Err(_) if crate::local_models::asr_in_use(&models) != asr => {
+                        let asr = crate::local_models::asr_in_use(&models);
+                        Model::load_with(models.join(asr.gguf_path()), &options)?
+                    }
+                    loaded => loaded?,
+                };
+                let mut session = model.session()?;
                 let cancel = CancelToken::new();
                 session.set_cancel_token(&cancel);
                 Ok(CpuModel {
@@ -108,20 +119,20 @@ impl Loaded for CpuModel {
 mod tests {
     use super::*;
 
-    /// Needs the model and spoken clips, so CI runs it on its own (`local
+    /// Needs the models and spoken clips, so CI runs it on its own (`local
     /// engine` on Intel, `windows beta` on Windows):
-    /// `MURMUR_SMOKE_GGUF=<model> MURMUR_SMOKE_CLIPS=<dir> cargo test
+    /// `MURMUR_SMOKE_MODELS=<models dir> MURMUR_SMOKE_CLIPS=<dir> cargo test
     /// --target x86_64-apple-darwin --lib engine::local::cpu -- --ignored`.
     /// Each `<name>.wav` (16 kHz mono) in the folder holds speech whose words
     /// are listed, one per line, in `<name>.txt`.
     #[tokio::test]
     #[ignore = "needs the GGUF model and recorded speech"]
     async fn the_cpu_model_hears_the_words_of_each_clip() {
-        let model = std::env::var("MURMUR_SMOKE_GGUF").expect("MURMUR_SMOKE_GGUF");
+        let models = std::env::var("MURMUR_SMOKE_MODELS").expect("MURMUR_SMOKE_MODELS");
         let clips = PathBuf::from(std::env::var("MURMUR_SMOKE_CLIPS").expect("MURMUR_SMOKE_CLIPS"));
         let started = std::time::Instant::now();
         let mut loaded = CpuRuntime {
-            model: model.into(),
+            models: models.into(),
         }
         .load()
         .await
@@ -140,6 +151,9 @@ mod tests {
                 .await
                 .unwrap()
                 .to_lowercase();
+            // transcribe.cpp drops the `<unk>` Parakeet Ultra writes
+            // (`keep_special_tags` is off), as `unknown` does on Apple silicon.
+            assert!(!text.contains("<unk>"), "{text}");
             println!(
                 "{}: {:.1} s of audio in {:?}: {text}",
                 wav.display(),
@@ -164,10 +178,13 @@ mod tests {
     #[tokio::test]
     #[ignore = "needs the GGUF model and recorded speech"]
     async fn the_loaded_model_survives_its_file_replaced_then_deleted() {
+        let gguf = crate::local_models::manifest::Asr::Current.gguf_path();
         let dir = tempfile::tempdir().unwrap();
-        let model = dir.path().join("model.gguf");
+        let model = dir.path().join(&gguf);
+        std::fs::create_dir_all(model.parent().unwrap()).unwrap();
         std::fs::copy(
-            std::env::var("MURMUR_SMOKE_GGUF").expect("MURMUR_SMOKE_GGUF"),
+            PathBuf::from(std::env::var("MURMUR_SMOKE_MODELS").expect("MURMUR_SMOKE_MODELS"))
+                .join(&gguf),
             &model,
         )
         .unwrap();
@@ -179,7 +196,7 @@ mod tests {
             .expect("no clip");
         let samples = crate::audio_toolkit::read_wav_samples(&wav).unwrap();
         let mut loaded = CpuRuntime {
-            model: model.clone(),
+            models: dir.path().to_path_buf(),
         }
         .load()
         .await
@@ -201,17 +218,23 @@ mod tests {
     /// mapped by transcribe.cpp: the delete removes the file and the next
     /// dictation loads the model again. NTFS deletes a mapped file, so on
     /// Windows this does not prove the release comes first; the other test
-    /// does, by holding the file. `MURMUR_SMOKE_GGUF` as above.
+    /// does, by holding the file. `MURMUR_SMOKE_MODELS` as above.
     #[tokio::test]
     #[ignore = "needs the GGUF model"]
     async fn deleting_the_models_releases_the_loaded_cpu_model() {
-        let gguf = std::env::var("MURMUR_SMOKE_GGUF").expect("MURMUR_SMOKE_GGUF");
+        let gguf = crate::local_models::manifest::Asr::Current.gguf_path();
+        let source =
+            PathBuf::from(std::env::var("MURMUR_SMOKE_MODELS").expect("MURMUR_SMOKE_MODELS"))
+                .join(&gguf);
         let dir = tempfile::tempdir().unwrap();
-        let (models, model) = crate::local_models::tests::ready_models(&dir.path().join("models"));
-        std::fs::copy(&gguf, &model).unwrap();
+        let path = dir.path().join("models");
+        let (models, _) = crate::local_models::tests::ready_models(&path);
+        let model = path.join(&gguf);
+        std::fs::create_dir_all(model.parent().unwrap()).unwrap();
+        std::fs::copy(&source, &model).unwrap();
         let engine = crate::engine::local::LocalEngine::new(
             Box::new(CpuRuntime {
-                model: model.clone(),
+                models: path.clone(),
             }),
             crate::engine::local::MAX_PIECE,
             Box::new(|| false),
@@ -226,7 +249,7 @@ mod tests {
 
         assert!(engine.session.warm().await.is_err());
         std::fs::create_dir_all(model.parent().unwrap()).unwrap();
-        std::fs::copy(&gguf, &model).unwrap();
+        std::fs::copy(&source, &model).unwrap();
         engine.session.warm().await.unwrap();
         assert!(engine.session.is_loaded().await);
     }

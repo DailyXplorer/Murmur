@@ -455,7 +455,7 @@ fn models_the_helper_found_missing_are_downloaded_again() {
     std::fs::write(path.join(READY_MARKER), manifest::id(fixture.sources)).unwrap();
     let ready = models_after_restart(&path, &fixture, &Arc::new(FakeHost::default()));
     assert!(ready.is_ready());
-    ready.invalidate();
+    ready.invalidate(Asr::Current);
     assert_eq!(ready.status().state, LocalModelState::Missing);
     assert!(!path.join(READY_MARKER).exists());
 }
@@ -638,7 +638,7 @@ fn models_found_missing_download_again_during_the_optional_fetch() {
         }))
         .await;
         let ready = ready_while_the_optional_source_hangs(&path, &fixture, &base);
-        ready.invalidate();
+        ready.invalidate(Asr::Current);
         ready.download();
         assert_eq!(settled(&ready).await, LocalModelState::Ready);
     });
@@ -780,4 +780,143 @@ fn waiting_returns_at_once_when_nothing_downloads() {
     assert!(!tauri::async_runtime::block_on(
         missing.wait_ready(&operation)
     ));
+}
+
+/// Lays out what a version that ran the previous speech model left ready:
+/// its folder, the other sources, and its ready marker.
+fn write_ready_with_the_previous_model(fixture: &Fixture, dir: &Path) -> PathBuf {
+    fixture.write(dir, |source| source.folder != "asr");
+    let previous = dir.join(manifest::PREVIOUS.folder);
+    std::fs::create_dir_all(previous.join("Encoder.mlmodelc")).unwrap();
+    std::fs::write(previous.join("Encoder.mlmodelc/weight.bin"), b"v3").unwrap();
+    std::fs::write(dir.join(READY_MARKER), manifest::PREVIOUS.ready_id).unwrap();
+    previous
+}
+
+#[test]
+fn the_previous_model_stays_in_use_while_the_current_one_downloads_then_is_deleted() {
+    let fixture = fixture();
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("models");
+    let previous = write_ready_with_the_previous_model(&fixture, &path);
+    let host = Arc::new(FakeHost::default());
+    tauri::async_runtime::block_on(async {
+        let (base, seen) = test_server::start(fixture.serving()).await;
+        let models = models(&path, &fixture, &base, &host);
+        assert!(models.is_ready());
+        assert_eq!(asr_in_use(&path), Asr::Previous);
+
+        models.resume_on_launch(false);
+        models.fetched().await;
+        assert_eq!(
+            paths(&seen),
+            [
+                "/test/asr/resolve/1111111111111111111111111111111111111111/A.mlmodelc/weights/weight.bin",
+                "/test/asr/resolve/1111111111111111111111111111111111111111/vocab.json",
+            ]
+        );
+        assert!(host
+            .notified
+            .lock()
+            .unwrap()
+            .iter()
+            .all(|state| *state == LocalModelState::Ready));
+        assert_eq!(models.status().state, LocalModelState::Ready);
+        assert_eq!(host.prepared.load(Ordering::SeqCst), 1);
+        assert_eq!(asr_in_use(&path), Asr::Current);
+        assert_eq!(
+            std::fs::read_to_string(path.join(READY_MARKER)).unwrap(),
+            manifest::id(fixture.sources)
+        );
+        assert!(!previous.exists());
+    });
+}
+
+#[test]
+fn a_failed_switch_keeps_the_previous_model_in_use_and_tries_again_at_the_next_launch() {
+    let fixture = fixture();
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("models");
+    let previous = write_ready_with_the_previous_model(&fixture, &path);
+    let host = Arc::new(FakeHost::default());
+    tauri::async_runtime::block_on(async {
+        let (base, _) = test_server::start(Arc::new(|_, _| Reply::NotFound)).await;
+        let failing = models(&path, &fixture, &base, &host);
+        failing.resume_on_launch(false);
+        failing.fetched().await;
+        assert_eq!(failing.status().state, LocalModelState::Ready);
+        assert_eq!(asr_in_use(&path), Asr::Previous);
+        assert!(previous.join("Encoder.mlmodelc/weight.bin").exists());
+
+        let (base, _) = test_server::start(fixture.serving()).await;
+        let after_restart = models(&path, &fixture, &base, &host);
+        assert!(after_restart.is_ready());
+        after_restart.resume_on_launch(false);
+        after_restart.fetched().await;
+        assert_eq!(asr_in_use(&path), Asr::Current);
+        assert!(!previous.exists());
+    });
+}
+
+#[test]
+fn a_previous_model_left_beside_ready_models_is_deleted_at_launch() {
+    let fixture = fixture();
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("models");
+    fixture.write_all(&path);
+    std::fs::write(path.join(READY_MARKER), manifest::id(fixture.sources)).unwrap();
+    let previous = path.join(manifest::PREVIOUS.folder);
+    std::fs::create_dir_all(&previous).unwrap();
+    let host = Arc::new(FakeHost::default());
+    let models = models_after_restart(&path, &fixture, &host);
+    models.resume_on_launch(false);
+    assert!(!previous.exists());
+    assert!(models.is_ready());
+}
+
+#[test]
+fn a_helper_that_missed_the_previous_model_after_the_switch_leaves_the_current_one_ready() {
+    let fixture = fixture();
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("models");
+    fixture.write_all(&path);
+    std::fs::write(path.join(READY_MARKER), manifest::id(fixture.sources)).unwrap();
+    let host = Arc::new(FakeHost::default());
+    let models = models_after_restart(&path, &fixture, &host);
+    models.invalidate(Asr::Previous);
+    assert!(models.is_ready());
+    assert_eq!(
+        models_after_restart(&path, &fixture, &host).status().state,
+        LocalModelState::Ready
+    );
+}
+
+#[test]
+fn a_delete_during_the_background_switch_cancels_it_and_deletes_everything() {
+    let fixture = fixture();
+    let weights = fixture.contents[0].1.clone();
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("models");
+    let previous = write_ready_with_the_previous_model(&fixture, &path);
+    let host = Arc::new(FakeHost::default());
+    tauri::async_runtime::block_on(async {
+        let (base, seen) = test_server::start(Arc::new(move |_, _| {
+            Reply::HangAfter(weights.clone(), 1_000)
+        }))
+        .await;
+        let models = models(&path, &fixture, &base, &host);
+        models.resume_on_launch(false);
+        while seen.lock().unwrap().is_empty() {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+        let deleting = Arc::clone(&models);
+        tauri::async_runtime::spawn_blocking(move || deleting.delete())
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(models.status().state, LocalModelState::Missing);
+        assert!(!path.exists());
+        assert!(!previous.exists());
+        assert_eq!(host.prepared.load(Ordering::SeqCst), 0);
+    });
 }
