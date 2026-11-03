@@ -1,6 +1,8 @@
 import { expect, test, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { MEETING_NOTICES } from "./meetingNoticeFixtures";
+import { dispatch, openOverlay } from "./overlayHarness";
 
 const fixture = "/tests/fixtures/settings-pages.html";
 
@@ -166,6 +168,25 @@ test("no visible text is set in capitals on any English page", async ({
     }
   }
   expect(offenders, offenders.join("\n")).toEqual([]);
+});
+
+test("meeting notices do not force their visible text to capitals", async ({
+  page,
+}) => {
+  await openOverlay(page);
+  for (const labels of [
+    MEETING_NOTICES.ready,
+    MEETING_NOTICES.failed,
+    MEETING_NOTICES.batch,
+    MEETING_NOTICES.mixed,
+    MEETING_NOTICES.failedBatch,
+  ]) {
+    await dispatch(page, "show-overlay-meeting-notice", labels);
+    await expect(
+      page.getByText(labels.headline, { exact: true }),
+    ).toBeVisible();
+    expect(await capitalsOnScreen(page, ACRONYMS)).toEqual([]);
+  }
 });
 
 const escape = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");

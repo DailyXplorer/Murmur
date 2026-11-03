@@ -2,7 +2,6 @@ import { ArrowCounterClockwiseIcon } from "@phosphor-icons/react/dist/csr/ArrowC
 import { CheckIcon } from "@phosphor-icons/react/dist/csr/Check";
 import { CopyIcon } from "@phosphor-icons/react/dist/csr/Copy";
 import { XIcon } from "@phosphor-icons/react/dist/csr/X";
-import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import React, {
   useEffect,
@@ -36,7 +35,11 @@ type View =
   | { kind: "copy"; labels: CopyLabels; copied: boolean }
   | { kind: "warning"; message: string }
   | { kind: "cancelled"; labels: CancelledLabels }
-  | { kind: "meetingNotice"; labels: MeetingNoticeLabels; copied: boolean }
+  | {
+      kind: "meetingNotice";
+      labels: MeetingNoticeLabels;
+      copiedUntil: number | null;
+    }
   | { kind: "meeting"; startedAtMs: number; stopsAtMs: number };
 
 export interface MeetingNoticeLabels {
@@ -47,8 +50,14 @@ export interface MeetingNoticeLabels {
   copy: string | null;
   copied: string;
   close: string;
-  default_name?: { started_at_ms: number; locale: string } | null;
+  default_name: { started_at_ms: number; locale: string } | null;
+  meeting_id: number | null;
 }
+
+const sameMeetingNotice = (
+  current: MeetingNoticeLabels,
+  shown: MeetingNoticeLabels,
+) => current.meeting_id !== null && current.meeting_id === shown.meeting_id;
 
 /** Payload of `show-overlay-meeting`, from `overlay::MeetingPill`. */
 interface MeetingPill {
@@ -195,7 +204,16 @@ const RecordingOverlay: React.FC = () => {
           detail: labels.detail?.replace("{{date}}", date) ?? null,
         };
       }
-      setView({ kind: "meetingNotice", labels, copied: false });
+      setView((current) => ({
+        kind: "meetingNotice",
+        labels,
+        copiedUntil:
+          current.kind === "meetingNotice" &&
+          labels.copy !== null &&
+          sameMeetingNotice(current.labels, labels)
+            ? current.copiedUntil
+            : null,
+      }));
       refreshPosition();
     }).then(storeUnlistener, () => undefined);
 
@@ -305,17 +323,22 @@ const RecordingOverlay: React.FC = () => {
     return () => growth.cancel();
   }, [pillKind, reducedMotion]);
 
+  const copiedUntil = view.kind === "meetingNotice" ? view.copiedUntil : null;
   useEffect(() => {
-    if (view.kind !== "meetingNotice" || !view.copied) return;
-    const timer = window.setTimeout(() => {
-      setView((current) =>
-        current.kind === "meetingNotice" && current.labels === view.labels
-          ? { ...current, copied: false }
-          : current,
-      );
-    }, 1500);
+    if (copiedUntil === null) return;
+    const timer = window.setTimeout(
+      () => {
+        setView((current) =>
+          current.kind === "meetingNotice" &&
+          current.copiedUntil === copiedUntil
+            ? { ...current, copiedUntil: null }
+            : current,
+        );
+      },
+      Math.max(0, copiedUntil - Date.now()),
+    );
     return () => window.clearTimeout(timer);
-  }, [view]);
+  }, [copiedUntil]);
 
   if (view.kind === "hidden") return null;
 
@@ -332,11 +355,15 @@ const RecordingOverlay: React.FC = () => {
 
   if (view.kind === "meetingNotice") {
     const copyMeeting = () => {
-      void invoke<void>("copy_meeting_notice")
-        .then(() => {
+      void commands
+        .copyMeetingNotice()
+        .then((result) => {
+          if (result.status === "error") throw new Error(result.error);
           setView((current) =>
-            current.kind === "meetingNotice" && current.labels === view.labels
-              ? { ...current, copied: true }
+            current.kind === "meetingNotice" &&
+            current.labels.copy !== null &&
+            sameMeetingNotice(current.labels, view.labels)
+              ? { ...current, copiedUntil: Date.now() + 1500 }
               : current,
           );
         })
@@ -345,16 +372,17 @@ const RecordingOverlay: React.FC = () => {
         });
     };
     const openMeeting = () => {
-      void invoke<void>("open_meeting_notice").catch((error: unknown) => {
+      void commands.openMeetingNotice().catch((error: unknown) => {
         console.warn("Opening the meeting notice failed:", error);
       });
     };
     const dismissMeeting = () => {
-      void invoke<void>("dismiss_meeting_notice").catch((error: unknown) => {
+      void commands.dismissMeetingNotice().catch((error: unknown) => {
         console.warn("Dismissing the meeting notice failed:", error);
       });
     };
-    const Icon = view.copied ? CheckIcon : CopyIcon;
+    const copied = view.copiedUntil !== null;
+    const Icon = copied ? CheckIcon : CopyIcon;
     return (
       <div className={`ov-stage ${position}`}>
         <div
@@ -394,14 +422,14 @@ const RecordingOverlay: React.FC = () => {
                     size={14}
                     weight="bold"
                     aria-hidden="true"
-                    data-icon={view.copied ? "check" : "copy"}
+                    data-icon={copied ? "check" : "copy"}
                   />
                   <span className="ov-copy-label">
                     <span id={`${noticeId}-action`} aria-live="polite">
-                      {view.copied ? view.labels.copied : view.labels.copy}
+                      {copied ? view.labels.copied : view.labels.copy}
                     </span>
                     <span className="ov-copy-label-spare" aria-hidden="true">
-                      {view.copied ? view.labels.copy : view.labels.copied}
+                      {copied ? view.labels.copy : view.labels.copied}
                     </span>
                   </span>
                 </button>

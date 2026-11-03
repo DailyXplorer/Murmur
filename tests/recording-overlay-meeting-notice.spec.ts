@@ -127,6 +127,9 @@ test.describe("meeting notice", () => {
     await expect(
       notice.getByText(MEETING_NOTICES.failed.headline),
     ).toBeVisible();
+    await expect(
+      notice.getByText(MEETING_NOTICES.failed.detail, { exact: true }),
+    ).toBeVisible();
     await expect(notice.locator(".ov-glyph.off")).toHaveCount(1);
     await expect(notice.getByRole("button")).toHaveCount(2);
     await expect(
@@ -136,7 +139,7 @@ test.describe("meeting notice", () => {
     expect(await calls(page)).toEqual(["open_meeting_notice"]);
   });
 
-  for (const state of ["batch", "mixed"] as const) {
+  for (const state of ["batch", "mixed", "failedBatch"] as const) {
     test(`the ${state} pill shows its supplied detail and no Copy`, async ({
       page,
     }) => {
@@ -146,7 +149,7 @@ test.describe("meeting notice", () => {
 
       const notice = page.getByRole("status");
       await expect(
-        notice.getByText("2 meetings ready", { exact: true }),
+        notice.getByText(labels.headline, { exact: true }),
       ).toBeVisible();
       if (labels.detail === null) {
         await expect(notice.locator(".ov-meeting-notice-detail")).toHaveCount(
@@ -269,6 +272,7 @@ test.describe("meeting notice", () => {
     expect(await calls(page)).toEqual(["copy_meeting_notice"]);
     const replacement = {
       ...MEETING_NOTICES.ready,
+      meeting_id: 8,
       headline: "Next meeting",
     };
     await dispatch(page, "show-overlay-meeting-notice", replacement);
@@ -282,6 +286,52 @@ test.describe("meeting notice", () => {
     await expect(
       page.getByRole("button", { name: "Copied", exact: true }),
     ).toHaveCount(0);
+  });
+
+  test("a title refresh preserves Copied until the original 1.5 second deadline", async ({
+    page,
+  }) => {
+    const now = Date.parse("2026-11-03T10:00:00Z");
+    await page.clock.install({ time: now - 1000 });
+    await page.clock.pauseAt(now);
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await openOverlay(page);
+    const original = { ...MEETING_NOTICES.ready, meeting_id: 7 };
+    await dispatch(page, "show-overlay-meeting-notice", original);
+    await page.getByRole("button", { name: "Copy", exact: true }).click();
+    const copied = page.getByRole("button", { name: "Copied", exact: true });
+    await expect(copied).toBeVisible();
+    await page.clock.runFor(500);
+    await dispatch(page, "show-overlay-meeting-notice", {
+      ...original,
+      headline: "Planning",
+    });
+    await expect(copied).toBeVisible();
+    await page.clock.runFor(999);
+    await expect(copied).toBeVisible();
+    await page.clock.runFor(1);
+    await expect(
+      page.getByRole("button", { name: "Copy", exact: true }),
+    ).toBeVisible();
+    await expect(page.getByText("Planning", { exact: true })).toBeVisible();
+  });
+
+  test("a copy reply still confirms the same meeting after its title arrives", async ({
+    page,
+  }) => {
+    await openOverlay(page, { holdMeetingCopy: true });
+    const original = { ...MEETING_NOTICES.ready, meeting_id: 7 };
+    await dispatch(page, "show-overlay-meeting-notice", original);
+    await page.getByRole("button", { name: "Copy", exact: true }).click();
+    await dispatch(page, "show-overlay-meeting-notice", {
+      ...original,
+      headline: "Planning",
+    });
+    await page.evaluate(() => window.overlayHarness.releaseMeetingCopy());
+    await expect(
+      page.getByRole("button", { name: "Copied", exact: true }),
+    ).toBeVisible();
+    await expect(page.getByText("Planning", { exact: true })).toBeVisible();
   });
 
   test("native hide and every other overlay state replace the notice", async ({
