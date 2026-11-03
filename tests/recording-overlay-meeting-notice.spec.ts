@@ -134,10 +134,7 @@ test.describe("meeting notice", () => {
     await expect(
       notice.getByRole("button", { name: "Copy", exact: true }),
     ).toBeVisible();
-    await expect(
-      notice.getByRole("button", { name: "Close", exact: true }),
-    ).toHaveAttribute("aria-label", "Close");
-    await expect(notice.getByRole("button")).toHaveCount(3);
+    await expect(notice.getByRole("button")).toHaveCount(2);
     await expect(notice.locator(".ov-glyph.done")).toHaveCount(1);
     expect(await calls(page)).toEqual([]);
 
@@ -152,6 +149,18 @@ test.describe("meeting notice", () => {
       height: Math.ceil(bounds.height) + 32,
     });
     expect(bounds.height).toBe(48);
+    const insets = await notice.evaluate((capsule) => {
+      const box = capsule.getBoundingClientRect();
+      const glyph = capsule.querySelector(".ov-glyph")?.getBoundingClientRect();
+      const actions = capsule
+        .querySelector(".ov-meeting-notice-actions")
+        ?.getBoundingClientRect();
+      return {
+        left: glyph ? glyph.left - box.left : null,
+        right: actions ? box.right - actions.right : null,
+      };
+    });
+    expect(insets).toEqual({ left: 10, right: 10 });
   });
 
   test("Copy confirms with a check without moving the pill or the other actions", async ({
@@ -201,18 +210,14 @@ test.describe("meeting notice", () => {
     expect(await calls(page)).toEqual(["copy_meeting_notice"]);
   });
 
-  test("Open and close invoke their native commands and wait for native dismissal", async ({
+  test("Open invokes its native command and waits for native dismissal", async ({
     page,
   }) => {
     await openOverlay(page);
     await dispatch(page, "show-overlay-meeting-notice", MEETING_NOTICES.ready);
     await page.getByRole("button", { name: "Open", exact: true }).click();
-    await page.getByRole("button", { name: "Close", exact: true }).click();
 
-    expect(await calls(page)).toEqual([
-      "open_meeting_notice",
-      "dismiss_meeting_notice",
-    ]);
+    expect(await calls(page)).toEqual(["open_meeting_notice"]);
     await expect(page.getByRole("status")).toBeVisible();
     await dispatch(page, "hide-overlay");
     await expect(page.locator(".ov-stage")).toHaveCount(0);
@@ -233,7 +238,7 @@ test.describe("meeting notice", () => {
       notice.getByText(MEETING_NOTICES.failed.detail, { exact: true }),
     ).toBeVisible();
     await expect(notice.locator(".ov-glyph.off")).toHaveCount(1);
-    await expect(notice.getByRole("button")).toHaveCount(2);
+    await expect(notice.getByRole("button")).toHaveCount(1);
     await expect(
       notice.getByRole("button", { name: "Copy", exact: true }),
     ).toHaveCount(0);
@@ -262,7 +267,7 @@ test.describe("meeting notice", () => {
           notice.getByText(labels.detail, { exact: true }),
         ).toBeVisible();
       }
-      await expect(notice.getByRole("button")).toHaveCount(2);
+      await expect(notice.getByRole("button")).toHaveCount(1);
       await expect(
         notice.getByRole("button", { name: "Copy", exact: true }),
       ).toHaveCount(0);
@@ -533,9 +538,7 @@ test.describe("meeting notice", () => {
     await expect(
       page.getByRole("button", { name: "Ouvrir", exact: true }),
     ).toBeVisible();
-    await expect(
-      page.getByRole("button", { name: "Fermer", exact: true }),
-    ).toHaveAttribute("aria-label", "Fermer");
+    await expect(page.getByRole("button")).toHaveCount(2);
     await page.getByRole("button", { name: "Copier", exact: true }).click();
     await expect(
       page.getByRole("button", { name: "Copié", exact: true }),

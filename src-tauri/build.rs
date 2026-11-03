@@ -56,7 +56,6 @@ const APP_COMMANDS: &[&str] = &[
     "copy_notice_again",
     "copy_meeting_notice",
     "open_meeting_notice",
-    "dismiss_meeting_notice",
     "fit_copy_notice",
     "restore_cancelled_dictation",
     "get_app_dir_path",

@@ -32,7 +32,6 @@
     "overlayCopy": "Kopieren",
     "overlayCopied": "Kopiert",
     "overlayOpen": "Öffnen",
-    "overlayClose": "Schließen",
     "overlayTranscriptReady": "Transkript bereit",
     "overlayMeetingFailed": "Das Meeting konnte nicht transkribiert werden",
     "overlayMeetingsReady_one": "{{count}} Meeting bereit",

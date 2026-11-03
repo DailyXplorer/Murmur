@@ -36,7 +36,6 @@ struct MeetingNoticeLabels {
     open: String,
     copy: Option<String>,
     copied: String,
-    close: String,
     default_name: Option<DefaultName>,
 }
 
@@ -147,15 +146,6 @@ fn page_ready(notices: &mut Notices, context: Context, epoch: u64) -> bool {
     notices.meeting_listener_ready = true;
     forget_viewed(notices, context.viewed_meeting);
     resume(notices, context)
-}
-
-fn dismiss_meeting(notices: &mut Notices) -> bool {
-    notices.pending_meetings = None;
-    if !matches!(notices.current, Some(Notice::MeetingNews(_))) {
-        return false;
-    }
-    notices.current = None;
-    true
 }
 
 fn reset_page_state(notices: &mut Notices, generation: &AtomicU64) -> bool {
@@ -314,7 +304,6 @@ fn labels(content: Content, strings: &TrayStrings) -> MeetingNoticeLabels {
         default_name,
         open: strings.overlay_open.clone(),
         copied: strings.overlay_copied.clone(),
-        close: strings.overlay_close.clone(),
     }
 }
 
@@ -419,18 +408,6 @@ pub fn settings_meeting_changed(app: &AppHandle) {
         drop(held);
         settle_overlay(&handle);
     });
-}
-
-#[tauri::command]
-#[specta::specta]
-pub fn dismiss_meeting_notice(app: AppHandle) {
-    let mut held = notice();
-    if !dismiss_meeting(&mut held) {
-        return;
-    }
-    OVERLAY_GENERATION.fetch_add(1, Ordering::SeqCst);
-    drop(held);
-    settle_overlay(&app);
 }
 
 #[tauri::command]
@@ -697,21 +674,6 @@ mod tests {
     }
 
     #[test]
-    fn a_meeting_dismissed_during_reload_is_not_replayed() {
-        let mut notices = listening();
-        receive(&mut notices, IDLE, finished(1, Outcome::Ready));
-        assert!(page_loading(&mut notices));
-
-        notices.current = Some(Notice::Error);
-        assert!(!dismiss_meeting(&mut notices));
-        assert!(matches!(notices.current, Some(Notice::Error)));
-        assert!(notices.pending_meetings.is_none());
-        assert!(!ready_current_page(&mut notices, IDLE));
-        notices.current = None;
-        assert!(!resume(&mut notices, IDLE));
-    }
-
-    #[test]
     fn another_notice_cannot_release_pending_news_during_a_page_reload() {
         let mut notices = Notices {
             current: Some(Notice::Error),
@@ -814,7 +776,15 @@ mod tests {
             })
         );
         assert!(notices.pending_meetings.is_none());
-        assert!(dismiss_meeting(&mut notices));
+        assert_eq!(
+            dismiss(
+                &mut notices.current,
+                Dismissal::Escape,
+                0,
+                OverlayStyle::Minimal
+            ),
+            Some(AfterDismissal::Settled)
+        );
         assert_eq!(
             receive(&mut notices, IDLE, finished(3, Outcome::Ready)),
             Reception::Show
@@ -952,7 +922,6 @@ mod tests {
             Some(recording)
         );
         assert_eq!(resting_pill(None, OverlayStyle::Minimal), None);
-        assert!(!dismiss_meeting(&mut notices));
     }
 
     #[test]

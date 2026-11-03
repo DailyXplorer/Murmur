@@ -696,7 +696,6 @@ fn specta_builder() -> Builder<tauri::Wry> {
             overlay::copy_notice_again,
             overlay::meeting_notice::copy_meeting_notice,
             overlay::meeting_notice::open_meeting_notice,
-            overlay::meeting_notice::dismiss_meeting_notice,
             overlay::fit_copy_notice,
             recently_cancelled::restore_cancelled_dictation,
             commands::get_app_dir_path,

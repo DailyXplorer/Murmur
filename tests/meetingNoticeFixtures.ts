@@ -12,7 +12,6 @@ const actions = (strings: typeof en.tray) => ({
   open: strings.overlayOpen,
   copy: strings.overlayCopy,
   copied: strings.overlayCopied,
-  close: strings.overlayClose,
 });
 
 const ready = {

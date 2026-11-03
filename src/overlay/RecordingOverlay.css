@@ -443,8 +443,7 @@
   width: max-content;
   max-width: var(--ov-copy-max-w);
   min-height: var(--ov-h);
-  padding: 7px 5px;
-  padding-inline-start: 10px;
+  padding: 7px 10px;
   text-align: start;
 }
 .ov-meeting-notice-text {
@@ -479,14 +478,6 @@
   display: flex;
   align-items: center;
   gap: 6px;
-}
-.ov-meeting-notice-close {
-  display: grid;
-  place-items: center;
-  width: 24px;
-  padding: 0;
-  color: rgb(255 255 255 / 0.7);
-  background: transparent;
 }
 
 @media (prefers-reduced-motion: reduce) {
