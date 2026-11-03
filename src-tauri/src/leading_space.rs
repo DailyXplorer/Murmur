@@ -3,7 +3,7 @@
 use regex::Regex;
 use std::sync::OnceLock;
 
-/// The last two characters before an insertion point, nearest first.
+/// The base scalars of the last two graphemes before an insertion point, nearest first.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct Before {
     pub last: char,
@@ -24,13 +24,7 @@ pub fn needs_leading_space(before: Before, text: &str) -> bool {
     if before.last == '’' && before.previous.is_some_and(char::is_alphabetic) {
         return false;
     }
-    asks_for_space_after(before.last) || is_emoji_variant(before)
-}
-
-/// "❤️" ends with VARIATION SELECTOR-16, which asks for the emoji look of
-/// the character before it.
-fn is_emoji_variant(before: Before) -> bool {
-    before.last == '\u{FE0F}' && before.previous.is_some_and(is_emoji)
+    asks_for_space_after(before.last)
 }
 
 fn is_closing_start(c: char) -> bool {
@@ -69,9 +63,13 @@ fn is_emoji(c: char) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use unicode_segmentation::UnicodeSegmentation;
 
     fn before(text: &str) -> Before {
-        let mut chars = text.chars().rev();
+        let mut chars = text
+            .graphemes(true)
+            .map(|grapheme| grapheme.chars().next().unwrap())
+            .rev();
         Before {
             last: chars.next().unwrap(),
             previous: chars.next(),
@@ -138,14 +136,36 @@ mod tests {
     #[test]
     fn accented_words_and_emoji_get_a_space() {
         assert!(needs_leading_space(before("déjà"), "été"));
-        for text in ["😀", "👍", "🇫🇷", "❤️", "☺️"] {
-            assert!(needs_leading_space(before(text), "in progress"));
+        for text in [
+            "de\u{301}ja\u{300}",
+            "😀",
+            "👍",
+            "🇫🇷",
+            "❤️",
+            "☺️",
+            "1\u{FE0F}\u{20E3}",
+            "\u{1F3F4}\u{E0067}\u{E0062}\u{E0073}\u{E0063}\u{E0074}\u{E007F}",
+            "👨‍👩‍👧",
+            "👍🏽",
+        ] {
+            assert!(
+                needs_leading_space(before(text), "in progress"),
+                "after {text:?}"
+            );
         }
     }
 
     #[test]
     fn a_typographic_apostrophe_after_a_letter_is_an_elision() {
-        for text in ["l’", "qu’", "d’", "dell’"] {
+        for text in [
+            "l’",
+            "qu’",
+            "d’",
+            "dell’",
+            "l\u{301}’",
+            "l\u{335}’",
+            "qu\u{301}’",
+        ] {
             assert!(!needs_leading_space(before(text), "été"), "{text}");
         }
         for text in [")’", " ’", "7’", "”"] {
