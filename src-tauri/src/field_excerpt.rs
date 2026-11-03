@@ -4,11 +4,14 @@
 
 use std::fmt;
 use std::time::Instant;
+use unicode_segmentation::UnicodeSegmentation;
 
 use crate::leading_space::Before;
 
 pub const MAX_BEFORE_CHARS: usize = 300;
 pub const MAX_AFTER_CHARS: usize = 100;
+// Two subdivision flags need 28 UTF-16 units; two four-person ZWJ families need 22.
+const CARET_WINDOW_UNITS: usize = 32;
 
 /// A selection or insertion point in UTF-16 code units, as Accessibility reports it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -101,8 +104,8 @@ pub trait FocusedText {
     fn value(&self) -> Option<String>;
 }
 
-/// The last two characters before a caret. Never reads secure text or guesses
-/// a caret from a selection, and starts no read after `deadline`.
+/// The base scalars of the last two graphemes before a caret. Never reads secure
+/// text or guesses a caret from a selection, and starts no read after `deadline`.
 pub fn char_before(focused: &impl FocusedText, deadline: Instant) -> Option<Before> {
     let in_time = || Instant::now() < deadline;
     if !in_time() || focused.is_secure() || !in_time() {
@@ -112,16 +115,20 @@ pub fn char_before(focused: &impl FocusedText, deadline: Instant) -> Option<Befo
     if selection.len != 0 || selection.start == 0 || !in_time() {
         return None;
     }
-    let start = selection.start.saturating_sub(4);
+    let start = selection.start.saturating_sub(CARET_WINDOW_UNITS);
     let text = focused.string_for_range(Utf16Range {
         start,
         len: selection.start - start,
     })?;
-    let mut chars = text.chars().rev();
+    let mut graphemes = text.graphemes(true);
+    if start != 0 {
+        // The first grapheme may have lost its base at the window's left edge.
+        let _ = graphemes.next();
+    }
+    let base = |grapheme: &str| grapheme.chars().next().filter(|&c| c != '\u{FFFD}');
     Some(Before {
-        last: chars.next()?,
-        // A split surrogate at the window's left edge is not a real character.
-        previous: chars.next().filter(|&c| c != '\u{FFFD}'),
+        last: base(graphemes.next_back()?)?,
+        previous: graphemes.next_back().and_then(base),
     })
 }
 
@@ -360,7 +367,7 @@ mod tests {
         assert_eq!(preceding_chars(&fake), Some(('r', Some('w'))));
         assert_eq!(
             *fake.requested.borrow(),
-            Some(Utf16Range { start: 6, len: 4 })
+            Some(Utf16Range { start: 0, len: 10 })
         );
         assert_eq!(*fake.reads.borrow(), ["selection", "string_for_range"]);
     }
@@ -400,6 +407,116 @@ mod tests {
         ] {
             let fake = Fake::new(text, at(text.encode_utf16().count()));
             assert_eq!(preceding_chars(&fake), Some(expected), "{text}");
+        }
+    }
+
+    #[test]
+    fn leading_space_reads_grapheme_bases_before_the_caret() {
+        for (text, expected) in [
+            ("déjà", ('à', Some('j'))),
+            ("de\u{301}ja\u{300}", ('a', Some('j'))),
+            ("1\u{FE0F}\u{20E3}", ('1', None)),
+            (
+                "\u{1F3F4}\u{E0067}\u{E0062}\u{E0073}\u{E0063}\u{E0074}\u{E007F}",
+                ('\u{1F3F4}', None),
+            ),
+            ("👨‍👩‍👧", ('👨', None)),
+            ("❤️", ('❤', None)),
+            ("👍🏽", ('👍', None)),
+        ] {
+            let fake = Fake::new(text, at(text.encode_utf16().count()));
+            assert_eq!(preceding_chars(&fake), Some(expected), "after {text:?}");
+        }
+    }
+
+    #[test]
+    fn leading_space_separates_decomposed_words_and_complete_emoji() {
+        for text in [
+            "déjà",
+            "de\u{301}ja\u{300}",
+            "1\u{FE0F}\u{20E3}",
+            "\u{1F3F4}\u{E0067}\u{E0062}\u{E0073}\u{E0063}\u{E0074}\u{E007F}",
+            "👨‍👩‍👧",
+            "❤️",
+            "👍🏽",
+        ] {
+            let fake = Fake::new(text, at(text.encode_utf16().count()));
+            let before = char_before(&fake, later()).unwrap();
+            assert!(
+                crate::leading_space::needs_leading_space(before, "next"),
+                "after {text:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn leading_space_keeps_elisions_after_combining_letters() {
+        for text in ["l’", "qu’", "l\u{301}’", "l\u{335}’", "qu\u{301}’"] {
+            let fake = Fake::new(text, at(text.encode_utf16().count()));
+            let before = char_before(&fake, later()).unwrap();
+            assert!(
+                !crate::leading_space::needs_leading_space(before, "été"),
+                "after {text:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn leading_space_does_not_guess_a_previous_base_at_a_cut_window_edge() {
+        for text in [
+            format!("xl{}’", "\u{301}".repeat(30)),
+            format!("l{}’", "\u{301}".repeat(31)),
+            format!("😀{}’", "\u{301}".repeat(30)),
+        ] {
+            let fake = Fake::new(&text, at(text.encode_utf16().count()));
+            assert_eq!(preceding_chars(&fake), Some(('’', None)), "after {text:?}");
+        }
+
+        for text in [
+            format!("l{}’", "\u{301}".repeat(30)),
+            format!("{}l\u{301}’", "x".repeat(40)),
+        ] {
+            let fake = Fake::new(&text, at(text.encode_utf16().count()));
+            assert_eq!(
+                preceding_chars(&fake),
+                Some(('’', Some('l'))),
+                "after {text:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn leading_space_never_uses_a_split_surrogate_as_a_base() {
+        assert_eq!(preceding_chars(&Fake::new("😀", at(1))), None);
+        let text = format!("😀{}", "a".repeat(31));
+        let fake = Fake::new(&text, at(text.encode_utf16().count()));
+        assert_eq!(preceding_chars(&fake), Some(('a', Some('a'))));
+    }
+
+    #[test]
+    fn leading_space_bounds_the_grapheme_window_in_utf16_units() {
+        let fake = Fake::new(&"word ".repeat(1_000), at(2_000));
+        assert_eq!(preceding_chars(&fake), Some((' ', Some('d'))));
+        assert_eq!(
+            *fake.requested.borrow(),
+            Some(Utf16Range {
+                start: 1_968,
+                len: 32,
+            })
+        );
+        assert_eq!(*fake.reads.borrow(), ["selection", "string_for_range"]);
+    }
+
+    #[test]
+    fn leading_space_keeps_two_long_emoji_in_the_bounded_window() {
+        let flag = "\u{1F3F4}\u{E0067}\u{E0062}\u{E0073}\u{E0063}\u{E0074}\u{E007F}";
+        for (suffix, expected) in [
+            (format!("{flag}{flag}"), ('\u{1F3F4}', Some('\u{1F3F4}'))),
+            (format!("{flag}👨‍👩‍👧‍👦"), ('👨', Some('\u{1F3F4}'))),
+        ] {
+            let text = format!("{}{suffix}", "x".repeat(40));
+            let fake = Fake::new(&text, at(text.encode_utf16().count()));
+            assert_eq!(preceding_chars(&fake), Some(expected), "after {suffix:?}");
         }
     }
 
