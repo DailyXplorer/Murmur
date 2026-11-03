@@ -353,18 +353,43 @@ pub fn focus_in(pid: i32, app: &Element) -> Option<Element> {
         .or_else(|| app.element("AXFocusedUIElement"))
 }
 
-/// Characters before the frontmost app's caret, excluding secure fields and
-/// password managers. Gives up when the paste's read budget is spent.
-pub fn char_before_caret(deadline: Instant) -> Option<Before> {
+/// Characters before the keyboard target's caret, excluding secure fields and
+/// password managers. `frontmost` is captured on the main thread; Accessibility
+/// and the thread-safe NSRunningApplication metadata are read on the worker.
+pub fn char_before_caret(frontmost: Option<i32>, deadline: Instant) -> Option<Before> {
     if Instant::now() >= deadline {
         return None;
     }
-    let (pid, app) = frontmost_app()?;
+    let focused = Element::system_wide()
+        .and_then(|system| system.element("AXFocusedApplication"))
+        .and_then(|app| app.pid());
+    read_before_caret(frontmost, focused, deadline, |pid, deadline| {
+        let bundle_id = objc2::rc::autoreleasepool(|_| {
+            objc2_app_kit::NSRunningApplication::runningApplicationWithProcessIdentifier(pid)
+                .and_then(|app| app.bundleIdentifier())
+                .map(|id| id.to_string())
+                .unwrap_or_default()
+        });
+        if is_password_app(&bundle_id) || Instant::now() >= deadline {
+            return None;
+        }
+        let app = Element::application(pid)?;
+        let focused = focus_in(pid, &app)?;
+        crate::field_excerpt::char_before(&focused, deadline)
+    })
+}
+
+fn read_before_caret(
+    frontmost: Option<i32>,
+    focused: Option<i32>,
+    deadline: Instant,
+    read: impl FnOnce(i32, Instant) -> Option<Before>,
+) -> Option<Before> {
     if Instant::now() >= deadline {
         return None;
     }
-    let focused = focus_in(pid, &app)?;
-    crate::field_excerpt::char_before(&focused, deadline)
+    let pid = crate::clipboard::keyboard_target_pid(frontmost, focused, std::process::id())?;
+    read(pid, deadline)
 }
 
 /// What holds the keyboard when a dictation ends.
@@ -486,6 +511,39 @@ mod tests {
             ))
         };
         assert_eq!(utf16_string(&text), "\u{FFFD}a");
+    }
+
+    #[test]
+    fn caret_read_follows_the_keyboard_focused_panel_not_the_frontmost_editor() {
+        let mut read_pid = None;
+        let before = read_before_caret(
+            Some(100),
+            Some(200),
+            Instant::now() + Duration::from_secs(60),
+            |pid, _| {
+                read_pid = Some(pid);
+                (pid == 100).then_some(Before {
+                    last: 'o',
+                    previous: Some('l'),
+                })
+            },
+        );
+        assert_eq!(
+            read_pid,
+            Some(200),
+            "read the panel, not the editor at hello|"
+        );
+        assert!(before.is_none(), "the panel's empty field needs no space");
+    }
+
+    #[test]
+    fn an_expired_caret_read_never_opens_the_target_field() {
+        assert!(
+            read_before_caret(Some(100), Some(200), Instant::now(), |_, _| {
+                panic!("an expired read must not inspect the focused field")
+            })
+            .is_none()
+        );
     }
 
     fn element(role: &str, accepts_text: bool) -> Option<FocusedElement> {

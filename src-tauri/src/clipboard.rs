@@ -141,6 +141,29 @@ async fn with_leading_space(
 }
 
 #[cfg(target_os = "macos")]
+fn read_char_before_caret(app_handle: &AppHandle, deadline: Instant) -> Option<Before> {
+    if Instant::now() >= deadline {
+        return None;
+    }
+    let (sender, receiver) = std::sync::mpsc::sync_channel(1);
+    app_handle
+        .run_on_main_thread(move || {
+            let frontmost = (Instant::now() < deadline)
+                .then(|| {
+                    NSWorkspace::sharedWorkspace()
+                        .frontmostApplication()
+                        .map(|app| app.processIdentifier())
+                })
+                .flatten();
+            let _ = sender.send(frontmost);
+        })
+        .ok()?;
+    let frontmost = receiver
+        .recv_timeout(deadline.saturating_duration_since(Instant::now()))
+        .ok()?;
+    crate::accessibility::char_before_caret(frontmost, deadline)
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct FrontmostTarget {
     pid: i32,
@@ -207,10 +230,15 @@ impl FrontmostTarget {
 /// that app, not to the panel. The keyboard focus wins unless it is Murmur's
 /// own or Accessibility cannot tell.
 #[cfg(target_os = "macos")]
-fn keyboard_target_pid(frontmost: Option<i32>, focused: Option<i32>, own_pid: u32) -> Option<i32> {
+pub(crate) fn keyboard_target_pid(
+    frontmost: Option<i32>,
+    focused: Option<i32>,
+    own_pid: u32,
+) -> Option<i32> {
     focused
-        .filter(|&pid| pid > 0 && u32::try_from(pid).ok() != Some(own_pid))
-        .or(frontmost)
+        .into_iter()
+        .chain(frontmost)
+        .find(|&pid| pid > 0 && u32::try_from(pid).ok() != Some(own_pid))
 }
 
 /// The app that holds the keyboard, which every paste, typed text and Return
@@ -499,7 +527,9 @@ pub(crate) async fn paste(
         ));
     }
     #[cfg(target_os = "macos")]
-    let read_caret = crate::accessibility::char_before_caret;
+    let app_for_caret = app_handle.clone();
+    #[cfg(target_os = "macos")]
+    let read_caret = move |deadline| read_char_before_caret(&app_for_caret, deadline);
     let text = with_leading_space(text, settings.leading_space, paste_method, read_caret)
     .await;
     let text = if settings.append_trailing_space {
@@ -748,6 +778,8 @@ mod tests {
             (Some(100), Some(7), Some(100)),
             (Some(100), Some(0), Some(100)),
             (None, Some(200), Some(200)),
+            (Some(7), None, None),
+            (Some(0), None, None),
             (None, None, None),
         ];
         for (frontmost, focused, expected) in cases {
