@@ -446,6 +446,17 @@ mod tests {
     }
 
     #[test]
+    fn a_ready_page_does_not_show_the_same_news_twice() {
+        let mut notices = Notices::default();
+        receive(&mut notices, IDLE, finished(1, Outcome::Ready));
+
+        assert!(page_ready(&mut notices, IDLE));
+        assert!(!page_ready(&mut notices, IDLE));
+        assert_eq!(batch(&notices).single(), Some(finished(1, Outcome::Ready)));
+        assert!(notices.pending_meetings.is_none());
+    }
+
+    #[test]
     fn completions_wait_for_the_page_listener_and_replay_without_losing_the_batch() {
         let mut notices = Notices::default();
         assert_eq!(
