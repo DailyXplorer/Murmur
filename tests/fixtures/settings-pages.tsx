@@ -299,6 +299,7 @@ const SETTINGS: AppSettings = {
   experimental_enabled: true,
   extra_recording_buffer_ms: 0,
   history_limit: 50,
+  leading_space: params.get("leadingSpace") !== "0",
   local_model_download_wanted: false,
   local_stt_card_dismissed: !cardShown,
   log_level: "info",
@@ -721,6 +722,9 @@ const handleEngineCommand = (
       return { handled: true, value: null };
     case "change_cleanup_short_dictations_setting":
       SETTINGS.cleanup_short_dictations = args.enabled as boolean;
+      return { handled: true, value: null };
+    case "change_leading_space_setting":
+      SETTINGS.leading_space = args.enabled === true;
       return { handled: true, value: null };
     case "change_local_stt_card_dismissed_setting":
       SETTINGS.local_stt_card_dismissed = args.dismissed as boolean;
