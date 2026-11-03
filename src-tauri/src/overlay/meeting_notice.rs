@@ -8,6 +8,12 @@ use std::sync::Once;
 const DISPLAY_TIME: Duration = Duration::from_secs(15);
 static PAGE_LISTENER: Once = Once::new();
 
+#[derive(Clone, serde::Serialize)]
+struct PageEpochReply {
+    nonce: String,
+    epoch: String,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
 struct DefaultName {
     started_at_ms: i64,
@@ -120,6 +126,7 @@ fn resume(notices: &mut Notices, context: Context) -> bool {
 }
 
 fn page_loading(notices: &mut Notices) -> bool {
+    notices.page_epoch += 1;
     notices.meeting_listener_ready = false;
     match notices.current.take() {
         Some(Notice::MeetingNews(news)) => {
@@ -133,8 +140,8 @@ fn page_loading(notices: &mut Notices) -> bool {
     }
 }
 
-fn page_ready(notices: &mut Notices, context: Context) -> bool {
-    if notices.meeting_listener_ready {
+fn page_ready(notices: &mut Notices, context: Context, epoch: u64) -> bool {
+    if epoch != notices.page_epoch || notices.meeting_listener_ready {
         return false;
     }
     notices.meeting_listener_ready = true;
@@ -173,13 +180,36 @@ pub(super) fn listen_for_page(app: &AppHandle) {
 
     PAGE_LISTENER.call_once(|| {
         let handle = app.clone();
-        app.listen("meeting-notice-listener-ready", move |_| {
+        app.listen("meeting-notice-page-request", move |event| {
+            let Ok(nonce) = serde_json::from_str::<String>(event.payload()) else {
+                return;
+            };
+            let app = handle.clone();
+            let _ = handle.run_on_main_thread(move || {
+                let reply = PageEpochReply {
+                    nonce,
+                    epoch: notice().page_epoch.to_string(),
+                };
+                let _ = app.emit_to("recording_overlay", "meeting-notice-page-epoch", reply);
+            });
+        });
+
+        let handle = app.clone();
+        app.listen("meeting-notice-listener-ready", move |event| {
+            let Some(epoch) = serde_json::from_str::<String>(event.payload())
+                .ok()
+                .and_then(|epoch| epoch.parse::<u64>().ok())
+            else {
+                return;
+            };
             let app = handle.clone();
             let _ = handle.run_on_main_thread(move || {
                 let mut held = notice();
                 let enabled = settings::get_settings(&app).overlay_style != OverlayStyle::None;
                 let context = Context::current(&app, enabled);
-                if page_ready(&mut held, context) && present(&app, &mut held, Presentation::Show) {
+                if page_ready(&mut held, context, epoch)
+                    && present(&app, &mut held, Presentation::Show)
+                {
                     return;
                 }
                 drop(held);
@@ -498,13 +528,18 @@ mod tests {
         }
     }
 
+    fn ready_current_page(notices: &mut Notices, context: Context) -> bool {
+        let epoch = notices.page_epoch;
+        page_ready(notices, context, epoch)
+    }
+
     #[test]
     fn a_ready_page_does_not_show_the_same_news_twice() {
         let mut notices = Notices::default();
         receive(&mut notices, IDLE, finished(1, Outcome::Ready));
 
-        assert!(page_ready(&mut notices, IDLE));
-        assert!(!page_ready(&mut notices, IDLE));
+        assert!(ready_current_page(&mut notices, IDLE));
+        assert!(!ready_current_page(&mut notices, IDLE));
         assert_eq!(batch(&notices).single(), Some(finished(1, Outcome::Ready)));
         assert!(notices.pending_meetings.is_none());
     }
@@ -512,11 +547,12 @@ mod tests {
     #[test]
     fn a_retired_pages_ready_cannot_release_the_replacement_pages_news() {
         let mut notices = Notices::default();
+        let retired_epoch = notices.page_epoch;
         let ready = finished(1, Outcome::Ready);
         assert_eq!(receive(&mut notices, IDLE, ready), Reception::Waiting);
         assert!(!page_loading(&mut notices));
 
-        assert!(!page_ready(&mut notices, IDLE));
+        assert!(!page_ready(&mut notices, IDLE, retired_epoch));
         assert!(!notices.meeting_listener_ready);
         assert!(notices.current.is_none());
         assert_eq!(
@@ -524,15 +560,31 @@ mod tests {
             Some(ready)
         );
 
-        assert!(page_ready(&mut notices, IDLE));
+        assert!(ready_current_page(&mut notices, IDLE));
         assert_eq!(batch(&notices).single(), Some(ready));
         assert!(notices.pending_meetings.is_none());
-        assert!(!page_ready(&mut notices, IDLE));
+        assert!(!ready_current_page(&mut notices, IDLE));
+    }
+
+    #[test]
+    fn every_page_reset_rejects_the_previous_epoch_even_without_showing_news() {
+        let mut notices = Notices::default();
+        let generation = AtomicU64::new(0);
+        for _ in 0..3 {
+            let retired_epoch = notices.page_epoch;
+            assert!(!reset_page_state(&mut notices, &generation));
+            assert!(!page_ready(&mut notices, IDLE, retired_epoch));
+            assert!(!notices.meeting_listener_ready);
+            assert!(!ready_current_page(&mut notices, IDLE));
+            assert!(notices.meeting_listener_ready);
+        }
+        assert_eq!(generation.load(Ordering::SeqCst), 0);
     }
 
     #[test]
     fn a_page_reload_replays_showing_news_with_a_fresh_deadline() {
         let mut notices = listening();
+        let retired_epoch = notices.page_epoch;
         let generation = AtomicU64::new(0);
         let ready = finished(1, Outcome::Ready);
         assert_eq!(receive(&mut notices, IDLE, ready), Reception::Show);
@@ -555,8 +607,9 @@ mod tests {
         );
         assert!(!reset_page_state(&mut notices, &generation));
         assert!(!resume(&mut notices, IDLE));
+        assert!(!page_ready(&mut notices, IDLE, retired_epoch));
 
-        assert!(page_ready(&mut notices, IDLE));
+        assert!(ready_current_page(&mut notices, IDLE));
         let fresh_deadline = generation.fetch_add(1, Ordering::SeqCst) + 1;
         assert_eq!(batch(&notices).single(), Some(ready));
         assert!(notices.pending_meetings.is_none());
@@ -596,7 +649,7 @@ mod tests {
         assert!(notices.current.is_none());
         assert!(!resume(&mut notices, IDLE));
 
-        assert!(page_ready(&mut notices, IDLE));
+        assert!(ready_current_page(&mut notices, IDLE));
         assert_eq!(
             batch(&notices).content(|_| None),
             Some(Content::Batch {
@@ -628,7 +681,7 @@ mod tests {
                 Reception::Waiting
             );
             assert!(dictation_takes_overlay(&mut notices.current, "recording"));
-            assert!(!page_ready(&mut notices, busy));
+            assert!(!ready_current_page(&mut notices, busy));
             assert!(!resume(&mut notices, busy));
             assert!(notices.current.is_none());
 
@@ -653,7 +706,7 @@ mod tests {
         assert!(!dismiss_meeting(&mut notices));
         assert!(matches!(notices.current, Some(Notice::Error)));
         assert!(notices.pending_meetings.is_none());
-        assert!(!page_ready(&mut notices, IDLE));
+        assert!(!ready_current_page(&mut notices, IDLE));
         notices.current = None;
         assert!(!resume(&mut notices, IDLE));
     }
@@ -676,7 +729,7 @@ mod tests {
             Some(AfterDismissal::Settled)
         );
         assert!(!resume(&mut notices, IDLE));
-        assert!(page_ready(&mut notices, IDLE));
+        assert!(ready_current_page(&mut notices, IDLE));
         assert_eq!(batch(&notices).single(), Some(finished(1, Outcome::Ready)));
     }
 
@@ -694,14 +747,14 @@ mod tests {
         assert!(notices.current.is_none());
         assert!(!resume(&mut notices, IDLE));
 
-        assert!(page_ready(&mut notices, IDLE));
+        assert!(ready_current_page(&mut notices, IDLE));
         let expected = Content::Batch {
             ready: 1,
             failed: 1,
         };
         assert_eq!(batch(&notices).content(|_| None), Some(expected.clone()));
         assert!(notices.pending_meetings.is_none());
-        assert!(!page_ready(&mut notices, IDLE));
+        assert!(!ready_current_page(&mut notices, IDLE));
         assert_eq!(batch(&notices).content(|_| None), Some(expected));
     }
 
@@ -713,10 +766,10 @@ mod tests {
         };
         let mut notices = Notices::default();
         receive(&mut notices, busy, finished(1, Outcome::Ready));
-        assert!(!page_ready(&mut notices, busy));
+        assert!(!ready_current_page(&mut notices, busy));
         assert!(notices.current.is_none());
         notices.current = Some(Notice::Error);
-        assert!(!page_ready(&mut notices, IDLE));
+        assert!(!ready_current_page(&mut notices, IDLE));
         assert!(matches!(notices.current, Some(Notice::Error)));
         notices.current = None;
         assert!(resume(&mut notices, IDLE));
@@ -737,7 +790,7 @@ mod tests {
         ] {
             let mut notices = Notices::default();
             receive(&mut notices, IDLE, finished(7, Outcome::Ready));
-            assert!(!page_ready(&mut notices, context));
+            assert!(!ready_current_page(&mut notices, context));
             assert!(notices.current.is_none());
             assert!(notices.pending_meetings.is_none());
         }

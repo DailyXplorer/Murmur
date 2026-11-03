@@ -59,6 +59,11 @@ const sameMeetingNotice = (
   shown: MeetingNoticeLabels,
 ) => current.meeting_id !== null && current.meeting_id === shown.meeting_id;
 
+interface PageEpochReply {
+  nonce: string;
+  epoch: string;
+}
+
 /** Payload of `show-overlay-meeting`, from `overlay::MeetingPill`. */
 interface MeetingPill {
   started_at_ms: number;
@@ -148,6 +153,7 @@ const RecordingOverlay: React.FC = () => {
 
   useEffect(() => {
     let isUnmounted = false;
+    const pageNonce = crypto.getRandomValues(new Uint32Array(4)).join("-");
     const unlisteners: UnlistenFn[] = [];
     const storeUnlistener = (unlisten: UnlistenFn) => {
       if (isUnmounted) {
@@ -260,10 +266,27 @@ const RecordingOverlay: React.FC = () => {
       levelsRef.current = event.payload;
     }).then(storeUnlistener, () => undefined);
 
-    void Promise.all([noticeListener, hideListener])
+    // A retired page's delayed request can receive the replacement page's epoch.
+    const epochListener = listen<PageEpochReply>(
+      "meeting-notice-page-epoch",
+      (event) => {
+        if (isUnmounted || event.payload.nonce !== pageNonce) return;
+        void emitTo(
+          { kind: "App" },
+          "meeting-notice-listener-ready",
+          event.payload.epoch,
+        ).catch(() => undefined);
+      },
+    ).then(storeUnlistener);
+
+    void Promise.all([noticeListener, hideListener, epochListener])
       .then(() => {
         if (!isUnmounted) {
-          return emitTo({ kind: "App" }, "meeting-notice-listener-ready");
+          return emitTo(
+            { kind: "App" },
+            "meeting-notice-page-request",
+            pageNonce,
+          );
         }
       })
       .catch(() => undefined);

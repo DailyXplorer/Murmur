@@ -113,12 +113,14 @@ pub(crate) type ClipboardWriter = Arc<dyn Fn(&str) -> Result<(), String> + Send 
 struct Notices {
     current: Option<Notice>,
     pending_meetings: Option<Batch>,
+    page_epoch: u64,
     meeting_listener_ready: bool,
 }
 
 static NOTICE: Mutex<Notices> = Mutex::new(Notices {
     current: None,
     pending_meetings: None,
+    page_epoch: 0,
     meeting_listener_ready: false,
 });
 
