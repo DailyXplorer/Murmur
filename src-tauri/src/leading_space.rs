@@ -44,7 +44,7 @@ fn is_unspaced_script(c: char) -> bool {
     static SCRIPTS: OnceLock<Regex> = OnceLock::new();
     SCRIPTS
         .get_or_init(|| {
-            Regex::new(r"[\p{Han}\p{Hiragana}\p{Katakana}]")
+            Regex::new(r"[\p{scx=Han}\p{scx=Hiragana}\p{scx=Katakana}]")
                 .expect("unspaced script character classes are valid")
         })
         .is_match(c.encode_utf8(&mut [0; 4]))
@@ -182,5 +182,27 @@ mod tests {
             assert!(!needs_leading_space(before(&text), &text), "around {c}");
         }
         assert!(needs_leading_space(before("한"), "글"));
+    }
+
+    #[test]
+    fn shared_kana_marks_and_cjk_punctuation_remain_unspaced() {
+        for text in ["コーヒー", "ｺｰﾋｰ", "。", "、"] {
+            assert!(
+                !needs_leading_space(before(text), "next"),
+                "unexpected space after {text:?}"
+            );
+            assert!(
+                !needs_leading_space(before("word"), text),
+                "unexpected space before {text:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn hangul_still_gets_a_space_on_either_side() {
+        for text in ["한", "한국어"] {
+            assert!(needs_leading_space(before(text), "next"), "after {text}");
+            assert!(needs_leading_space(before("word"), text), "before {text}");
+        }
     }
 }
