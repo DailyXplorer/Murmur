@@ -1628,9 +1628,8 @@ mod tests {
     fn escape_monitors_only_dismiss_fitted_notices_for_the_escape_key() {
         for key in [0, 36, 51, ESCAPE_KEY_CODE] {
             let (mut notice, _) = copy_pill("text");
-            let after = escape_dismissal(key).and_then(|dismissal| {
-                dismiss(&mut notice, dismissal, 1, OverlayStyle::Minimal)
-            });
+            let after = escape_dismissal(key)
+                .and_then(|dismissal| dismiss(&mut notice, dismissal, 1, OverlayStyle::Minimal));
             if key == ESCAPE_KEY_CODE {
                 assert_eq!(after, Some(AfterDismissal::Settled));
                 assert!(notice.is_none());
