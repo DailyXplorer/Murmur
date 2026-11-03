@@ -5,6 +5,7 @@
 
 pub mod align;
 pub mod analysis;
+pub mod announce;
 pub mod archive;
 pub mod bleed;
 pub mod call_watch;
@@ -441,6 +442,11 @@ impl ProcessEvents for AppEvents {
         if let Err(error) = (MeetingsUpdated { id }).emit(&self.0) {
             error!("Failed to emit a meeting update: {error}");
         }
+        crate::overlay::meeting_updated(&self.0, id);
+    }
+
+    fn finished(&self, finished: announce::Finished) {
+        crate::overlay::announce_meeting(&self.0, finished);
     }
 }
 
@@ -537,14 +543,17 @@ fn spawn_processing(
                 events: Arc::new(AppEvents(app.clone())),
             };
             info!("Meeting {id}: processing");
-            let codex = match processor.process(id, operation).await {
+            let codex = match processor.process(id, operation.clone()).await {
                 Ok(codex) => codex,
                 Err(error) => {
                     error!("Meeting {id}: processing failed: {error}");
-                    if let Err(error) = store.finish_processing(id, Some(ProcessingError::Other)) {
-                        error!("Meeting {id}: cannot record the failure: {error}");
+                    if !operation.is_cancelled() {
+                        if let Err(error) =
+                            processor.finish_processing(id, Some(ProcessingError::Other))
+                        {
+                            error!("Meeting {id}: cannot record the failure: {error}");
+                        }
                     }
-                    AppEvents(app.clone()).updated(id);
                     CodexVerdict::Unknown
                 }
             };
@@ -964,6 +973,12 @@ impl MeetingsManager {
         });
         meeting.waiting_for_connection = self.queue.offline_for(id);
         Ok(meeting)
+    }
+
+    pub fn announcement_name(&self, id: i64) -> Result<Option<announce::MeetingName>, String> {
+        self.store
+            .announcement_name(id)
+            .map_err(|error| error.to_string())
     }
 
     fn updated(&self, id: i64) {

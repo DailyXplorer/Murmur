@@ -43,15 +43,20 @@ const APP_COMMANDS: &[&str] = &[
     "change_show_tray_icon_setting",
     "show_main_window_command",
     "report_settings_view",
+    "report_opened_meeting",
     "get_last_settings_section",
     "hold_settings_window",
     "release_settings_window",
     "take_main_action",
+    "take_meetings_action",
     "relaunch_after_update",
     "get_update_status",
     "check_for_updates",
     "cancel_operation",
     "copy_notice_again",
+    "copy_meeting_notice",
+    "open_meeting_notice",
+    "dismiss_meeting_notice",
     "fit_copy_notice",
     "restore_cancelled_dictation",
     "get_app_dir_path",
@@ -167,7 +172,15 @@ fn generate_tray_translations() {
         let content = fs::read_to_string(&json_path).expect("locale file is readable");
         let parsed: serde_json::Value =
             serde_json::from_str(&content).expect("locale file contains valid JSON");
-        if let Some(tray) = parsed.get("tray").cloned() {
+        if let Some(mut tray) = parsed.get("tray").cloned() {
+            // The overlay formats the date with the list's template, not a
+            // second translation that could give the meeting another name.
+            tray.as_object_mut()
+                .expect("tray translations are an object")
+                .insert(
+                    "overlayMeetingUntitled".to_string(),
+                    parsed["meetings"]["list"]["untitled"].clone(),
+                );
             translations.insert(language.to_string(), tray);
         }
     }
@@ -183,6 +196,7 @@ fn generate_tray_translations() {
 
     let mut output = String::from("// Auto-generated from locale files. Do not edit.\n\n");
     output.push_str("#[derive(Debug, Clone)]\npub struct TrayStrings {\n");
+    output.push_str("    pub locale: &'static str,\n");
     for (field, _) in &fields {
         output.push_str(&format!("    pub {field}: String,\n"));
     }
@@ -192,6 +206,7 @@ fn generate_tray_translations() {
     );
     for (language, tray) in &translations {
         output.push_str(&format!("    map.insert(\"{language}\", TrayStrings {{\n"));
+        output.push_str(&format!("        locale: \"{language}\",\n"));
         for (field, json_key) in &fields {
             let value = tray
                 .get(json_key)

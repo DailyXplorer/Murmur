@@ -11,6 +11,7 @@ use tauri::{AppHandle, Manager};
 
 use crate::cli::CliArgs;
 use crate::commands::ShortcutsInitialized;
+use crate::meetings::announce::OpenTarget;
 
 pub const MAIN_WINDOW: &str = "main";
 
@@ -29,6 +30,7 @@ pub enum SettingsView {
 pub enum MainAction {
     CheckUpdates,
     SwitchedToLocal,
+    OpenMeetings(OpenTarget),
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -57,6 +59,7 @@ pub fn close_action(
 #[derive(Debug)]
 struct Inner {
     view: SettingsView,
+    opened_meeting: Option<i64>,
     last_section: Option<String>,
     pending: Vec<MainAction>,
     holds: u32,
@@ -70,6 +73,7 @@ impl Default for SettingsWindow {
     fn default() -> Self {
         Self(Mutex::new(Inner {
             view: SettingsView::Onboarding,
+            opened_meeting: None,
             last_section: None,
             pending: Vec::new(),
             holds: 0,
@@ -86,6 +90,9 @@ impl SettingsWindow {
 
     fn report(&self, view: SettingsView) {
         let mut inner = self.lock();
+        if view != SettingsView::Section("meetings".to_string()) {
+            inner.opened_meeting = None;
+        }
         if let SettingsView::Section(section) = &view {
             inner.last_section = Some(section.clone());
         }
@@ -94,6 +101,19 @@ impl SettingsWindow {
 
     fn onboarding(&self) -> bool {
         self.lock().view == SettingsView::Onboarding
+    }
+
+    fn report_meeting(&self, id: Option<i64>) {
+        self.lock().opened_meeting = id;
+    }
+
+    fn viewed_meeting(&self, visible: bool) -> Option<i64> {
+        let inner = self.lock();
+        if visible && inner.view == SettingsView::Section("meetings".to_string()) {
+            inner.opened_meeting
+        } else {
+            None
+        }
     }
 
     fn held(&self) -> bool {
@@ -113,6 +133,7 @@ impl SettingsWindow {
     fn forget_page(&self) {
         let mut inner = self.lock();
         inner.view = SettingsView::Onboarding;
+        inner.opened_meeting = None;
         inner.holds = 0;
     }
 
@@ -122,6 +143,11 @@ impl SettingsWindow {
 
     fn queue(&self, action: MainAction) {
         let mut inner = self.lock();
+        if matches!(action, MainAction::OpenMeetings(_)) {
+            inner
+                .pending
+                .retain(|pending| !matches!(pending, MainAction::OpenMeetings(_)));
+        }
         if !inner.pending.contains(&action) {
             inner.pending.push(action);
         }
@@ -133,6 +159,26 @@ impl SettingsWindow {
         inner.pending.retain(|pending| *pending != action);
         inner.pending.len() != before
     }
+
+    fn take_meetings(&self) -> Option<OpenTarget> {
+        let mut inner = self.lock();
+        let index = inner
+            .pending
+            .iter()
+            .position(|action| matches!(action, MainAction::OpenMeetings(_)))?;
+        match inner.pending.remove(index) {
+            MainAction::OpenMeetings(target) => Some(target),
+            _ => None,
+        }
+    }
+}
+
+pub fn viewed_meeting(app: &AppHandle) -> Option<i64> {
+    let visible = app.get_webview_window(MAIN_WINDOW).is_some_and(|window| {
+        window.is_visible().unwrap_or(false) && !window.is_minimized().unwrap_or(false)
+    });
+    app.try_state::<SettingsWindow>()
+        .and_then(|state| state.viewed_meeting(visible))
 }
 
 pub fn tray_visible(app: &AppHandle) -> bool {
@@ -199,7 +245,24 @@ pub fn report_settings_view(app: AppHandle, view: SettingsView) {
     if let Some(state) = app.try_state::<SettingsWindow>() {
         state.report(view);
     }
+    crate::overlay::settings_meeting_changed(&app);
     release_if_hidden(&app);
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn report_opened_meeting(app: AppHandle, id: Option<i64>) {
+    if let Some(state) = app.try_state::<SettingsWindow>() {
+        state.report_meeting(id);
+    }
+    crate::overlay::settings_meeting_changed(&app);
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn take_meetings_action(app: AppHandle) -> Option<OpenTarget> {
+    app.try_state::<SettingsWindow>()
+        .and_then(|state| state.take_meetings())
 }
 
 /// Until the matching release, closing the settings window only hides it:
@@ -307,5 +370,39 @@ mod tests {
 
         assert!(state.onboarding());
         assert_eq!(state.last_section().as_deref(), Some("history"));
+    }
+
+    #[test]
+    fn only_a_visible_meeting_page_suppresses_its_announcement() {
+        let state = SettingsWindow::default();
+        state.report(SettingsView::Section("meetings".into()));
+        state.report_meeting(Some(7));
+        assert_eq!(state.viewed_meeting(true), Some(7));
+        assert_eq!(state.viewed_meeting(false), None);
+        state.report_meeting(None);
+        assert_eq!(state.viewed_meeting(true), None);
+        state.report_meeting(Some(7));
+        state.report(SettingsView::Section("general".into()));
+        assert_eq!(state.viewed_meeting(true), None);
+        state.report(SettingsView::Section("meetings".into()));
+        assert_eq!(state.viewed_meeting(true), None);
+        state.report_meeting(Some(7));
+        state.forget_page();
+        assert_eq!(state.viewed_meeting(true), None);
+    }
+
+    #[test]
+    fn the_latest_meeting_open_survives_a_destroyed_window_and_is_taken_once() {
+        let state = SettingsWindow::default();
+        state.queue(MainAction::CheckUpdates);
+        state.queue(MainAction::OpenMeetings(OpenTarget::Meeting(7)));
+        state.forget_page();
+        assert_eq!(state.take_meetings(), Some(OpenTarget::Meeting(7)));
+        assert_eq!(state.take_meetings(), None);
+        state.queue(MainAction::OpenMeetings(OpenTarget::Meeting(8)));
+        state.queue(MainAction::OpenMeetings(OpenTarget::Meetings));
+        assert_eq!(state.take_meetings(), Some(OpenTarget::Meetings));
+        assert_eq!(state.take_meetings(), None);
+        assert!(state.take(MainAction::CheckUpdates));
     }
 }

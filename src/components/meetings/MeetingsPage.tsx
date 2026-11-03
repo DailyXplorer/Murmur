@@ -13,10 +13,10 @@ import {
   type AnalysisSupport,
   type SystemAudioSupport,
 } from "@/bindings";
-import { formatDuration } from "@/lib/meetings/format";
+import { formatDuration, formatMeetingDate } from "@/lib/meetings/format";
 import { findMatches } from "@/lib/meetings/search";
 import { LiveMeetingView } from "./LiveMeetingView";
-import { formatMeetingDate, MeetingView } from "./MeetingView";
+import { MeetingView } from "./MeetingView";
 import { SpeakerModels } from "./SpeakerModels";
 import type { InitialTextSearch } from "./TabHeaderBar";
 import { useLocalModel } from "../../hooks/useLocalModel";

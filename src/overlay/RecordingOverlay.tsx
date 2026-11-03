@@ -13,7 +13,11 @@ import React, {
 } from "react";
 import "./RecordingOverlay.css";
 import { commands } from "@/bindings";
-import { CAP_WARNING_MS, formatDuration } from "@/lib/meetings/format";
+import {
+  CAP_WARNING_MS,
+  formatDuration,
+  formatMeetingDate,
+} from "@/lib/meetings/format";
 import { openFromOrb, useReducedMotion } from "./openFromOrb";
 import {
   approach,
@@ -43,6 +47,7 @@ export interface MeetingNoticeLabels {
   copy: string | null;
   copied: string;
   close: string;
+  default_name?: { started_at_ms: number; locale: string } | null;
 }
 
 /** Payload of `show-overlay-meeting`, from `overlay::MeetingPill`. */
@@ -178,7 +183,19 @@ const RecordingOverlay: React.FC = () => {
     }).then(storeUnlistener, () => undefined);
 
     void listen<MeetingNoticeLabels>("show-overlay-meeting-notice", (event) => {
-      setView({ kind: "meetingNotice", labels: event.payload, copied: false });
+      let labels = event.payload;
+      if (labels.default_name) {
+        const date = formatMeetingDate(
+          labels.default_name.started_at_ms,
+          labels.default_name.locale,
+        );
+        labels = {
+          ...labels,
+          headline: labels.headline.replace("{{date}}", date),
+          detail: labels.detail?.replace("{{date}}", date) ?? null,
+        };
+      }
+      setView({ kind: "meetingNotice", labels, copied: false });
       refreshPosition();
     }).then(storeUnlistener, () => undefined);
 
