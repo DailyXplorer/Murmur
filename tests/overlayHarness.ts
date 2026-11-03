@@ -21,6 +21,7 @@ export async function openOverlay(
     callPrompt = null,
     holdMeetingCopy = false,
     meetingNotice = null,
+    holdPageEpoch = false,
   }: {
     holdSettings?: boolean;
     copyError?: string;
@@ -29,6 +30,7 @@ export async function openOverlay(
     callPrompt?: unknown;
     holdMeetingCopy?: boolean;
     meetingNotice?: MeetingNoticeLabels | null;
+    holdPageEpoch?: boolean;
   } = {},
 ) {
   const options = {
@@ -37,10 +39,17 @@ export async function openOverlay(
     shownPrompt: callPrompt,
     holdMeetingCopy,
     meetingNotice,
+    holdPageEpoch,
   };
   await page.addInitScript((configuration) => {
-    const { hold, copyRejection, shownPrompt, holdMeetingCopy, meetingNotice } =
-      configuration;
+    const {
+      hold,
+      copyRejection,
+      shownPrompt,
+      holdMeetingCopy,
+      meetingNotice,
+      holdPageEpoch,
+    } = configuration;
     const callbacks = new Map<number, (event: unknown) => unknown>();
     const listeners = new Map<number, string>();
     const pendingSettings: Array<(settings: unknown) => void> = [];
@@ -50,6 +59,9 @@ export async function openOverlay(
     let restoreCalls = 0;
     const meetingNoticeCalls: string[] = [];
     const pendingMeetingCopies: Array<() => void> = [];
+    const pageRequests: string[] = [];
+    const readyEpochs: unknown[] = [];
+    const pageEpoch = "7";
     let nextId = 1;
 
     window.overlayHarness = {
@@ -68,6 +80,8 @@ export async function openOverlay(
       meetingNoticeCalls: () => meetingNoticeCalls,
       releaseMeetingCopy: () =>
         pendingMeetingCopies.splice(0).forEach((resolve) => resolve()),
+      pageRequests: () => pageRequests,
+      readyEpochs: () => readyEpochs,
     };
 
     window.__TAURI_INTERNALS__ = {
@@ -79,6 +93,7 @@ export async function openOverlay(
           width?: number;
           height?: number;
           answer?: string;
+          payload?: unknown;
         },
       ) => {
         if (command === "plugin:event|listen") {
@@ -88,9 +103,26 @@ export async function openOverlay(
         if (command === "plugin:event|unlisten") return Promise.resolve();
         if (
           command === "plugin:event|emit_to" &&
+          args?.event === "meeting-notice-page-request"
+        ) {
+          if (typeof args.payload !== "string") {
+            throw new Error("The overlay page nonce is missing");
+          }
+          pageRequests.push(args.payload);
+          if (!holdPageEpoch) {
+            window.overlayHarness.dispatch("meeting-notice-page-epoch", {
+              nonce: args.payload,
+              epoch: pageEpoch,
+            });
+          }
+          return Promise.resolve();
+        }
+        if (
+          command === "plugin:event|emit_to" &&
           args?.event === "meeting-notice-listener-ready"
         ) {
-          if (meetingNotice) {
+          readyEpochs.push(args.payload);
+          if (meetingNotice && args.payload === pageEpoch) {
             window.overlayHarness.dispatch(
               "show-overlay-meeting-notice",
               meetingNotice,
