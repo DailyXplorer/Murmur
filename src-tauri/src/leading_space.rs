@@ -3,11 +3,26 @@
 use regex::Regex;
 use std::sync::OnceLock;
 
-/// The base scalars of the last two graphemes before an insertion point, nearest first.
+/// The last two grapheme bases and the last grapheme's emoji presentation.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub struct Before {
     pub last: char,
     pub previous: Option<char>,
+    pub last_is_emoji: bool,
+}
+
+impl Before {
+    /// Scalar-only context loses keycap emoji whose base is plain punctuation.
+    pub fn from_graphemes(last: &str, previous: Option<&str>) -> Option<Self> {
+        let base = |grapheme: &str| grapheme.chars().next().filter(|&c| c != '\u{FFFD}');
+        let last_is_emoji = last.contains(['\u{FE0F}', '\u{20E3}']);
+        let last = base(last)?;
+        Some(Self {
+            last,
+            previous: previous.and_then(base),
+            last_is_emoji: last_is_emoji || is_emoji(last),
+        })
+    }
 }
 
 /// Whether pasting `text` at this insertion point needs one leading space.
@@ -24,7 +39,7 @@ pub fn needs_leading_space(before: Before, text: &str) -> bool {
     if before.last == '’' && before.previous.is_some_and(char::is_alphabetic) {
         return false;
     }
-    asks_for_space_after(before.last)
+    asks_for_space_after(before.last) || before.last_is_emoji
 }
 
 fn is_closing_start(c: char) -> bool {
@@ -66,14 +81,8 @@ mod tests {
     use unicode_segmentation::UnicodeSegmentation;
 
     fn before(text: &str) -> Before {
-        let mut chars = text
-            .graphemes(true)
-            .map(|grapheme| grapheme.chars().next().unwrap())
-            .rev();
-        Before {
-            last: chars.next().unwrap(),
-            previous: chars.next(),
-        }
+        let mut graphemes = text.graphemes(true).rev();
+        Before::from_graphemes(graphemes.next().unwrap(), graphemes.next()).unwrap()
     }
 
     #[test]
@@ -86,6 +95,7 @@ mod tests {
                     Before {
                         last,
                         previous: None,
+                        last_is_emoji: false,
                     },
                     "in progress"
                 ),
@@ -104,6 +114,7 @@ mod tests {
                     Before {
                         last,
                         previous: None,
+                        last_is_emoji: false,
                     },
                     "in progress"
                 ),
@@ -150,6 +161,24 @@ mod tests {
         ] {
             assert!(
                 needs_leading_space(before(text), "in progress"),
+                "after {text:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn keycap_emoji_and_plain_symbols_have_distinct_spacing() {
+        for (text, expected) in [
+            ("#️⃣", true),
+            ("*️⃣", true),
+            ("0️⃣", true),
+            ("#", false),
+            ("*", false),
+            ("#\u{FE0E}", false),
+        ] {
+            assert_eq!(
+                needs_leading_space(before(text), "next"),
+                expected,
                 "after {text:?}"
             );
         }
