@@ -140,6 +140,7 @@ export const MeetingsPage: React.FC<{
     <LiveMeetingView id={opened.id} onBack={back} onStopped={stopped} />
   ) : (
     <MeetingView
+      key={opened.id}
       id={opened.id}
       initialSearch={opened.initialSearch}
       onBack={back}

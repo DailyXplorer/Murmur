@@ -82,6 +82,116 @@ test("Open navigates an existing Settings page and a batch returns to the Meetin
   ).toEqual([]);
 });
 
+test("Open isolates a meeting from the previous meeting's late detail reply", async ({
+  page,
+}) => {
+  await page.goto(fixture);
+  await expect(page.getByRole("navigation")).toBeVisible();
+  await page.evaluate(async () => {
+    window.settingsPages.holdMeetingDetail(4);
+    await window.settingsPages.openMeetingNotice({ meeting: 4 });
+  });
+  await expectMeeting(page, 4);
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        window.settingsPages.calls.some(
+          ({ command, args }) =>
+            command === "get_meeting" &&
+            typeof args === "object" &&
+            args !== null &&
+            "id" in args &&
+            args.id === 4,
+        ),
+      ),
+    )
+    .toBe(true);
+
+  await page.evaluate(() =>
+    window.settingsPages.openMeetingNotice({ meeting: 3 }),
+  );
+  await expectMeeting(page, 3);
+  const title = page.getByRole("textbox", {
+    name: "Meeting title",
+    exact: true,
+  });
+  await expect(title).toHaveValue("Point hebdo produit");
+  await page.evaluate(async () => {
+    window.settingsPages.releaseMeetingDetail(4);
+    await new Promise(requestAnimationFrame);
+    await new Promise(requestAnimationFrame);
+  });
+  await expect(title).toHaveValue("Point hebdo produit");
+  await expect(
+    page.getByRole("article", { name: "Point hebdo produit", exact: true }),
+  ).toBeVisible();
+  await title.fill("Product decisions");
+  await title.press("Enter");
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        window.settingsPages.calls
+          .filter(({ command }) => command === "rename_meeting")
+          .map(({ args }) => args),
+      ),
+    )
+    .toEqual([{ id: 3, title: "Product decisions" }]);
+});
+
+test("Open discards the previous meeting's unsaved title and selected tab", async ({
+  page,
+}) => {
+  await page.goto(`${fixture}?openMeeting=3`);
+  const title = page.getByRole("textbox", {
+    name: "Meeting title",
+    exact: true,
+  });
+  await expect(title).toHaveValue("Point hebdo produit");
+  await page.getByRole("tab", { name: "Transcript", exact: true }).click();
+  await page.getByRole("tab", { name: "Summary", exact: true }).click();
+  await title.fill("Unsent title for the first meeting");
+  await page.evaluate(async () => {
+    window.settingsPages.holdMeetingDetail(3);
+    await window.settingsPages.emitMeetingsUpdated(3);
+  });
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          window.settingsPages.calls.filter(
+            ({ command }) => command === "get_meeting",
+          ).length,
+      ),
+    )
+    .toBe(2);
+
+  await page.evaluate(() =>
+    window.settingsPages.openMeetingNotice({ meeting: 4 }),
+  );
+  await expectMeeting(page, 4);
+  await expect(title).toHaveValue("");
+  await page.evaluate(async () => {
+    window.settingsPages.releaseMeetingDetail(3);
+    await new Promise(requestAnimationFrame);
+    await new Promise(requestAnimationFrame);
+  });
+  await expect(title).toHaveValue("");
+  await expect(
+    page.getByRole("tab", { name: "Transcript", exact: true }),
+  ).toHaveAttribute("aria-selected", "true");
+  await title.fill("Recovered discussion");
+  await title.press("Enter");
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        window.settingsPages.calls
+          .filter(({ command }) => command === "rename_meeting")
+          .map(({ args }) => args),
+      ),
+    )
+    .toEqual([{ id: 4, title: "Recovered discussion" }]);
+});
+
 test("a pending batch Open action opens the Meetings list", async ({
   page,
 }) => {

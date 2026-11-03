@@ -2,7 +2,7 @@ import { ArrowCounterClockwiseIcon } from "@phosphor-icons/react/dist/csr/ArrowC
 import { CheckIcon } from "@phosphor-icons/react/dist/csr/Check";
 import { CopyIcon } from "@phosphor-icons/react/dist/csr/Copy";
 import { XIcon } from "@phosphor-icons/react/dist/csr/X";
-import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { emitTo, listen, type UnlistenFn } from "@tauri-apps/api/event";
 import React, {
   useEffect,
   useId,
@@ -191,31 +191,34 @@ const RecordingOverlay: React.FC = () => {
       refreshPosition();
     }).then(storeUnlistener, () => undefined);
 
-    void listen<MeetingNoticeLabels>("show-overlay-meeting-notice", (event) => {
-      let labels = event.payload;
-      if (labels.default_name) {
-        const date = formatMeetingDate(
-          labels.default_name.started_at_ms,
-          labels.default_name.locale,
-        );
-        labels = {
-          ...labels,
-          headline: labels.headline.replace("{{date}}", date),
-          detail: labels.detail?.replace("{{date}}", date) ?? null,
-        };
-      }
-      setView((current) => ({
-        kind: "meetingNotice",
-        labels,
-        copiedUntil:
-          current.kind === "meetingNotice" &&
-          labels.copy !== null &&
-          sameMeetingNotice(current.labels, labels)
-            ? current.copiedUntil
-            : null,
-      }));
-      refreshPosition();
-    }).then(storeUnlistener, () => undefined);
+    const noticeListener = listen<MeetingNoticeLabels>(
+      "show-overlay-meeting-notice",
+      (event) => {
+        let labels = event.payload;
+        if (labels.default_name) {
+          const date = formatMeetingDate(
+            labels.default_name.started_at_ms,
+            labels.default_name.locale,
+          );
+          labels = {
+            ...labels,
+            headline: labels.headline.replace("{{date}}", date),
+            detail: labels.detail?.replace("{{date}}", date) ?? null,
+          };
+        }
+        setView((current) => ({
+          kind: "meetingNotice",
+          labels,
+          copiedUntil:
+            current.kind === "meetingNotice" &&
+            labels.copy !== null &&
+            sameMeetingNotice(current.labels, labels)
+              ? current.copiedUntil
+              : null,
+        }));
+        refreshPosition();
+      },
+    ).then(storeUnlistener);
 
     // The backend localizes the message, so it matches the notification
     // shown when the overlay is off.
@@ -243,9 +246,9 @@ const RecordingOverlay: React.FC = () => {
       refreshPosition();
     }).then(storeUnlistener, () => undefined);
 
-    void listen("hide-overlay", () => {
+    const hideListener = listen("hide-overlay", () => {
       setView({ kind: "hidden" });
-    }).then(storeUnlistener, () => undefined);
+    }).then(storeUnlistener);
 
     void listen("recording-ready", () => {
       setView((current) =>
@@ -256,6 +259,14 @@ const RecordingOverlay: React.FC = () => {
     void listen<number[]>("mic-level", (event) => {
       levelsRef.current = event.payload;
     }).then(storeUnlistener, () => undefined);
+
+    void Promise.all([noticeListener, hideListener])
+      .then(() => {
+        if (!isUnmounted) {
+          return emitTo({ kind: "App" }, "meeting-notice-listener-ready");
+        }
+      })
+      .catch(() => undefined);
 
     return () => {
       isUnmounted = true;

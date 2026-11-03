@@ -82,7 +82,7 @@ fn receive(notices: &mut Notices, context: Context, finished: Finished) -> Recep
             Reception::Ignored
         };
     }
-    if notices.current.is_some() || context.dictation {
+    if notices.current.is_some() || context.dictation || !notices.meeting_listener_ready {
         if let Some(batch) = &mut notices.pending_meetings {
             batch.merge(finished);
         } else {
@@ -106,7 +106,7 @@ fn resume(notices: &mut Notices, context: Context) -> bool {
         notices.pending_meetings = None;
         return false;
     }
-    if notices.current.is_some() || context.dictation {
+    if notices.current.is_some() || context.dictation || !notices.meeting_listener_ready {
         return false;
     }
     forget_viewed(notices, context.viewed_meeting);
@@ -115,6 +115,31 @@ fn resume(notices: &mut Notices, context: Context) -> bool {
     };
     notices.current = Some(Notice::MeetingNews(MeetingNews::new(batch)));
     true
+}
+
+fn page_ready(notices: &mut Notices, context: Context) -> bool {
+    notices.meeting_listener_ready = true;
+    forget_viewed(notices, context.viewed_meeting);
+    resume(notices, context)
+        || (context.enabled && matches!(notices.current, Some(Notice::MeetingNews(_))))
+}
+
+pub(super) fn listen_for_page(app: &AppHandle) {
+    use tauri::Listener;
+
+    let handle = app.clone();
+    app.listen("meeting-notice-listener-ready", move |_| {
+        let app = handle.clone();
+        let _ = handle.run_on_main_thread(move || {
+            let mut held = notice();
+            let enabled = settings::get_settings(&app).overlay_style != OverlayStyle::None;
+            let context = Context::current(&app, enabled);
+            if page_ready(&mut held, context) && !present(&app, &mut held, Presentation::Show) {
+                drop(held);
+                settle_overlay(&app);
+            }
+        });
+    });
 }
 
 /// Also removes outcomes queued before the user opened their meeting.
@@ -413,9 +438,79 @@ mod tests {
         }
     }
 
+    fn listening() -> Notices {
+        Notices {
+            meeting_listener_ready: true,
+            ..Notices::default()
+        }
+    }
+
+    #[test]
+    fn completions_wait_for_the_page_listener_and_replay_without_losing_the_batch() {
+        let mut notices = Notices::default();
+        assert_eq!(
+            receive(&mut notices, IDLE, finished(1, Outcome::Ready)),
+            Reception::Waiting
+        );
+        assert_eq!(
+            receive(&mut notices, IDLE, finished(2, Outcome::Failed)),
+            Reception::Waiting
+        );
+        assert!(notices.current.is_none());
+        assert!(!resume(&mut notices, IDLE));
+
+        assert!(page_ready(&mut notices, IDLE));
+        let expected = Content::Batch {
+            ready: 1,
+            failed: 1,
+        };
+        assert_eq!(batch(&notices).content(|_| None), Some(expected.clone()));
+        assert!(notices.pending_meetings.is_none());
+        assert!(page_ready(&mut notices, IDLE));
+        assert_eq!(batch(&notices).content(|_| None), Some(expected));
+    }
+
+    #[test]
+    fn page_readiness_leaves_dictation_and_other_notices_ahead_of_waiting_news() {
+        let busy = Context {
+            dictation: true,
+            ..IDLE
+        };
+        let mut notices = Notices::default();
+        receive(&mut notices, busy, finished(1, Outcome::Ready));
+        assert!(!page_ready(&mut notices, busy));
+        assert!(notices.current.is_none());
+        notices.current = Some(Notice::Error);
+        assert!(!page_ready(&mut notices, IDLE));
+        assert!(matches!(notices.current, Some(Notice::Error)));
+        notices.current = None;
+        assert!(resume(&mut notices, IDLE));
+        assert_eq!(batch(&notices).single(), Some(finished(1, Outcome::Ready)));
+    }
+
+    #[test]
+    fn page_readiness_drops_news_that_was_disabled_or_viewed_while_loading() {
+        for context in [
+            Context {
+                enabled: false,
+                ..IDLE
+            },
+            Context {
+                viewed_meeting: Some(7),
+                ..IDLE
+            },
+        ] {
+            let mut notices = Notices::default();
+            receive(&mut notices, IDLE, finished(7, Outcome::Ready));
+            assert!(!page_ready(&mut notices, context));
+            assert!(notices.current.is_none());
+            assert!(notices.pending_meetings.is_none());
+        }
+    }
+
     #[test]
     fn a_finished_meeting_shows_once_and_new_outcomes_merge_in_place() {
-        let mut notices = Notices::default();
+        let mut notices = listening();
         let ready = finished(1, Outcome::Ready);
         assert_eq!(receive(&mut notices, IDLE, ready), Reception::Show);
         assert_eq!(receive(&mut notices, IDLE, ready), Reception::Ignored);
@@ -452,7 +547,7 @@ mod tests {
 
     #[test]
     fn outcomes_merge_while_waiting_for_a_dictation_then_show_together() {
-        let mut notices = Notices::default();
+        let mut notices = listening();
         let busy = Context {
             dictation: true,
             ..IDLE
@@ -492,7 +587,7 @@ mod tests {
         ] {
             let mut notices = Notices {
                 current,
-                ..Notices::default()
+                ..listening()
             };
             assert_eq!(
                 receive(&mut notices, IDLE, finished(1, Outcome::Ready)),
@@ -521,7 +616,7 @@ mod tests {
 
     #[test]
     fn a_new_dictation_drops_showing_news_but_not_a_waiting_batch() {
-        let mut notices = Notices::default();
+        let mut notices = listening();
         receive(&mut notices, IDLE, finished(1, Outcome::Ready));
         assert!(dictation_takes_overlay(&mut notices.current, "recording"));
         assert!(!resume(&mut notices, IDLE));
@@ -543,16 +638,19 @@ mod tests {
 
     #[test]
     fn restoring_a_dictation_takes_the_overlay_from_showing_meeting_news() {
-        let mut notices = Notices::default();
+        let mut notices = listening();
         receive(&mut notices, IDLE, finished(1, Outcome::Ready));
-        assert!(dictation_takes_overlay(&mut notices.current, "transcribing"));
+        assert!(dictation_takes_overlay(
+            &mut notices.current,
+            "transcribing"
+        ));
         assert!(notices.current.is_none());
         assert!(!resume(&mut notices, IDLE));
     }
 
     #[test]
     fn meeting_news_is_fitted_and_escape_returns_the_recording_meeting_pill() {
-        let mut notices = Notices::default();
+        let mut notices = listening();
         receive(&mut notices, IDLE, finished(1, Outcome::Ready));
         assert!(notices.current.as_ref().is_some_and(Notice::is_fitted));
         assert_eq!(
@@ -597,7 +695,7 @@ mod tests {
                 ..IDLE
             },
         ] {
-            let mut notices = Notices::default();
+            let mut notices = listening();
             assert_eq!(
                 receive(&mut notices, context, finished(7, Outcome::Ready)),
                 Reception::Ignored
@@ -605,7 +703,7 @@ mod tests {
             assert!(notices.current.is_none());
             assert!(notices.pending_meetings.is_none());
         }
-        let mut notices = Notices::default();
+        let mut notices = listening();
         assert_eq!(
             receive(
                 &mut notices,
@@ -621,7 +719,7 @@ mod tests {
 
     #[test]
     fn opening_a_meeting_removes_its_pending_or_showing_outcome() {
-        let mut notices = Notices::default();
+        let mut notices = listening();
         receive(
             &mut notices,
             Context {
@@ -648,7 +746,7 @@ mod tests {
 
     #[test]
     fn pending_news_reads_the_title_written_while_it_waited() {
-        let mut notices = Notices::default();
+        let mut notices = listening();
         receive(
             &mut notices,
             Context {

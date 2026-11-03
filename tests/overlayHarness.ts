@@ -1,4 +1,5 @@
 import { expect, type Page } from "@playwright/test";
+import type { MeetingNoticeLabels } from "../src/overlay/RecordingOverlay";
 
 // CARD_MARGIN, ORB_OVERLAY_SIZE, OVERLAY_* and ERROR_OVERLAY_* in
 // src-tauri/src/overlay.rs.
@@ -19,6 +20,7 @@ export async function openOverlay(
     readyOn = "mic-level",
     callPrompt = null,
     holdMeetingCopy = false,
+    meetingNotice = null,
   }: {
     holdSettings?: boolean;
     copyError?: string;
@@ -26,6 +28,7 @@ export async function openOverlay(
     readyOn?: string | null;
     callPrompt?: unknown;
     holdMeetingCopy?: boolean;
+    meetingNotice?: MeetingNoticeLabels | null;
   } = {},
 ) {
   const options = {
@@ -33,9 +36,16 @@ export async function openOverlay(
     copyRejection: copyError,
     shownPrompt: callPrompt,
     holdMeetingCopy,
+    meetingNotice,
   };
   await page.addInitScript((configuration) => {
-    const { hold, copyRejection, shownPrompt, holdMeetingCopy } = configuration;
+    const {
+      hold,
+      copyRejection,
+      shownPrompt,
+      holdMeetingCopy,
+      meetingNotice,
+    } = configuration;
     const callbacks = new Map<number, (event: unknown) => unknown>();
     const listeners = new Map<number, string>();
     const pendingSettings: Array<(settings: unknown) => void> = [];
@@ -81,6 +91,18 @@ export async function openOverlay(
           return Promise.resolve(args?.handler);
         }
         if (command === "plugin:event|unlisten") return Promise.resolve();
+        if (
+          command === "plugin:event|emit_to" &&
+          args?.event === "meeting-notice-listener-ready"
+        ) {
+          if (meetingNotice) {
+            window.overlayHarness.dispatch(
+              "show-overlay-meeting-notice",
+              meetingNotice,
+            );
+          }
+          return Promise.resolve();
+        }
         if (command === "get_app_settings") {
           if (!hold) return Promise.resolve({});
           return new Promise((resolve) => pendingSettings.push(resolve));

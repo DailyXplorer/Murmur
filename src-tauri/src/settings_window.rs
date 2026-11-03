@@ -107,13 +107,20 @@ impl SettingsWindow {
         self.lock().opened_meeting = id;
     }
 
-    fn viewed_meeting(&self, visible: bool) -> Option<i64> {
+    fn viewed_meeting(&self, visible: bool, on_active_space: bool, minimized: bool) -> Option<i64> {
         let inner = self.lock();
-        if visible && inner.view == SettingsView::Section("meetings".to_string()) {
-            inner.opened_meeting
-        } else {
-            None
+        if inner.view != SettingsView::Section("meetings".to_string()) {
+            return None;
         }
+        inner.opened_meeting.filter(|id| {
+            suppress_meeting_notice(
+                visible,
+                on_active_space,
+                minimized,
+                inner.opened_meeting,
+                *id,
+            )
+        })
     }
 
     fn held(&self) -> bool {
@@ -173,12 +180,28 @@ impl SettingsWindow {
     }
 }
 
+fn suppress_meeting_notice(
+    visible: bool,
+    on_active_space: bool,
+    minimized: bool,
+    reported_meeting: Option<i64>,
+    finished_id: i64,
+) -> bool {
+    visible && on_active_space && !minimized && reported_meeting == Some(finished_id)
+}
+
+/// Main thread only, like `prepare_settings_window_for_active_space`.
 pub fn viewed_meeting(app: &AppHandle) -> Option<i64> {
-    let visible = app.get_webview_window(MAIN_WINDOW).is_some_and(|window| {
-        window.is_visible().unwrap_or(false) && !window.is_minimized().unwrap_or(false)
-    });
-    app.try_state::<SettingsWindow>()
-        .and_then(|state| state.viewed_meeting(visible))
+    let window = app.get_webview_window(MAIN_WINDOW)?;
+    let native_window = window.ns_window().ok()?.cast::<objc2_app_kit::NSWindow>();
+    let native_window = unsafe { &*native_window };
+    app.try_state::<SettingsWindow>().and_then(|state| {
+        state.viewed_meeting(
+            native_window.isVisible(),
+            native_window.isOnActiveSpace(),
+            native_window.isMiniaturized(),
+        )
+    })
 }
 
 pub fn tray_visible(app: &AppHandle) -> bool {
@@ -377,18 +400,37 @@ mod tests {
         let state = SettingsWindow::default();
         state.report(SettingsView::Section("meetings".into()));
         state.report_meeting(Some(7));
-        assert_eq!(state.viewed_meeting(true), Some(7));
-        assert_eq!(state.viewed_meeting(false), None);
+        assert_eq!(state.viewed_meeting(true, true, false), Some(7));
+        assert_eq!(state.viewed_meeting(false, true, false), None);
+        assert_eq!(state.viewed_meeting(true, false, false), None);
+        assert_eq!(state.viewed_meeting(true, true, true), None);
         state.report_meeting(None);
-        assert_eq!(state.viewed_meeting(true), None);
+        assert_eq!(state.viewed_meeting(true, true, false), None);
         state.report_meeting(Some(7));
         state.report(SettingsView::Section("general".into()));
-        assert_eq!(state.viewed_meeting(true), None);
+        assert_eq!(state.viewed_meeting(true, true, false), None);
         state.report(SettingsView::Section("meetings".into()));
-        assert_eq!(state.viewed_meeting(true), None);
+        assert_eq!(state.viewed_meeting(true, true, false), None);
         state.report_meeting(Some(7));
         state.forget_page();
-        assert_eq!(state.viewed_meeting(true), None);
+        assert_eq!(state.viewed_meeting(true, true, false), None);
+    }
+
+    #[test]
+    fn suppression_requires_the_finished_meeting_on_the_active_space() {
+        assert!(suppress_meeting_notice(true, true, false, Some(7), 7));
+        for (visible, active, minimized, reported, finished) in [
+            (false, true, false, Some(7), 7),
+            (true, false, false, Some(7), 7),
+            (true, true, true, Some(7), 7),
+            (true, true, false, None, 7),
+            (true, true, false, Some(8), 7),
+            (true, true, false, Some(7), 8),
+        ] {
+            assert!(!suppress_meeting_notice(
+                visible, active, minimized, reported, finished
+            ));
+        }
     }
 
     #[test]
