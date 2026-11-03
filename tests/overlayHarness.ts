@@ -18,20 +18,26 @@ export async function openOverlay(
     fixture = "recording-overlay-listeners",
     readyOn = "mic-level",
     callPrompt = null,
+    meetingLayout,
+    holdMeetingCopy = false,
   }: {
     holdSettings?: boolean;
     copyError?: string;
     fixture?: string;
     readyOn?: string | null;
     callPrompt?: unknown;
+    meetingLayout?: "inline" | "stacked";
+    holdMeetingCopy?: boolean;
   } = {},
 ) {
   const options = {
     hold: holdSettings,
     copyRejection: copyError,
     shownPrompt: callPrompt,
+    holdMeetingCopy,
   };
-  await page.addInitScript(({ hold, copyRejection, shownPrompt }) => {
+  await page.addInitScript((configuration) => {
+    const { hold, copyRejection, shownPrompt, holdMeetingCopy } = configuration;
     const callbacks = new Map<number, (event: unknown) => unknown>();
     const listeners = new Map<number, string>();
     const pendingSettings: Array<(settings: unknown) => void> = [];
@@ -39,6 +45,8 @@ export async function openOverlay(
     const copyFits: Array<{ width: number; height: number }> = [];
     const callAnswers: string[] = [];
     let restoreCalls = 0;
+    const meetingNoticeCalls: string[] = [];
+    const pendingMeetingCopies: Array<() => void> = [];
     let nextId = 1;
 
     window.overlayHarness = {
@@ -54,6 +62,9 @@ export async function openOverlay(
       copyFits: () => copyFits,
       callAnswers: () => callAnswers,
       restoreCalls: () => restoreCalls,
+      meetingNoticeCalls: () => meetingNoticeCalls,
+      releaseMeetingCopy: () =>
+        pendingMeetingCopies.splice(0).forEach((resolve) => resolve()),
     };
 
     window.__TAURI_INTERNALS__ = {
@@ -80,6 +91,22 @@ export async function openOverlay(
           copyCalls += 1;
           // Tauri rejects a command the ACL denies with a plain string.
           if (copyRejection) return Promise.reject(copyRejection);
+          return Promise.resolve(null);
+        }
+        if (
+          command === "open_meeting_notice" ||
+          command === "copy_meeting_notice" ||
+          command === "dismiss_meeting_notice"
+        ) {
+          meetingNoticeCalls.push(command);
+          if (command === "copy_meeting_notice") {
+            if (copyRejection) return Promise.reject(copyRejection);
+            if (holdMeetingCopy) {
+              return new Promise<void>((resolve) =>
+                pendingMeetingCopies.push(resolve),
+              );
+            }
+          }
           return Promise.resolve(null);
         }
         if (command === "fit_copy_notice" || command === "fit_call_prompt") {
@@ -114,7 +141,8 @@ export async function openOverlay(
     };
   }, options);
 
-  await page.goto(`/tests/fixtures/${fixture}.html`);
+  const query = meetingLayout ? `?meetingLayout=${meetingLayout}` : "";
+  await page.goto(`/tests/fixtures/${fixture}.html${query}`);
   if (readyOn === null) return;
   await expect
     .poll(() =>
