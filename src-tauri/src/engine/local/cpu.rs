@@ -209,17 +209,23 @@ mod tests {
     /// mapped by transcribe.cpp: the delete removes the file and the next
     /// dictation loads the model again. NTFS deletes a mapped file, so on
     /// Windows this does not prove the release comes first; the other test
-    /// does, by holding the file. `MURMUR_SMOKE_GGUF` as above.
+    /// does, by holding the file. `MURMUR_SMOKE_MODELS` as above.
     #[tokio::test]
     #[ignore = "needs the GGUF model"]
     async fn deleting_the_models_releases_the_loaded_cpu_model() {
-        let gguf = std::env::var("MURMUR_SMOKE_GGUF").expect("MURMUR_SMOKE_GGUF");
+        let gguf = crate::local_models::manifest::Asr::Current.gguf_path();
+        let source =
+            PathBuf::from(std::env::var("MURMUR_SMOKE_MODELS").expect("MURMUR_SMOKE_MODELS"))
+                .join(&gguf);
         let dir = tempfile::tempdir().unwrap();
-        let (models, model) = crate::local_models::tests::ready_models(&dir.path().join("models"));
-        std::fs::copy(&gguf, &model).unwrap();
+        let path = dir.path().join("models");
+        let (models, _) = crate::local_models::tests::ready_models(&path);
+        let model = path.join(&gguf);
+        std::fs::create_dir_all(model.parent().unwrap()).unwrap();
+        std::fs::copy(&source, &model).unwrap();
         let engine = crate::engine::local::LocalEngine::new(
             Box::new(CpuRuntime {
-                model: model.clone(),
+                models: path.clone(),
             }),
             crate::engine::local::MAX_PIECE,
             Box::new(|| false),
@@ -234,7 +240,7 @@ mod tests {
 
         assert!(engine.session.warm().await.is_err());
         std::fs::create_dir_all(model.parent().unwrap()).unwrap();
-        std::fs::copy(&gguf, &model).unwrap();
+        std::fs::copy(&source, &model).unwrap();
         engine.session.warm().await.unwrap();
         assert!(engine.session.is_loaded().await);
     }

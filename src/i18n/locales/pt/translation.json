@@ -940,7 +940,7 @@
     "meetings": {
       "models": {
         "licence": {
-          "parakeet": "Reconhecimento de fala: Parakeet TDT 0.6B v3 da NVIDIA, CC BY 4.0, convertido para GGUF de 8 bits por handy-computer."
+          "parakeet": "Reconhecimento de fala: Parakeet Ultra da Moondream, baseado no Parakeet TDT 0.6B v3 da NVIDIA, CC BY 4.0, convertido para GGUF de 8 bits por handy-computer."
         }
       }
     },
