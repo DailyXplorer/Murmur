@@ -43,6 +43,7 @@ const TEST_SETTINGS: AppSettings = {
   custom_words: ["Acme", LONG_CUSTOM_WORD],
   ai_cleanup_enabled: false,
   history_limit: 50,
+  leading_space: true,
   paste_method: "ctrl_v",
   selected_language: "auto",
   selected_microphone: "Default",

@@ -14,6 +14,7 @@ import { DictationStyleSetting } from "../DictationStyle";
 import { CustomWords } from "../CustomWords";
 import { WindowNames } from "../WindowNames";
 import { WhisperMode } from "../WhisperMode";
+import { LeadingSpace } from "../LeadingSpace";
 import { AppendTrailingSpace } from "../AppendTrailingSpace";
 import { PasteMethodSetting } from "../PasteMethod";
 import { ClipboardHandlingSetting } from "../ClipboardHandling";
@@ -112,6 +113,7 @@ export const TranscriptionSettings: React.FC = () => {
         <WindowNames grouped={true} />
         <WhisperMode grouped={true} />
         <CustomWords grouped={true} />
+        <LeadingSpace grouped={true} />
         <AppendTrailingSpace grouped={true} />
       </SettingsGroup>
 
