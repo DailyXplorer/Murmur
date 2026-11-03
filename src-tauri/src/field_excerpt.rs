@@ -6,6 +6,8 @@
 use std::fmt;
 use std::time::Instant;
 
+use crate::leading_space::Before;
+
 pub const MAX_BEFORE_CHARS: usize = 300;
 pub const MAX_AFTER_CHARS: usize = 100;
 
@@ -99,6 +101,31 @@ pub trait FocusedText {
     fn string_for_range(&self, range: Utf16Range) -> Option<String>;
     /// AXValue.
     fn value(&self) -> Option<String>;
+}
+
+/// The last two characters before a caret. Never reads secure text or guesses
+/// a caret from a selection, and starts no read after `deadline`.
+#[cfg(any(target_os = "macos", test))]
+pub fn char_before(focused: &impl FocusedText, deadline: Instant) -> Option<Before> {
+    let in_time = || Instant::now() < deadline;
+    if !in_time() || focused.is_secure() || !in_time() {
+        return None;
+    }
+    let selection = focused.selection()?;
+    if selection.len != 0 || selection.start == 0 || !in_time() {
+        return None;
+    }
+    let start = selection.start.saturating_sub(4);
+    let text = focused.string_for_range(Utf16Range {
+        start,
+        len: selection.start - start,
+    })?;
+    let mut chars = text.chars().rev();
+    Some(Before {
+        last: chars.next()?,
+        // A split surrogate at the window's left edge is not a real character.
+        previous: chars.next().filter(|&c| c != '\u{FFFD}'),
+    })
 }
 
 /// The excerpt around the focused element's selection. Never reads a secure
@@ -365,6 +392,76 @@ mod tests {
         };
         assert_eq!(read_field(&fake, later()), None);
         assert!(fake.reads.borrow().is_empty(), "{:?}", fake.reads.borrow());
+    }
+
+    fn preceding_chars(fake: &Fake) -> Option<(char, Option<char>)> {
+        char_before(fake, later()).map(|before| (before.last, before.previous))
+    }
+
+    #[test]
+    fn a_mid_word_caret_reads_only_the_characters_before_it() {
+        let fake = Fake::new("already written", at(10));
+        assert_eq!(preceding_chars(&fake), Some(('r', Some('w'))));
+        assert_eq!(
+            *fake.requested.borrow(),
+            Some(Utf16Range { start: 6, len: 4 })
+        );
+        assert_eq!(*fake.reads.borrow(), ["selection", "string_for_range"]);
+    }
+
+    #[test]
+    fn leading_space_never_reads_a_selection_or_guesses_a_caret() {
+        for selection in [None, Some(at(0)), Some(Utf16Range { start: 2, len: 3 })] {
+            let fake = Fake {
+                selection,
+                ..Fake::new("Hello", at(2))
+            };
+            assert!(char_before(&fake, later()).is_none());
+            assert_eq!(*fake.reads.borrow(), ["selection"]);
+        }
+    }
+
+    #[test]
+    fn leading_space_never_reads_a_secure_field() {
+        let fake = Fake {
+            secure: true,
+            ..Fake::new("private", at(3))
+        };
+        assert!(char_before(&fake, later()).is_none());
+        assert!(fake.reads.borrow().is_empty());
+    }
+
+    #[test]
+    fn leading_space_keeps_surrogate_pairs_and_elision_letters_whole() {
+        for (text, expected) in [
+            ("😀", ('😀', None)),
+            ("a😀", ('😀', Some('a'))),
+            ("😀😃", ('😃', Some('😀'))),
+            ("😀a😃", ('😃', Some('a'))),
+            ("qu’", ('’', Some('u'))),
+            ("l’", ('’', Some('l'))),
+            ("\u{FFFD}😃", ('😃', None)),
+        ] {
+            let fake = Fake::new(text, at(text.encode_utf16().count()));
+            assert_eq!(preceding_chars(&fake), Some(expected), "{text}");
+        }
+    }
+
+    #[test]
+    fn a_failed_leading_space_range_read_never_reads_the_whole_value() {
+        let fake = Fake {
+            range_fails: true,
+            ..Fake::new("Hello", at(5))
+        };
+        assert!(char_before(&fake, later()).is_none());
+        assert_eq!(*fake.reads.borrow(), ["selection", "string_for_range"]);
+    }
+
+    #[test]
+    fn leading_space_starts_no_read_after_its_deadline() {
+        let fake = Fake::new("Hello", at(5));
+        assert!(char_before(&fake, Instant::now()).is_none());
+        assert!(fake.reads.borrow().is_empty());
     }
 
     #[test]

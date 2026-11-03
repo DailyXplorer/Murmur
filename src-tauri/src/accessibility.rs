@@ -4,6 +4,7 @@
 //! Secure text fields and password managers are never read.
 
 use crate::field_excerpt::Utf16Range;
+use crate::leading_space::Before;
 use core_foundation::array::CFArray;
 use core_foundation::base::{CFType, CFTypeID, CFTypeRef, TCFType};
 use core_foundation::number::CFNumber;
@@ -350,6 +351,20 @@ pub fn focus_in(pid: i32, app: &Element) -> Option<Element> {
         .and_then(|system| system.element("AXFocusedUIElement"))
         .filter(|focused| focused.pid() == Some(pid))
         .or_else(|| app.element("AXFocusedUIElement"))
+}
+
+/// Characters before the frontmost app's caret, excluding secure fields and
+/// password managers. Gives up when the paste's read budget is spent.
+pub fn char_before_caret(deadline: Instant) -> Option<Before> {
+    if Instant::now() >= deadline {
+        return None;
+    }
+    let (pid, app) = frontmost_app()?;
+    if Instant::now() >= deadline {
+        return None;
+    }
+    let focused = focus_in(pid, &app)?;
+    crate::field_excerpt::char_before(&focused, deadline)
 }
 
 /// What holds the keyboard when a dictation ends.

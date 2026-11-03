@@ -312,6 +312,8 @@ pub struct AppSettings {
     pub auto_submit_key: AutoSubmitKey,
     #[serde(default)]
     pub mute_while_recording: bool,
+    #[serde(default = "default_leading_space")]
+    pub leading_space: bool,
     #[serde(default)]
     pub append_trailing_space: bool,
     #[serde(default = "default_app_language")]
@@ -474,6 +476,10 @@ fn default_paste_delay_after_ms() -> u64 {
 
 fn default_auto_submit() -> bool {
     false
+}
+
+fn default_leading_space() -> bool {
+    true
 }
 
 fn default_reliable_paste() -> bool {
@@ -647,6 +653,7 @@ pub fn get_default_settings() -> AppSettings {
         auto_submit: default_auto_submit(),
         auto_submit_key: AutoSubmitKey::default(),
         mute_while_recording: false,
+        leading_space: default_leading_space(),
         append_trailing_space: false,
         app_language: default_app_language(),
         theme: default_theme(),
@@ -1312,6 +1319,22 @@ mod tests {
         assert_eq!(settings.accent_color, AccentColor::Pink);
         // Bindings default to empty; the load path merges the real defaults in.
         assert!(settings.bindings.is_empty());
+    }
+
+    #[test]
+    fn leading_space_is_on_for_new_and_existing_users_unless_turned_off() {
+        assert!(get_default_settings().leading_space);
+        let mut stored = default_settings_json();
+        stored.as_object_mut().unwrap().remove("leading_space");
+        assert!(parse_stored_settings(&stored).0.leading_space);
+
+        stored["leading_space"] = serde_json::json!(false);
+        let settings = parse_stored_settings(&stored).0;
+        assert!(!settings.leading_space);
+        assert_eq!(
+            serde_json::to_value(settings).unwrap()["leading_space"],
+            false
+        );
     }
 
     #[test]
