@@ -446,9 +446,6 @@ async copyMeetingNotice() : Promise<Result<null, string>> {
 async openMeetingNotice() : Promise<void> {
     await TAURI_INVOKE("open_meeting_notice");
 },
-async dismissMeetingNotice() : Promise<void> {
-    await TAURI_INVOKE("dismiss_meeting_notice");
-},
 /**
  * Fits a fitted pill's window, the copy pill's or the microphone
  * warning's, to the capsule the webview measured, so a note that wraps

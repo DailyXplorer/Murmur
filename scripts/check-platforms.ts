@@ -319,7 +319,6 @@ checkCapability(
     "allow-copy-notice-again",
     "allow-copy-meeting-notice",
     "allow-open-meeting-notice",
-    "allow-dismiss-meeting-notice",
     "allow-fit-copy-notice",
     "allow-restore-cancelled-dictation",
   ],

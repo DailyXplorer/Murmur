@@ -33,7 +33,6 @@
     "overlayCopy": "Copy",
     "overlayCopied": "Copied",
     "overlayOpen": "Open",
-    "overlayClose": "Close",
     "overlayTranscriptReady": "Transcript ready",
     "overlayMeetingFailed": "Couldn't transcribe the meeting",
     "overlayMeetingsReady_one": "{{count}} meeting ready",

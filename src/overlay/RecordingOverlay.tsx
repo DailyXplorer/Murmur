@@ -1,7 +1,6 @@
 import { ArrowCounterClockwiseIcon } from "@phosphor-icons/react/dist/csr/ArrowCounterClockwise";
 import { CheckIcon } from "@phosphor-icons/react/dist/csr/Check";
 import { CopyIcon } from "@phosphor-icons/react/dist/csr/Copy";
-import { XIcon } from "@phosphor-icons/react/dist/csr/X";
 import { emitTo, listen, type UnlistenFn } from "@tauri-apps/api/event";
 import React, {
   useEffect,
@@ -49,7 +48,6 @@ export interface MeetingNoticeLabels {
   open: string;
   copy: string | null;
   copied: string;
-  close: string;
   default_name: { started_at_ms: number; locale: string } | null;
   meeting_id: number | null;
 }
@@ -410,11 +408,6 @@ const RecordingOverlay: React.FC = () => {
         console.warn("Opening the meeting notice failed:", error);
       });
     };
-    const dismissMeeting = () => {
-      void commands.dismissMeetingNotice().catch((error: unknown) => {
-        console.warn("Dismissing the meeting notice failed:", error);
-      });
-    };
     const copied = view.copiedUntil !== null;
     const Icon = copied ? CheckIcon : CopyIcon;
     return (
@@ -469,14 +462,6 @@ const RecordingOverlay: React.FC = () => {
                 </button>
               )}
             </span>
-            <button
-              type="button"
-              className="ov-call-button ov-meeting-notice-close"
-              aria-label={view.labels.close}
-              onClick={dismissMeeting}
-            >
-              <XIcon size={12} weight="bold" aria-hidden="true" />
-            </button>
           </span>
         </div>
       </div>

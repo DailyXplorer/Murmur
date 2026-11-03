@@ -142,8 +142,7 @@ export async function openOverlay(
         }
         if (
           command === "open_meeting_notice" ||
-          command === "copy_meeting_notice" ||
-          command === "dismiss_meeting_notice"
+          command === "copy_meeting_notice"
         ) {
           meetingNoticeCalls.push(command);
           if (command === "copy_meeting_notice") {
