@@ -452,6 +452,10 @@ pub fn create_recording_overlay(app_handle: &AppHandle) {
 #[cfg(target_os = "macos")]
 pub fn create_recording_overlay(app_handle: &AppHandle) {
     meeting_notice::listen_for_page(app_handle);
+    if app_handle.get_webview_window("recording_overlay").is_some() {
+        return;
+    }
+    meeting_notice::reset_page(app_handle);
     match PanelBuilder::<_, RecordingOverlayPanel>::new(app_handle, "recording_overlay")
         .url(WebviewUrl::App("src/overlay/index.html".into()))
         .title("Recording")
@@ -472,6 +476,12 @@ pub fn create_recording_overlay(app_handle: &AppHandle) {
                 .transparent(true)
                 .focusable(false)
                 .accept_first_mouse(true)
+                // A native load hook also runs when the old page cannot send unload IPC.
+                .on_page_load(|window, payload| {
+                    if matches!(payload.event(), tauri::webview::PageLoadEvent::Started) {
+                        meeting_notice::reset_page(window.app_handle());
+                    }
+                })
         })
         .collection_behavior(
             CollectionBehavior::new()
@@ -484,6 +494,12 @@ pub fn create_recording_overlay(app_handle: &AppHandle) {
             panel.hide();
             if let Some(window) = app_handle.get_webview_window("recording_overlay") {
                 let _ = window.set_ignore_cursor_events(true);
+                let app = app_handle.clone();
+                window.on_window_event(move |event| {
+                    if matches!(event, tauri::WindowEvent::Destroyed) {
+                        meeting_notice::reset_page(&app);
+                    }
+                });
             }
         }
         Err(e) => {
@@ -1086,7 +1102,6 @@ enum Dismissal {
     /// Only macOS watches Escape: on Windows the pills only time out.
     #[cfg_attr(target_os = "windows", allow(dead_code))]
     Escape,
-    Meeting,
 }
 
 /// What the overlay shows once a notice is dismissed.
@@ -1113,7 +1128,6 @@ fn dismiss(
     let applies = match dismissal {
         Dismissal::Timer(started) => started == generation,
         Dismissal::Escape => notice.as_ref().is_some_and(Notice::is_fitted),
-        Dismissal::Meeting => matches!(notice, Some(Notice::MeetingNews(_))),
     };
     if !applies {
         return None;

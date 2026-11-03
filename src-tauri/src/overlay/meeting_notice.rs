@@ -3,8 +3,10 @@ use crate::meetings::announce::{Batch, Content, Finished, Outcome};
 use crate::meetings::MeetingsManager;
 use crate::settings_window::{self, MainAction};
 use crate::tray_i18n::TrayStrings;
+use std::sync::Once;
 
 const DISPLAY_TIME: Duration = Duration::from_secs(15);
+static PAGE_LISTENER: Once = Once::new();
 
 #[derive(Clone, Debug, PartialEq, Eq, serde::Serialize)]
 struct DefaultName {
@@ -117,27 +119,65 @@ fn resume(notices: &mut Notices, context: Context) -> bool {
     true
 }
 
+fn page_loading(notices: &mut Notices) -> bool {
+    notices.meeting_listener_ready = false;
+    match notices.current.take() {
+        Some(Notice::MeetingNews(news)) => {
+            notices.pending_meetings = Some(news.batch);
+            true
+        }
+        current => {
+            notices.current = current;
+            false
+        }
+    }
+}
+
 fn page_ready(notices: &mut Notices, context: Context) -> bool {
+    if notices.meeting_listener_ready {
+        return false;
+    }
     notices.meeting_listener_ready = true;
     forget_viewed(notices, context.viewed_meeting);
     resume(notices, context)
-        || (context.enabled && matches!(notices.current, Some(Notice::MeetingNews(_))))
+}
+
+fn dismiss_meeting(notices: &mut Notices) -> bool {
+    notices.pending_meetings = None;
+    if !matches!(notices.current, Some(Notice::MeetingNews(_))) {
+        return false;
+    }
+    notices.current = None;
+    true
+}
+
+pub(super) fn reset_page(app: &AppHandle) {
+    let mut held = notice();
+    if !page_loading(&mut held) {
+        return;
+    }
+    OVERLAY_GENERATION.fetch_add(1, Ordering::SeqCst);
+    drop(held);
+    settle_overlay(app);
 }
 
 pub(super) fn listen_for_page(app: &AppHandle) {
     use tauri::Listener;
 
-    let handle = app.clone();
-    app.listen("meeting-notice-listener-ready", move |_| {
-        let app = handle.clone();
-        let _ = handle.run_on_main_thread(move || {
-            let mut held = notice();
-            let enabled = settings::get_settings(&app).overlay_style != OverlayStyle::None;
-            let context = Context::current(&app, enabled);
-            if page_ready(&mut held, context) && !present(&app, &mut held, Presentation::Show) {
+    PAGE_LISTENER.call_once(|| {
+        let handle = app.clone();
+        app.listen("meeting-notice-listener-ready", move |_| {
+            let app = handle.clone();
+            let _ = handle.run_on_main_thread(move || {
+                let mut held = notice();
+                let enabled = settings::get_settings(&app).overlay_style != OverlayStyle::None;
+                let context = Context::current(&app, enabled);
+                if page_ready(&mut held, context) && present(&app, &mut held, Presentation::Show) {
+                    return;
+                }
                 drop(held);
                 settle_overlay(&app);
-            }
+            });
         });
     });
 }
@@ -347,7 +387,13 @@ pub fn settings_meeting_changed(app: &AppHandle) {
 #[tauri::command]
 #[specta::specta]
 pub fn dismiss_meeting_notice(app: AppHandle) {
-    dismiss_notice(&app, Dismissal::Meeting);
+    let mut held = notice();
+    if !dismiss_meeting(&mut held) {
+        return;
+    }
+    OVERLAY_GENERATION.fetch_add(1, Ordering::SeqCst);
+    drop(held);
+    settle_overlay(&app);
 }
 
 #[tauri::command]
@@ -457,6 +503,144 @@ mod tests {
     }
 
     #[test]
+    fn a_page_reload_replays_showing_news_with_a_fresh_deadline() {
+        let mut notices = listening();
+        let ready = finished(1, Outcome::Ready);
+        assert_eq!(receive(&mut notices, IDLE, ready), Reception::Show);
+
+        assert!(page_loading(&mut notices));
+        assert!(notices.current.is_none());
+        assert_eq!(
+            notices.pending_meetings.as_ref().and_then(Batch::single),
+            Some(ready)
+        );
+        assert!(!page_loading(&mut notices));
+        assert!(!resume(&mut notices, IDLE));
+
+        assert!(page_ready(&mut notices, IDLE));
+        assert_eq!(batch(&notices).single(), Some(ready));
+        assert!(notices.pending_meetings.is_none());
+        assert_eq!(
+            dismiss(
+                &mut notices.current,
+                Dismissal::Timer(1),
+                3,
+                OverlayStyle::Minimal
+            ),
+            None
+        );
+        assert_eq!(batch(&notices).single(), Some(ready));
+        assert_eq!(
+            dismiss(
+                &mut notices.current,
+                Dismissal::Timer(3),
+                3,
+                OverlayStyle::Minimal
+            ),
+            Some(AfterDismissal::Settled)
+        );
+    }
+
+    #[test]
+    fn completions_during_a_page_reload_wait_until_its_listener_is_ready() {
+        let mut notices = listening();
+        assert!(!page_loading(&mut notices));
+        assert_eq!(
+            receive(&mut notices, IDLE, finished(1, Outcome::Ready)),
+            Reception::Waiting
+        );
+        assert_eq!(
+            receive(&mut notices, IDLE, finished(2, Outcome::Failed)),
+            Reception::Waiting
+        );
+        assert!(notices.current.is_none());
+        assert!(!resume(&mut notices, IDLE));
+
+        assert!(page_ready(&mut notices, IDLE));
+        assert_eq!(
+            batch(&notices).content(|_| None),
+            Some(Content::Batch {
+                ready: 1,
+                failed: 1
+            })
+        );
+        assert!(notices.pending_meetings.is_none());
+    }
+
+    #[test]
+    fn a_dictation_during_a_page_reload_preserves_suspended_and_new_news() {
+        let busy = Context {
+            dictation: true,
+            ..IDLE
+        };
+        for showing in [false, true] {
+            let mut notices = listening();
+            let ready = finished(1, Outcome::Ready);
+            if showing {
+                assert_eq!(receive(&mut notices, IDLE, ready), Reception::Show);
+            }
+            assert_eq!(page_loading(&mut notices), showing);
+            if !showing {
+                assert_eq!(receive(&mut notices, IDLE, ready), Reception::Waiting);
+            }
+            assert_eq!(
+                receive(&mut notices, IDLE, finished(2, Outcome::Failed)),
+                Reception::Waiting
+            );
+            assert!(dictation_takes_overlay(&mut notices.current, "recording"));
+            assert!(!page_ready(&mut notices, busy));
+            assert!(!resume(&mut notices, busy));
+            assert!(notices.current.is_none());
+
+            assert!(resume(&mut notices, IDLE));
+            assert_eq!(
+                batch(&notices).content(|_| None),
+                Some(Content::Batch {
+                    ready: 1,
+                    failed: 1
+                })
+            );
+        }
+    }
+
+    #[test]
+    fn a_meeting_dismissed_during_reload_is_not_replayed() {
+        let mut notices = listening();
+        receive(&mut notices, IDLE, finished(1, Outcome::Ready));
+        assert!(page_loading(&mut notices));
+
+        notices.current = Some(Notice::Error);
+        assert!(!dismiss_meeting(&mut notices));
+        assert!(matches!(notices.current, Some(Notice::Error)));
+        assert!(notices.pending_meetings.is_none());
+        assert!(!page_ready(&mut notices, IDLE));
+        notices.current = None;
+        assert!(!resume(&mut notices, IDLE));
+    }
+
+    #[test]
+    fn another_notice_cannot_release_pending_news_during_a_page_reload() {
+        let mut notices = Notices {
+            current: Some(Notice::Error),
+            ..listening()
+        };
+        receive(&mut notices, IDLE, finished(1, Outcome::Ready));
+        assert!(!page_loading(&mut notices));
+        assert_eq!(
+            dismiss(
+                &mut notices.current,
+                Dismissal::Timer(1),
+                1,
+                OverlayStyle::Minimal
+            ),
+            Some(AfterDismissal::Settled)
+        );
+        assert!(!resume(&mut notices, IDLE));
+        assert!(page_ready(&mut notices, IDLE));
+        assert_eq!(batch(&notices).single(), Some(finished(1, Outcome::Ready)));
+    }
+
+    #[test]
     fn completions_wait_for_the_page_listener_and_replay_without_losing_the_batch() {
         let mut notices = Notices::default();
         assert_eq!(
@@ -477,7 +661,7 @@ mod tests {
         };
         assert_eq!(batch(&notices).content(|_| None), Some(expected.clone()));
         assert!(notices.pending_meetings.is_none());
-        assert!(page_ready(&mut notices, IDLE));
+        assert!(!page_ready(&mut notices, IDLE));
         assert_eq!(batch(&notices).content(|_| None), Some(expected));
     }
 
@@ -537,15 +721,7 @@ mod tests {
             })
         );
         assert!(notices.pending_meetings.is_none());
-        assert_eq!(
-            dismiss(
-                &mut notices.current,
-                Dismissal::Meeting,
-                0,
-                OverlayStyle::Minimal
-            ),
-            Some(AfterDismissal::Settled)
-        );
+        assert!(dismiss_meeting(&mut notices));
         assert_eq!(
             receive(&mut notices, IDLE, finished(3, Outcome::Ready)),
             Reception::Show
@@ -683,15 +859,7 @@ mod tests {
             Some(recording)
         );
         assert_eq!(resting_pill(None, OverlayStyle::Minimal), None);
-        assert_eq!(
-            dismiss(
-                &mut notices.current,
-                Dismissal::Meeting,
-                1,
-                OverlayStyle::Minimal
-            ),
-            None
-        );
+        assert!(!dismiss_meeting(&mut notices));
     }
 
     #[test]
