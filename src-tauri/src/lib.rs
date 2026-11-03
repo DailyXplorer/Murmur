@@ -22,6 +22,7 @@ mod field_excerpt;
 mod helpers;
 mod input;
 mod insights;
+mod leading_space;
 pub mod local_models;
 mod managers;
 pub mod mcp;
@@ -666,6 +667,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             shortcut::suspend_all_bindings,
             shortcut::resume_all_bindings,
             shortcut::change_mute_while_recording_setting,
+            shortcut::change_leading_space_setting,
             shortcut::change_append_trailing_space_setting,
             shortcut::change_lazy_stream_close_setting,
             commands::cleanup::change_ai_cleanup_setting,

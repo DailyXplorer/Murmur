@@ -489,6 +489,10 @@
         "label": "Mute while recording",
         "description": "Mute system audio during recording"
       },
+      "leadingSpace": {
+        "label": "Add leading space",
+        "description": "Add a space when you dictate right after a word"
+      },
       "appendTrailingSpace": {
         "label": "Append trailing space",
         "description": "Add a space after pasted transcription"

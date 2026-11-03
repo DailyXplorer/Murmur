@@ -482,6 +482,10 @@
         "label": "Silenciar durante gravação",
         "description": "Silenciar áudio do sistema durante a gravação"
       },
+      "leadingSpace": {
+        "label": "Adicionar espaço inicial",
+        "description": "Adicionar um espaço quando você dita logo após uma palavra"
+      },
       "appendTrailingSpace": {
         "label": "Adicionar espaço final",
         "description": "Adicionar um espaço após a transcrição colada"

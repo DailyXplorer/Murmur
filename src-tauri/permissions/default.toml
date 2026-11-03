@@ -32,6 +32,7 @@ permissions = [
   "allow-suspend-all-bindings",
   "allow-resume-all-bindings",
   "allow-change-mute-while-recording-setting",
+  "allow-change-leading-space-setting",
   "allow-change-append-trailing-space-setting",
   "allow-change-lazy-stream-close-setting",
   "allow-change-ai-cleanup-setting",

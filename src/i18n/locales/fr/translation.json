@@ -482,6 +482,10 @@
         "label": "Muet pendant l'enregistrement",
         "description": "Couper le son du système pendant l'enregistrement"
       },
+      "leadingSpace": {
+        "label": "Ajouter une espace avant",
+        "description": "Ajouter une espace quand vous dictez juste après un mot"
+      },
       "appendTrailingSpace": {
         "label": "Ajouter une espace final",
         "description": "Ajouter une espace après la transcription collée"

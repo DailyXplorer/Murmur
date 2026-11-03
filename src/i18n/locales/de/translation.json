@@ -482,6 +482,10 @@
         "label": "Während Aufnahme stummschalten",
         "description": "Systemaudio während der Aufnahme stummschalten"
       },
+      "leadingSpace": {
+        "label": "Leerzeichen voranstellen",
+        "description": "Ein Leerzeichen hinzufügen, wenn du direkt nach einem Wort diktierst"
+      },
       "appendTrailingSpace": {
         "label": "Leerzeichen anhängen",
         "description": "Leerzeichen nach eingefügter Transkription hinzufügen"
