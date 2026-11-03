@@ -30,12 +30,12 @@ impl Runtime for CpuRuntime {
                     no_mmap: false,
                 };
                 let asr = crate::local_models::asr_in_use(&models);
-                let model = match Model::load_with(&models.join(asr.gguf_path()), &options) {
+                let model = match Model::load_with(models.join(asr.gguf_path()), &options) {
                     // The switch to the current model deleted the previous
                     // one between the choice and the open.
                     Err(_) if crate::local_models::asr_in_use(&models) != asr => {
                         let asr = crate::local_models::asr_in_use(&models);
-                        Model::load_with(&models.join(asr.gguf_path()), &options)?
+                        Model::load_with(models.join(asr.gguf_path()), &options)?
                     }
                     loaded => loaded?,
                 };
