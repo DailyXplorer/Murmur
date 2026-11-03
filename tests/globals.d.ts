@@ -30,6 +30,8 @@ declare global {
     };
     unmountRecordingOverlay(): void;
     overlayHarness: {
+      pageRequests(): string[];
+      readyEpochs(): unknown[];
       dispatch(event: string, payload?: unknown): number;
       releaseSettings(): void;
       copyCalls(): number;

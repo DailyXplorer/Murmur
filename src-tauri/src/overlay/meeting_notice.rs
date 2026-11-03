@@ -151,12 +151,19 @@ fn dismiss_meeting(notices: &mut Notices) -> bool {
     true
 }
 
+fn reset_page_state(notices: &mut Notices, generation: &AtomicU64) -> bool {
+    let suspended = page_loading(notices);
+    if suspended {
+        generation.fetch_add(1, Ordering::SeqCst);
+    }
+    suspended
+}
+
 pub(super) fn reset_page(app: &AppHandle) {
     let mut held = notice();
-    if !page_loading(&mut held) {
+    if !reset_page_state(&mut held, &OVERLAY_GENERATION) {
         return;
     }
-    OVERLAY_GENERATION.fetch_add(1, Ordering::SeqCst);
     drop(held);
     settle_overlay(app);
 }
@@ -503,28 +510,61 @@ mod tests {
     }
 
     #[test]
-    fn a_page_reload_replays_showing_news_with_a_fresh_deadline() {
-        let mut notices = listening();
+    fn a_retired_pages_ready_cannot_release_the_replacement_pages_news() {
+        let mut notices = Notices::default();
         let ready = finished(1, Outcome::Ready);
-        assert_eq!(receive(&mut notices, IDLE, ready), Reception::Show);
+        assert_eq!(receive(&mut notices, IDLE, ready), Reception::Waiting);
+        assert!(!page_loading(&mut notices));
 
-        assert!(page_loading(&mut notices));
+        assert!(!page_ready(&mut notices, IDLE));
+        assert!(!notices.meeting_listener_ready);
         assert!(notices.current.is_none());
         assert_eq!(
             notices.pending_meetings.as_ref().and_then(Batch::single),
             Some(ready)
         );
-        assert!(!page_loading(&mut notices));
+
+        assert!(page_ready(&mut notices, IDLE));
+        assert_eq!(batch(&notices).single(), Some(ready));
+        assert!(notices.pending_meetings.is_none());
+        assert!(!page_ready(&mut notices, IDLE));
+    }
+
+    #[test]
+    fn a_page_reload_replays_showing_news_with_a_fresh_deadline() {
+        let mut notices = listening();
+        let generation = AtomicU64::new(0);
+        let ready = finished(1, Outcome::Ready);
+        assert_eq!(receive(&mut notices, IDLE, ready), Reception::Show);
+        let old_deadline = generation.fetch_add(1, Ordering::SeqCst) + 1;
+
+        assert!(reset_page_state(&mut notices, &generation));
+        assert!(notices.current.is_none());
+        assert_eq!(
+            notices.pending_meetings.as_ref().and_then(Batch::single),
+            Some(ready)
+        );
+        assert_eq!(
+            dismiss(
+                &mut notices.current,
+                Dismissal::Timer(old_deadline),
+                generation.load(Ordering::SeqCst),
+                OverlayStyle::Minimal
+            ),
+            None
+        );
+        assert!(!reset_page_state(&mut notices, &generation));
         assert!(!resume(&mut notices, IDLE));
 
         assert!(page_ready(&mut notices, IDLE));
+        let fresh_deadline = generation.fetch_add(1, Ordering::SeqCst) + 1;
         assert_eq!(batch(&notices).single(), Some(ready));
         assert!(notices.pending_meetings.is_none());
         assert_eq!(
             dismiss(
                 &mut notices.current,
-                Dismissal::Timer(1),
-                3,
+                Dismissal::Timer(old_deadline),
+                generation.load(Ordering::SeqCst),
                 OverlayStyle::Minimal
             ),
             None
@@ -533,8 +573,8 @@ mod tests {
         assert_eq!(
             dismiss(
                 &mut notices.current,
-                Dismissal::Timer(3),
-                3,
+                Dismissal::Timer(fresh_deadline),
+                generation.load(Ordering::SeqCst),
                 OverlayStyle::Minimal
             ),
             Some(AfterDismissal::Settled)

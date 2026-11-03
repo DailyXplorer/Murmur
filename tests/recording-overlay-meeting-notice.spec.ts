@@ -12,6 +12,88 @@ const calls = (page: Page) =>
   page.evaluate(() => window.overlayHarness.meetingNoticeCalls());
 
 test.describe("meeting notice", () => {
+  test("waits for its page epoch before reporting readiness", async ({
+    page,
+  }) => {
+    await openOverlay(page, {
+      holdPageEpoch: true,
+      meetingNotice: MEETING_NOTICES.ready,
+    });
+    expect(
+      await page.evaluate(() => window.overlayHarness.readyEpochs()),
+    ).toEqual([]);
+    await expect
+      .poll(() =>
+        page.evaluate(() => window.overlayHarness.pageRequests().length),
+      )
+      .toBe(1);
+    const nonce = await page.evaluate(
+      () => window.overlayHarness.pageRequests()[0],
+    );
+    await dispatch(page, "meeting-notice-page-epoch", {
+      nonce: "retired-page",
+      epoch: "7",
+    });
+    expect(
+      await page.evaluate(() => window.overlayHarness.readyEpochs()),
+    ).toEqual([]);
+    await expect(page.getByRole("status")).toHaveCount(0);
+
+    await dispatch(page, "meeting-notice-page-epoch", { nonce, epoch: "7" });
+    await expect
+      .poll(() => page.evaluate(() => window.overlayHarness.readyEpochs()))
+      .toEqual(["7"]);
+    await expect(page.getByRole("status")).toBeVisible();
+  });
+
+  test("a replacement page ignores an old page's epoch reply", async ({
+    page,
+  }) => {
+    await openOverlay(page, {
+      holdPageEpoch: true,
+      meetingNotice: MEETING_NOTICES.ready,
+    });
+    expect(
+      await page.evaluate(() => window.overlayHarness.readyEpochs()),
+    ).toEqual([]);
+    await expect
+      .poll(() =>
+        page.evaluate(() => window.overlayHarness.pageRequests().length),
+      )
+      .toBe(1);
+    const outgoing = await page.evaluate(
+      () => window.overlayHarness.pageRequests()[0],
+    );
+
+    await page.reload();
+    await expect
+      .poll(() =>
+        page.evaluate(() => window.overlayHarness.pageRequests().length),
+      )
+      .toBe(1);
+    const current = await page.evaluate(
+      () => window.overlayHarness.pageRequests()[0],
+    );
+    expect(current).not.toBe(outgoing);
+    await dispatch(page, "meeting-notice-page-epoch", {
+      nonce: outgoing,
+      epoch: "7",
+    });
+    expect(
+      await page.evaluate(() => window.overlayHarness.readyEpochs()),
+    ).toEqual([]);
+    await expect(page.getByRole("status")).toHaveCount(0);
+
+    await dispatch(page, "meeting-notice-page-epoch", {
+      nonce: current,
+      epoch: "7",
+    });
+    await expect
+      .poll(() => page.evaluate(() => window.overlayHarness.readyEpochs()))
+      .toEqual(["7"]);
+    await expect(page.getByRole("status")).toBeVisible();
+  });
+
   test("replays a meeting notice that was available before the overlay mounted", async ({
     page,
   }) => {
