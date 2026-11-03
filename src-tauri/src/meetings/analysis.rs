@@ -176,7 +176,8 @@ impl Analyzer for HelperAnalyzer {
 
 /// `analyze_and_diarize` with the speech model the folder names, and the
 /// model it ran. When the switch to the current model deleted the previous
-/// one before the helper opened it, it runs again on the current one.
+/// one before the helper opened it, it runs again on the current one, unless
+/// the analysis was cancelled meanwhile.
 async fn analyze_on_the_model_in_use(
     program: &Path,
     models: &Models,
@@ -186,7 +187,8 @@ async fn analyze_on_the_model_in_use(
     let asr = crate::local_models::asr_in_use(models.dir());
     let (analysis, ended) = analyze_and_diarize(program, models, asr, request, operation).await;
     let now = crate::local_models::asr_in_use(models.dir());
-    if !analysis.models_missing || now == asr {
+    let cancelled = ended == Some(Ended::Cancelled) || operation.is_cancelled();
+    if cancelled || !analysis.models_missing || now == asr {
         return (analysis, ended, asr);
     }
     let (analysis, ended) = analyze_and_diarize(program, models, now, request, operation).await;
@@ -295,14 +297,12 @@ mod tests {
         }
     }
 
-    /// The switch to Ultra deletes v3 before the helper opens it: the
-    /// analysis runs again on Ultra instead of waiting for models that are
-    /// not missing.
-    #[tokio::test]
-    async fn an_analysis_that_lost_v3_to_the_switch_runs_again_on_ultra() {
+    /// A models folder ready with v3, and a stand-in helper that logs each
+    /// run as `<command> <asr>` to `runs`. Asked for v3, it switches the
+    /// folder to Ultra, reports the models missing, then runs `after_missing`.
+    fn switching_helper(dir: &Path, after_missing: &str) -> (Arc<Models>, PathBuf, PathBuf) {
         use std::os::unix::fs::PermissionsExt;
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("models");
+        let path = dir.join("models");
         std::fs::create_dir_all(&path).unwrap();
         let marker = path.join(".murmur-ready");
         std::fs::write(&marker, crate::local_models::manifest::PREVIOUS.ready_id).unwrap();
@@ -313,8 +313,8 @@ mod tests {
             "http://127.0.0.1:9".to_string(),
             Arc::new(NoHost),
         );
-        let log = dir.path().join("runs");
-        let program = dir.path().join("helper.sh");
+        let log = dir.join("runs");
+        let program = dir.join("helper.sh");
         std::fs::write(
             &program,
             format!(
@@ -323,7 +323,7 @@ echo "$1 $5" >> "{log}"
 if [ "$5" = v3 ]; then
 printf ultra > "{marker}"
 echo '{{"type":"error","stage":"load","code":"model_missing","message":"no v3"}}'
-exit 1
+{after_missing}
 fi
 if [ "$1" = analyze ]; then
 echo '{{"type":"words","track":"mic","words":[{{"w":"oui","s":1,"e":1.2}}]}}'
@@ -337,10 +337,24 @@ echo '{{"type":"done"}}'"#,
         )
         .unwrap();
         std::fs::set_permissions(&program, std::fs::Permissions::from_mode(0o755)).unwrap();
-        let request = AnalysisRequest {
-            tracks: vec![(Track::Mic, dir.path().join("mic.wav"))],
+        (models, program, log)
+    }
+
+    fn mic_request(dir: &Path) -> AnalysisRequest {
+        AnalysisRequest {
+            tracks: vec![(Track::Mic, dir.join("mic.wav"))],
             by_levels: Track::Mic,
-        };
+        }
+    }
+
+    /// The switch to Ultra deletes v3 before the helper opens it: the
+    /// analysis runs again on Ultra instead of waiting for models that are
+    /// not missing.
+    #[tokio::test]
+    async fn an_analysis_that_lost_v3_to_the_switch_runs_again_on_ultra() {
+        let dir = tempfile::tempdir().unwrap();
+        let (models, program, log) = switching_helper(dir.path(), "exit 1");
+        let request = mic_request(dir.path());
 
         let (analysis, ended, asr) = analyze_on_the_model_in_use(
             &program,
@@ -357,6 +371,34 @@ echo '{{"type":"done"}}'"#,
         assert_eq!(asr, Asr::Current);
         assert!(!analysis.models_missing);
         assert_eq!(analysis.outcome(), SpeakerAnalysis::Separated);
+    }
+
+    /// A cancel after the helper reported v3 missing ends the analysis
+    /// there: no run on Ultra.
+    #[tokio::test]
+    async fn a_cancel_after_v3_went_missing_runs_nothing_more() {
+        let dir = tempfile::tempdir().unwrap();
+        let reported = dir.path().join("reported");
+        let (models, program, log) = switching_helper(
+            dir.path(),
+            &format!("touch \"{}\"\nexec sleep 30", reported.display()),
+        );
+        let request = mic_request(dir.path());
+        let operation = ProcessingOperation::new(crate::OperationId(1));
+        let canceller = operation.clone();
+        tokio::spawn(async move {
+            while !reported.exists() {
+                tokio::time::sleep(Duration::from_millis(10)).await;
+            }
+            canceller.cancel();
+        });
+
+        let (analysis, ended, asr) =
+            analyze_on_the_model_in_use(&program, &models, &request, &operation).await;
+        assert_eq!(ended, Some(Ended::Cancelled));
+        assert_eq!(asr, Asr::Previous);
+        assert!(analysis.models_missing);
+        assert_eq!(std::fs::read_to_string(&log).unwrap(), "analyze v3\n");
     }
 
     #[test]
