@@ -1,12 +1,13 @@
 use crate::accessibility::{Element, FocusedField};
 use crate::input::{self, TargetedModifier};
+use crate::leading_space::{needs_leading_space, Before};
 use crate::operation::ProcessingOperation;
 use crate::overlay::ClipboardWriter;
 use crate::settings::{get_settings, AutoSubmitKey, ClipboardHandling, PasteMethod};
 use log::{info, warn};
 use objc2_app_kit::{NSRunningApplication, NSWorkspace};
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use tauri::AppHandle;
 use tauri_plugin_clipboard_manager::ClipboardExt;
 use tokio::sync::oneshot;
@@ -15,6 +16,7 @@ use tokio::sync::oneshot;
 // is scheduled separately so the macOS main thread never waits for this hold.
 pub(crate) const PASTE_CHORD_HOLD: Duration = Duration::from_millis(100);
 const AUTO_SUBMIT_DELAY: Duration = Duration::from_millis(50);
+const LEADING_SPACE_BUDGET: Duration = Duration::from_millis(150);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum PasteOutcome {
@@ -101,6 +103,33 @@ async fn keyboard_focus() -> FocusedField {
     tauri::async_runtime::spawn_blocking(crate::accessibility::keyboard_focus)
         .await
         .unwrap_or(FocusedField::Unknown)
+}
+
+async fn with_leading_space(
+    text: String,
+    enabled: bool,
+    method: PasteMethod,
+    read: impl FnOnce(Instant) -> Option<Before> + Send + 'static,
+) -> String {
+    if !enabled || !matches!(method, PasteMethod::CtrlV | PasteMethod::Direct) {
+        return text;
+    }
+    let deadline = Instant::now() + LEADING_SPACE_BUDGET;
+    let before = tokio::time::timeout(
+        LEADING_SPACE_BUDGET,
+        tauri::async_runtime::spawn_blocking(move || read(deadline)),
+    )
+    .await
+    .ok()
+    .and_then(Result::ok)
+    .flatten();
+    let added = before.is_some_and(|before| needs_leading_space(before, &text));
+    info!("Leading space: added={added}");
+    if added {
+        format!(" {text}")
+    } else {
+        text
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -416,6 +445,13 @@ pub(crate) async fn paste(
             |text, write| crate::overlay::show_copy_notice(&app_handle, text, write, mic_lost),
         ));
     }
+    let text = with_leading_space(
+        text,
+        settings.leading_space,
+        paste_method,
+        crate::accessibility::char_before_caret,
+    )
+    .await;
     let text = if settings.append_trailing_space {
         format!("{text} ")
     } else {
@@ -521,6 +557,72 @@ pub(crate) async fn paste(
 mod tests {
     use super::*;
     use crate::operation::OperationId;
+
+    fn after_word(_: Instant) -> Option<Before> {
+        Some(Before {
+            last: 'd',
+            previous: Some('r'),
+        })
+    }
+
+    #[tokio::test]
+    async fn leading_space_formats_only_enabled_paste_methods() {
+        for method in [PasteMethod::CtrlV, PasteMethod::Direct] {
+            assert_eq!(
+                with_leading_space("next".into(), true, method, after_word).await,
+                " next"
+            );
+            assert_eq!(
+                with_leading_space("next".into(), false, method, |_| {
+                    panic!("disabled spacing must not read the field")
+                })
+                .await,
+                "next"
+            );
+        }
+        assert_eq!(
+            with_leading_space("next".into(), true, PasteMethod::None, |_| {
+                panic!("copy-only output must not read the field")
+            })
+            .await,
+            "next"
+        );
+    }
+
+    #[tokio::test]
+    async fn unavailable_or_failed_caret_reads_leave_the_text_unchanged() {
+        assert_eq!(
+            with_leading_space("next".into(), true, PasteMethod::CtrlV, |_| None).await,
+            "next"
+        );
+        assert_eq!(
+            with_leading_space("next".into(), true, PasteMethod::Direct, |_| {
+                panic!("caret reader failed")
+            })
+            .await,
+            "next"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_hung_caret_read_does_not_hold_the_paste() {
+        let (release, blocked) = std::sync::mpsc::channel();
+        let (started, reading) = oneshot::channel();
+        let paste = tokio::spawn(with_leading_space(
+            "next".into(),
+            true,
+            PasteMethod::CtrlV,
+            move |deadline| {
+                let _ = started.send(());
+                let _ = blocked.recv();
+                after_word(deadline)
+            },
+        ));
+        reading.await.unwrap();
+        let result = tokio::time::timeout(Duration::from_secs(2), paste).await;
+        release.send(()).unwrap();
+        assert_eq!(result.unwrap().unwrap(), "next");
+    }
 
     fn target(pid: i32) -> FrontmostTarget {
         FrontmostTarget::new(

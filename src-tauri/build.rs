@@ -28,6 +28,7 @@ const APP_COMMANDS: &[&str] = &[
     "suspend_all_bindings",
     "resume_all_bindings",
     "change_mute_while_recording_setting",
+    "change_leading_space_setting",
     "change_append_trailing_space_setting",
     "change_lazy_stream_close_setting",
     "change_ai_cleanup_setting",
