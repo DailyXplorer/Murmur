@@ -542,6 +542,15 @@ mod tests {
     }
 
     #[test]
+    fn restoring_a_dictation_takes_the_overlay_from_showing_meeting_news() {
+        let mut notices = Notices::default();
+        receive(&mut notices, IDLE, finished(1, Outcome::Ready));
+        assert!(dictation_takes_overlay(&mut notices.current, "transcribing"));
+        assert!(notices.current.is_none());
+        assert!(!resume(&mut notices, IDLE));
+    }
+
+    #[test]
     fn meeting_news_is_fitted_and_escape_returns_the_recording_meeting_pill() {
         let mut notices = Notices::default();
         receive(&mut notices, IDLE, finished(1, Outcome::Ready));

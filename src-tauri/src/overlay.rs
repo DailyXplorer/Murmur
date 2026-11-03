@@ -402,13 +402,13 @@ fn show_overlay_state(app_handle: &AppHandle, state: &str) {
 /// Whether a dictation showing `state` takes the overlay from `notice`,
 /// dropping it. Only a new recording replaces a fitted pill: a transcribing
 /// state that comes after one belongs to a dictation already over, and
-/// would leave the copy pill's Copy with nothing to copy. The cancelled pill
-/// is the exception: Restore's transcribing state replaces it.
+/// would leave the copy pill's Copy with nothing to copy. Restore replaces
+/// the cancelled pill or meeting news directly, without a recording state.
 fn dictation_takes_overlay(notice: &mut Option<Notice>, state: &str) -> bool {
     if state != "recording"
-        && notice
-            .as_ref()
-            .is_some_and(|notice| notice.is_fitted() && !matches!(notice, Notice::Cancelled))
+        && notice.as_ref().is_some_and(|notice| {
+            notice.is_fitted() && !matches!(notice, Notice::Cancelled | Notice::MeetingNews(_))
+        })
     {
         return false;
     }
