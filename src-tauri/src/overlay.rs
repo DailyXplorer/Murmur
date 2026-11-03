@@ -1,3 +1,4 @@
+use crate::meetings::announce::Batch;
 use crate::meetings::calls::PromptKind;
 use crate::settings;
 use crate::settings::{OverlayPosition, OverlayStyle};
@@ -24,6 +25,10 @@ use std::ptr::NonNull;
 use tauri_nspanel::{
     tauri_panel, CollectionBehavior, ManagerExt, PanelBuilder, PanelLevel, StyleMask,
 };
+
+pub mod meeting_notice;
+use meeting_notice::MeetingNews;
+pub use meeting_notice::{announce_meeting, meeting_updated, settings_meeting_changed};
 
 #[cfg(target_os = "macos")]
 tauri_panel! {
@@ -89,6 +94,7 @@ enum Notice {
     MicLost,
     /// A dictation was cancelled; its Restore button brings it back.
     Cancelled,
+    MeetingNews(MeetingNews),
 }
 
 impl Notice {
@@ -96,23 +102,32 @@ impl Notice {
     fn is_fitted(&self) -> bool {
         matches!(
             self,
-            Notice::Copy { .. } | Notice::MicLost | Notice::Cancelled
+            Notice::Copy { .. } | Notice::MicLost | Notice::Cancelled | Notice::MeetingNews(_)
         )
     }
 }
 
 /// Puts a copy notice's text on the clipboard.
 pub(crate) type ClipboardWriter = Arc<dyn Fn(&str) -> Result<(), String> + Send + Sync>;
-static NOTICE: Mutex<Option<Notice>> = Mutex::new(None);
+#[derive(Default)]
+struct Notices {
+    current: Option<Notice>,
+    pending_meetings: Option<Batch>,
+}
 
-fn notice() -> MutexGuard<'static, Option<Notice>> {
+static NOTICE: Mutex<Notices> = Mutex::new(Notices {
+    current: None,
+    pending_meetings: None,
+});
+
+fn notice() -> MutexGuard<'static, Notices> {
     NOTICE
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner())
 }
 
 fn notice_showing() -> bool {
-    notice().is_some()
+    notice().current.is_some()
 }
 
 // Paths are spelled out because `tauri_panel!` imports these names itself.
@@ -483,17 +498,20 @@ fn show_overlay_state(app_handle: &AppHandle, state: &str) {
     // The flag is set under the notice lock, which the cancelled pill reads it
     // under: it shows before this state, which replaces it, or not at all.
     let mut held = notice();
-    if !dictation_takes_overlay(&mut held, state) {
+    if !dictation_takes_overlay(&mut held.current, state) {
         log::debug!("Leaving the notice up over a late '{state}' overlay");
         return;
     }
-    OVERLAY_GENERATION.fetch_add(1, Ordering::SeqCst);
+    let generation = OVERLAY_GENERATION.fetch_add(1, Ordering::SeqCst) + 1;
     DICTATION_EPOCH.fetch_add(1, Ordering::SeqCst);
     DICTATION_SHOWING.store(true, Ordering::SeqCst);
     drop(held);
     let handle = app_handle.clone();
     let state = state.to_string();
     let _ = app_handle.run_on_main_thread(move || {
+        if OVERLAY_GENERATION.load(Ordering::SeqCst) != generation {
+            return;
+        }
         if let Some(window) =
             present_overlay_window(&handle, &state, ORB_OVERLAY_SIZE, ORB_OVERLAY_SIZE, false)
         {
@@ -526,10 +544,16 @@ pub fn show_error_overlay(app_handle: &AppHandle, message: String) -> bool {
     if settings::get_settings(app_handle).overlay_style == OverlayStyle::None {
         return false;
     }
-    *notice() = Some(Notice::Error);
-    let generation = OVERLAY_GENERATION.fetch_add(1, Ordering::SeqCst) + 1;
+    let generation = {
+        let mut held = notice();
+        held.current = Some(Notice::Error);
+        OVERLAY_GENERATION.fetch_add(1, Ordering::SeqCst) + 1
+    };
     let handle = app_handle.clone();
     let _ = app_handle.run_on_main_thread(move || {
+        if OVERLAY_GENERATION.load(Ordering::SeqCst) != generation {
+            return;
+        }
         if let Some(window) = present_overlay_window(
             &handle,
             "error",
@@ -546,12 +570,14 @@ pub fn show_error_overlay(app_handle: &AppHandle, message: String) -> bool {
 
 /// Keeps `text` as the copy notice's, for its Copy click to hand to `write`.
 /// With `mic_lost`, the microphone warning follows the pill.
-pub(crate) fn hold_copy_notice(text: String, write: ClipboardWriter, mic_lost: bool) {
-    *notice() = Some(Notice::Copy {
+pub(crate) fn hold_copy_notice(text: String, write: ClipboardWriter, mic_lost: bool) -> u64 {
+    let mut held = notice();
+    held.current = Some(Notice::Copy {
         text,
         write,
         mic_lost_next: mic_lost,
     });
+    OVERLAY_GENERATION.fetch_add(1, Ordering::SeqCst) + 1
 }
 
 /// Shows the copy pill, a short note and a "Copy" action, because no text
@@ -578,10 +604,12 @@ pub fn show_copy_notice(
         copied: strings.overlay_copied,
         note: strings.overlay_not_pasted,
     };
-    hold_copy_notice(text, write, mic_lost);
-    let generation = OVERLAY_GENERATION.fetch_add(1, Ordering::SeqCst) + 1;
+    let generation = hold_copy_notice(text, write, mic_lost);
     let handle = app_handle.clone();
     let _ = app_handle.run_on_main_thread(move || {
+        if OVERLAY_GENERATION.load(Ordering::SeqCst) != generation {
+            return;
+        }
         if let Some(window) = present_overlay_window(
             &handle,
             "copy",
@@ -619,7 +647,7 @@ pub fn show_mic_lost_notice(app_handle: &AppHandle, operation: &ProcessingOperat
     // Held until the pill is queued, so a recording that starts after the
     // cancel check queues its own state after it, with a later generation.
     let mut held = notice();
-    if !hold_mic_lost_notice(&mut held, operation) {
+    if !hold_mic_lost_notice(&mut held.current, operation) {
         return;
     }
     present_mic_lost_notice(app_handle, held);
@@ -627,7 +655,7 @@ pub fn show_mic_lost_notice(app_handle: &AppHandle, operation: &ProcessingOperat
 
 /// Shows the microphone warning `held` holds, and lets the lock go once the
 /// pill is queued.
-fn present_mic_lost_notice(app_handle: &AppHandle, held: MutexGuard<'static, Option<Notice>>) {
+fn present_mic_lost_notice(app_handle: &AppHandle, held: MutexGuard<'static, Notices>) {
     let settings = settings::get_settings(app_handle);
     let message = get_tray_translations(Some(settings.app_language)).overlay_mic_disconnected;
     let generation = OVERLAY_GENERATION.fetch_add(1, Ordering::SeqCst) + 1;
@@ -683,7 +711,7 @@ pub fn show_cancelled_notice(app_handle: &AppHandle, shown: DictationEpoch) {
     // Held until the pill is queued, so a dictation that shows after the
     // check queues its own state after it, with a later generation.
     let mut held = notice();
-    if !hold_cancelled_notice(&mut held, shown, dictation_epoch()) {
+    if !hold_cancelled_notice(&mut held.current, shown, dictation_epoch()) {
         log::debug!("Leaving the new dictation's overlay over a late cancelled notice");
         return;
     }
@@ -928,7 +956,7 @@ pub fn fit_call_prompt(app: AppHandle, width: f64, height: f64) {
 pub fn fit_copy_notice(app: AppHandle, width: f64, height: f64) {
     let handle = app.clone();
     let _ = app.run_on_main_thread(move || {
-        if !notice().as_ref().is_some_and(Notice::is_fitted) {
+        if !notice().current.as_ref().is_some_and(Notice::is_fitted) {
             return;
         }
         let Some(window) = handle.get_webview_window("recording_overlay") else {
@@ -986,7 +1014,7 @@ fn copy_window_size(capsule: (f64, f64), work_area: (f64, f64)) -> (f64, f64) {
 
 /// Hands the copy notice's text to its writer, outside the notice lock.
 pub(crate) fn copy_held_notice() -> Result<(), String> {
-    let (text, write) = match &*notice() {
+    let (text, write) = match &notice().current {
         Some(Notice::Copy { text, write, .. }) => (text.clone(), Arc::clone(write)),
         _ => return Err("The copy notice is no longer showing".to_string()),
     };
@@ -1011,7 +1039,7 @@ pub async fn copy_notice_again(app: AppHandle) -> Result<(), String> {
     // "Copied".
     let generation = {
         let held = notice();
-        if !copy_pill_showing(&held) {
+        if !copy_pill_showing(&held.current) {
             return Ok(());
         }
         OVERLAY_GENERATION.fetch_add(1, Ordering::SeqCst) + 1
@@ -1055,6 +1083,7 @@ enum Dismissal {
     /// Only macOS watches Escape: on Windows the pills only time out.
     #[cfg_attr(target_os = "windows", allow(dead_code))]
     Escape,
+    Meeting,
 }
 
 /// What the overlay shows once a notice is dismissed.
@@ -1081,6 +1110,7 @@ fn dismiss(
     let applies = match dismissal {
         Dismissal::Timer(started) => started == generation,
         Dismissal::Escape => notice.as_ref().is_some_and(Notice::is_fitted),
+        Dismissal::Meeting => matches!(notice, Some(Notice::MeetingNews(_))),
     };
     if !applies {
         return None;
@@ -1097,7 +1127,7 @@ fn dismiss_notice(app_handle: &AppHandle, dismissal: Dismissal) {
     let style = settings::get_settings(app_handle).overlay_style;
     let mut held = notice();
     match dismiss(
-        &mut held,
+        &mut held.current,
         dismissal,
         OVERLAY_GENERATION.load(Ordering::SeqCst),
         style,
@@ -1105,8 +1135,10 @@ fn dismiss_notice(app_handle: &AppHandle, dismissal: Dismissal) {
         None => {}
         Some(AfterDismissal::Warning) => present_mic_lost_notice(app_handle, held),
         Some(AfterDismissal::Settled) => {
+            DICTATION_SHOWING.store(false, Ordering::SeqCst);
+            OVERLAY_GENERATION.fetch_add(1, Ordering::SeqCst);
             drop(held);
-            hide_recording_overlay(app_handle);
+            settle_overlay(app_handle);
         }
     }
 }
@@ -1261,6 +1293,13 @@ pub fn update_overlay_position(app_handle: &AppHandle) {
 
 fn update_overlay_position_on_main(app_handle: &AppHandle) {
     update_call_prompt_position(app_handle);
+    if settings::get_settings(app_handle).overlay_style == OverlayStyle::None
+        && !DICTATION_SHOWING.load(Ordering::SeqCst)
+        && !notice_showing()
+    {
+        settle_overlay(app_handle);
+        return;
+    }
     if let Some(overlay_window) = app_handle.get_webview_window("recording_overlay") {
         let (width, height) = current_overlay_logical_size(&overlay_window)
             .unwrap_or((ORB_OVERLAY_SIZE, ORB_OVERLAY_SIZE));
@@ -1277,21 +1316,33 @@ fn update_overlay_position_on_main(app_handle: &AppHandle) {
 /// Hides the recording overlay window with fade-out animation, or brings the
 /// meeting pill back while a meeting records.
 pub fn hide_recording_overlay(app_handle: &AppHandle) {
-    if notice_showing() {
+    let held = notice();
+    if held.current.is_some() {
         return;
     }
     DICTATION_SHOWING.store(false, Ordering::SeqCst);
+    drop(held);
     settle_overlay(app_handle);
 }
 
 /// Leaves the overlay as it is when no dictation or notice holds it: the
 /// meeting pill, or hidden, so a prompt that held it never stays behind.
 fn settle_overlay(app_handle: &AppHandle) {
-    let style = settings::get_settings(app_handle).overlay_style;
-    match resting_pill(meeting_pill(), style) {
-        Some(pill) => present_meeting_pill(app_handle, pill),
-        None => fade_out_overlay(app_handle),
-    }
+    let handle = app_handle.clone();
+    let _ = app_handle.run_on_main_thread(move || {
+        let style = settings::get_settings(&handle).overlay_style;
+        let mut held = notice();
+        if held.current.is_some() || DICTATION_SHOWING.load(Ordering::SeqCst) {
+            return;
+        }
+        if meeting_notice::show_pending(&handle, &mut held, style) {
+            return;
+        }
+        match resting_pill(meeting_pill(), style) {
+            Some(pill) => present_meeting_pill(&handle, pill),
+            None => fade_out_overlay(&handle),
+        }
+    });
 }
 
 /// The meeting pill shows while a meeting records, unless the overlay is
@@ -1322,7 +1373,7 @@ pub fn hide_meeting_overlay(app_handle: &AppHandle) {
         .take()
         .is_some();
     if was_showing && !DICTATION_SHOWING.load(Ordering::SeqCst) && !notice_showing() {
-        fade_out_overlay(app_handle);
+        settle_overlay(app_handle);
     }
 }
 
@@ -1366,6 +1417,14 @@ static OVERLAY_ENABLED: AtomicBool = AtomicBool::new(false);
 /// whenever the user changes whether the overlay is shown.
 pub fn update_overlay_enabled_cache(enabled: bool) {
     OVERLAY_ENABLED.store(enabled, Ordering::Relaxed);
+    if !enabled {
+        let mut held = notice();
+        held.pending_meetings = None;
+        if matches!(held.current, Some(Notice::MeetingNews(_))) {
+            held.current = None;
+            OVERLAY_GENERATION.fetch_add(1, Ordering::SeqCst);
+        }
+    }
 }
 
 pub fn emit_levels(app_handle: &AppHandle, levels: &[f32]) {

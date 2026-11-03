@@ -465,7 +465,11 @@
   font-weight: 600;
 }
 .ov-meeting-notice-detail {
+  min-width: 0;
+  max-width: 240px;
   flex: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
   font-weight: 500;
   color: rgb(255 255 255 / 0.7);

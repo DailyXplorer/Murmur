@@ -15,6 +15,7 @@ import { downloadPercent, useLocalModel } from "../../hooks/useLocalModel";
 import { Button } from "../ui/Button";
 import { panelId, tabId, Tabs } from "../ui/Tabs";
 import { AudioRow } from "./AudioRow";
+import { formatMeetingDate } from "@/lib/meetings/format";
 import { RenameSpeakersDialog } from "./RenameSpeakersDialog";
 import { SummaryTab } from "./SummaryTab";
 import type { InitialTextSearch } from "./TabHeaderBar";
@@ -33,15 +34,6 @@ const SAVED_STAGE_LABELS: Record<MeetingStage, string> = {
 const formatChipDate = (milliseconds: number, locale: string) =>
   new Intl.DateTimeFormat(locale, {
     month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(new Date(milliseconds));
-
-export const formatMeetingDate = (milliseconds: number, locale: string) =>
-  new Intl.DateTimeFormat(locale, {
-    year: "numeric",
-    month: "long",
     day: "numeric",
     hour: "2-digit",
     minute: "2-digit",

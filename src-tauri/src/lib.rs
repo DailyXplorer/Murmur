@@ -449,6 +449,7 @@ fn show_or_build_main_window(app: &AppHandle) {
             }
             #[cfg(target_os = "macos")]
             accent::set_dock_presence(&app, accent::DockPresence::Shown);
+            overlay::settings_meeting_changed(&app);
         }) {
             log::error!("Failed to schedule settings window presentation: {}", e);
         }
@@ -812,16 +813,21 @@ fn specta_builder() -> Builder<tauri::Wry> {
             shortcut::change_show_tray_icon_setting,
             show_main_window_command,
             settings_window::report_settings_view,
+            settings_window::report_opened_meeting,
             settings_window::get_last_settings_section,
             settings_window::hold_settings_window,
             settings_window::release_settings_window,
             settings_window::take_main_action,
+            settings_window::take_meetings_action,
             relaunch_after_update,
             prepare_update_install,
             updates::get_update_status,
             updates::check_for_updates,
             commands::cancel_operation,
             overlay::copy_notice_again,
+            overlay::meeting_notice::copy_meeting_notice,
+            overlay::meeting_notice::open_meeting_notice,
+            overlay::meeting_notice::dismiss_meeting_notice,
             overlay::fit_copy_notice,
             recently_cancelled::restore_cancelled_dictation,
             commands::get_app_dir_path,
