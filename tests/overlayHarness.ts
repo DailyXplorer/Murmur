@@ -18,7 +18,6 @@ export async function openOverlay(
     fixture = "recording-overlay-listeners",
     readyOn = "mic-level",
     callPrompt = null,
-    meetingLayout,
     holdMeetingCopy = false,
   }: {
     holdSettings?: boolean;
@@ -26,7 +25,6 @@ export async function openOverlay(
     fixture?: string;
     readyOn?: string | null;
     callPrompt?: unknown;
-    meetingLayout?: "inline" | "stacked";
     holdMeetingCopy?: boolean;
   } = {},
 ) {
@@ -141,8 +139,7 @@ export async function openOverlay(
     };
   }, options);
 
-  const query = meetingLayout ? `?meetingLayout=${meetingLayout}` : "";
-  await page.goto(`/tests/fixtures/${fixture}.html${query}`);
+  await page.goto(`/tests/fixtures/${fixture}.html`);
   if (readyOn === null) return;
   await expect
     .poll(() =>

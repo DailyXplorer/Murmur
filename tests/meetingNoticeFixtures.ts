@@ -1,7 +1,5 @@
 import type { MeetingNoticeLabels } from "../src/overlay/RecordingOverlay";
 
-export const MEETING_LAYOUTS = ["inline", "stacked"] as const;
-
 const ready = {
   tone: "ready",
   headline: "Q4 planning with Priya",

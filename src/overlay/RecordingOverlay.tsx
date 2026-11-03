@@ -119,9 +119,7 @@ void document.fonts
   .load('1em "Instrument Sans Variable"')
   .catch(() => undefined);
 
-const RecordingOverlay: React.FC<{
-  meetingLayout?: "inline" | "stacked";
-}> = ({ meetingLayout = "stacked" }) => {
+const RecordingOverlay: React.FC = () => {
   const [view, setView] = useState<View>({ kind: "hidden" });
   const [position, setPosition] = useState<"top" | "bottom">("bottom");
   const reducedMotion = useReducedMotion();
@@ -290,6 +288,18 @@ const RecordingOverlay: React.FC<{
     return () => growth.cancel();
   }, [pillKind, reducedMotion]);
 
+  useEffect(() => {
+    if (view.kind !== "meetingNotice" || !view.copied) return;
+    const timer = window.setTimeout(() => {
+      setView((current) =>
+        current.kind === "meetingNotice" && current.labels === view.labels
+          ? { ...current, copied: false }
+          : current,
+      );
+    }, 1500);
+    return () => window.clearTimeout(timer);
+  }, [view]);
+
   if (view.kind === "hidden") return null;
 
   if (view.kind === "meeting") {
@@ -332,7 +342,7 @@ const RecordingOverlay: React.FC<{
       <div className={`ov-stage ${position}`}>
         <div
           ref={setPill}
-          className={`ov-capsule ov-meeting-notice ov-meeting-notice--${meetingLayout}${view.labels.tone === "failed" ? " ov-warning" : ""}`}
+          className={`ov-capsule ov-meeting-notice${view.labels.tone === "failed" ? " ov-warning" : ""}`}
           role="status"
           dir="auto"
         >

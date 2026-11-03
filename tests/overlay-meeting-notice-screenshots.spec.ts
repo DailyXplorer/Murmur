@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { MEETING_LAYOUTS, MEETING_NOTICES } from "./meetingNoticeFixtures";
+import { MEETING_NOTICES } from "./meetingNoticeFixtures";
 import {
   dispatch,
   entranceFinished,
@@ -23,46 +23,42 @@ test.describe("meeting notice screenshots", () => {
   test.skip(!outputDir, "Set MURMUR_SCREENSHOT_DIR to capture screenshots");
   test.use({ deviceScaleFactor: 2 });
 
-  for (const meetingLayout of MEETING_LAYOUTS) {
-    for (const theme of ["light", "dark"] as const) {
-      test(`${meetingLayout} ${theme}`, async ({ page }) => {
-        await page.emulateMedia({ colorScheme: theme });
-        await openOverlay(page, { meetingLayout });
-        await page.evaluate(
-          (background) => (document.body.style.background = background),
-          DESKTOP[theme],
-        );
-        await page.evaluate(() => document.fonts.ready);
+  for (const theme of ["light", "dark"] as const) {
+    test(theme, async ({ page }) => {
+      await page.emulateMedia({ colorScheme: theme });
+      await openOverlay(page);
+      await page.evaluate(
+        (background) => (document.body.style.background = background),
+        DESKTOP[theme],
+      );
+      await page.evaluate(() => document.fonts.ready);
 
-        for (const [state, labels] of screenshots) {
-          await page.evaluate(
-            (language) => (document.documentElement.lang = language),
-            state === "ready-fr" ? "fr" : "en",
-          );
-          await dispatch(page, "show-overlay-meeting-notice", labels);
+      for (const [state, labels] of screenshots) {
+        await page.evaluate(
+          (language) => (document.documentElement.lang = language),
+          state === "ready-fr" ? "fr" : "en",
+        );
+        await dispatch(page, "show-overlay-meeting-notice", labels);
+        await expect(
+          page.getByRole("status").getByText(labels.headline, { exact: true }),
+        ).toBeVisible();
+        await entranceFinished(page);
+        if (state === "copied") {
+          await page
+            .getByRole("button", { name: labels.copy, exact: true })
+            .click();
           await expect(
-            page
-              .getByRole("status")
-              .getByText(labels.headline, { exact: true }),
+            page.getByRole("button", { name: labels.copied, exact: true }),
           ).toBeVisible();
-          await entranceFinished(page);
-          if (state === "copied") {
-            await page
-              .getByRole("button", { name: labels.copy, exact: true })
-              .click();
-            await expect(
-              page.getByRole("button", { name: labels.copied, exact: true }),
-            ).toBeVisible();
-          }
-          await fitCopyWindow(page);
-          await page.mouse.move(0, 0);
-          const name =
-            state === "ready-fr" ? `ready-${theme}-fr` : `${state}-${theme}`;
-          await page.screenshot({
-            path: `${outputDir}/${meetingLayout}-${name}.png`,
-          });
         }
-      });
-    }
+        await fitCopyWindow(page);
+        await page.mouse.move(0, 0);
+        const name =
+          state === "ready-fr" ? `ready-${theme}-fr` : `${state}-${theme}`;
+        await page.screenshot({
+          path: `${outputDir}/${name}.png`,
+        });
+      }
+    });
   }
 });
