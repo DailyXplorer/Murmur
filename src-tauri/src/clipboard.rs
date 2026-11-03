@@ -592,6 +592,7 @@ mod tests {
         Some(Before {
             last: 'd',
             previous: Some('r'),
+            last_is_emoji: false,
         })
     }
 

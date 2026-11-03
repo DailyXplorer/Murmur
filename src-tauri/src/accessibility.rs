@@ -525,6 +525,7 @@ mod tests {
                 (pid == 100).then_some(Before {
                     last: 'o',
                     previous: Some('l'),
+                    last_is_emoji: false,
                 })
             },
         );

@@ -104,8 +104,8 @@ pub trait FocusedText {
     fn value(&self) -> Option<String>;
 }
 
-/// The base scalars of the last two graphemes before a caret. Never reads secure
-/// text or guesses a caret from a selection, and starts no read after `deadline`.
+/// Grapheme context before a caret. Never reads secure text or guesses a caret
+/// from a selection, and starts no read after `deadline`.
 pub fn char_before(focused: &impl FocusedText, deadline: Instant) -> Option<Before> {
     let in_time = || Instant::now() < deadline;
     if !in_time() || focused.is_secure() || !in_time() {
@@ -125,11 +125,7 @@ pub fn char_before(focused: &impl FocusedText, deadline: Instant) -> Option<Befo
         // The first grapheme may have lost its base at the window's left edge.
         let _ = graphemes.next();
     }
-    let base = |grapheme: &str| grapheme.chars().next().filter(|&c| c != '\u{FFFD}');
-    Some(Before {
-        last: base(graphemes.next_back()?)?,
-        previous: graphemes.next_back().and_then(base),
-    })
+    Before::from_graphemes(graphemes.next_back()?, graphemes.next_back())
 }
 
 /// The excerpt around the focused element's selection. Never reads a secure
@@ -444,6 +440,26 @@ mod tests {
             let before = char_before(&fake, later()).unwrap();
             assert!(
                 crate::leading_space::needs_leading_space(before, "next"),
+                "after {text:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn leading_space_separates_keycap_emoji_but_not_plain_symbols() {
+        for (text, expected) in [
+            ("#️⃣", true),
+            ("*️⃣", true),
+            ("0️⃣", true),
+            ("#", false),
+            ("*", false),
+            ("#\u{FE0E}", false),
+        ] {
+            let fake = Fake::new(text, at(text.encode_utf16().count()));
+            let before = char_before(&fake, later()).unwrap();
+            assert_eq!(
+                crate::leading_space::needs_leading_space(before, "next"),
+                expected,
                 "after {text:?}"
             );
         }
