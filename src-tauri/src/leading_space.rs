@@ -12,17 +12,21 @@ pub struct Before {
 }
 
 impl Before {
-    /// Scalar-only context loses keycap emoji whose base is plain punctuation.
     pub fn from_graphemes(last: &str, previous: Option<&str>) -> Option<Self> {
         let base = |grapheme: &str| grapheme.chars().next().filter(|&c| c != '\u{FFFD}');
-        let last_is_emoji = last.contains(['\u{FE0F}', '\u{20E3}']);
-        let last = base(last)?;
+        let last_base = base(last)?;
         Some(Self {
-            last,
+            last: last_base,
             previous: previous.and_then(base),
-            last_is_emoji: last_is_emoji || is_emoji(last),
+            last_is_emoji: is_emoji(last_base) || is_keycap(last_base, last),
         })
     }
+}
+
+/// A keycap emoji such as "#️⃣" has a plain base, so only its enclosing mark
+/// tells it apart from "#".
+fn is_keycap(base: char, grapheme: &str) -> bool {
+    matches!(base, '0'..='9' | '#' | '*') && grapheme.contains('\u{20E3}')
 }
 
 /// Whether pasting `text` at this insertion point needs one leading space.
@@ -175,6 +179,10 @@ mod tests {
             ("#", false),
             ("*", false),
             ("#\u{FE0E}", false),
+            ("(\u{FE0F}", false),
+            ("(\u{20E3}", false),
+            ("-\u{FE0F}", false),
+            ("@\u{20E3}", false),
         ] {
             assert_eq!(
                 needs_leading_space(before(text), "next"),
