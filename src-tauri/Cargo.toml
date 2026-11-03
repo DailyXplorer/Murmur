@@ -98,8 +98,9 @@ block2 = "0.6"
 core-foundation = "0.10"
 
 [target.'cfg(target_os = "windows")'.dependencies]
-# The version Tauri already pulls in.
-windows = { version = "0.61.3", features = [
+# The version Tauri already pulls in: a window handle Tauri returns is passed
+# straight to these APIs.
+windows = { version = "0.62.2", features = [
   "Win32_Foundation",
   "Win32_Graphics_Gdi",
   "Win32_Media_Audio",
@@ -141,7 +142,7 @@ memmap2 = "0.9.11"
 # `#[implement]`, behind a test's own UI Automation provider, names this
 # crate. The version `windows` already pulls in.
 [target.'cfg(target_os = "windows")'.dev-dependencies]
-windows-core = "0.61.2"
+windows-core = "0.62.2"
 
 [profile.release]
 lto = true

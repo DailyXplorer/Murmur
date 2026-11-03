@@ -2328,7 +2328,7 @@ dependencies = [
  "js-sys",
  "log",
  "wasm-bindgen",
- "windows-core 0.62.2",
+ "windows-core 0.61.2",
 ]
 
 [[package]]
@@ -3010,8 +3010,8 @@ dependencies = [
  "transcribe-cpp",
  "unicode-normalization",
  "url",
- "windows 0.61.3",
- "windows-core 0.61.2",
+ "windows 0.62.2",
+ "windows-core 0.62.2",
  "winreg 0.55.0",
 ]
 
