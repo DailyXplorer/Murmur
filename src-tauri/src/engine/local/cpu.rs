@@ -17,8 +17,7 @@ pub struct CpuRuntime {
 
 impl Runtime for CpuRuntime {
     fn load(&self) -> BoxFuture<'static, anyhow::Result<Box<dyn Loaded>>> {
-        let asr = crate::local_models::asr_in_use(&self.models);
-        let path = self.models.join(asr.gguf_path());
+        let models = self.models.clone();
         Box::pin(async move {
             let model = tokio::task::spawn_blocking(move || -> anyhow::Result<CpuModel> {
                 #[cfg(target_os = "windows")]
@@ -30,7 +29,17 @@ impl Runtime for CpuRuntime {
                     // place, only replaced by a rename.
                     no_mmap: false,
                 };
-                let mut session = Model::load_with(&path, &options)?.session()?;
+                let asr = crate::local_models::asr_in_use(&models);
+                let model = match Model::load_with(&models.join(asr.gguf_path()), &options) {
+                    // The switch to the current model deleted the previous
+                    // one between the choice and the open.
+                    Err(_) if crate::local_models::asr_in_use(&models) != asr => {
+                        let asr = crate::local_models::asr_in_use(&models);
+                        Model::load_with(&models.join(asr.gguf_path()), &options)?
+                    }
+                    loaded => loaded?,
+                };
+                let mut session = model.session()?;
                 let cancel = CancelToken::new();
                 session.set_cancel_token(&cancel);
                 Ok(CpuModel {
