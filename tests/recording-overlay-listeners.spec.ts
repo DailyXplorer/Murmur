@@ -4,6 +4,7 @@ const expectedListenerCounts = {
   "show-overlay": 2,
   "show-overlay-meeting": 2,
   "show-overlay-meeting-notice": 2,
+  "meeting-notice-page-epoch": 2,
   "show-overlay-error": 2,
   "show-overlay-copy": 2,
   "show-overlay-warning": 2,
@@ -127,7 +128,8 @@ test("cleans every settled overlay listener exactly once", async ({ page }) => {
         if (command === "plugin:event|unlisten") return Promise.resolve();
         if (
           command === "plugin:event|emit_to" &&
-          args?.event === "meeting-notice-listener-ready"
+          (args?.event === "meeting-notice-listener-ready" ||
+            args?.event === "meeting-notice-page-request")
         ) {
           return Promise.resolve();
         }
