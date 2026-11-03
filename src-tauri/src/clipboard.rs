@@ -557,6 +557,7 @@ pub(crate) async fn paste(
 mod tests {
     use super::*;
     use crate::operation::OperationId;
+    use std::sync::atomic::{AtomicUsize, Ordering};
 
     fn after_word(_: Instant) -> Option<Before> {
         Some(Before {
@@ -567,26 +568,29 @@ mod tests {
 
     #[tokio::test]
     async fn leading_space_formats_only_enabled_paste_methods() {
+        let reads = Arc::new(AtomicUsize::new(0));
+        let read_word = || {
+            let reads = Arc::clone(&reads);
+            move |deadline| {
+                reads.fetch_add(1, Ordering::SeqCst);
+                after_word(deadline)
+            }
+        };
         for method in [PasteMethod::CtrlV, PasteMethod::Direct] {
             assert_eq!(
-                with_leading_space("next".into(), true, method, after_word).await,
+                with_leading_space("next".into(), true, method, read_word()).await,
                 " next"
             );
             assert_eq!(
-                with_leading_space("next".into(), false, method, |_| {
-                    panic!("disabled spacing must not read the field")
-                })
-                .await,
+                with_leading_space("next".into(), false, method, read_word()).await,
                 "next"
             );
         }
         assert_eq!(
-            with_leading_space("next".into(), true, PasteMethod::None, |_| {
-                panic!("copy-only output must not read the field")
-            })
-            .await,
+            with_leading_space("next".into(), true, PasteMethod::None, read_word()).await,
             "next"
         );
+        assert_eq!(reads.load(Ordering::SeqCst), 2);
     }
 
     #[tokio::test]
