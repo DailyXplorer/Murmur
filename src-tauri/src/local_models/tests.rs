@@ -821,7 +821,7 @@ fn the_previous_model_stays_in_use_while_the_current_one_downloads_then_is_delet
             .unwrap()
             .iter()
             .all(|state| *state == LocalModelState::Ready));
-        assert_eq!(models.state(), LocalModelState::Ready);
+        assert_eq!(models.status().state, LocalModelState::Ready);
         assert_eq!(host.prepared.load(Ordering::SeqCst), 1);
         assert_eq!(asr_in_use(&path), Asr::Current);
         assert_eq!(
@@ -844,7 +844,7 @@ fn a_failed_switch_keeps_the_previous_model_in_use_and_tries_again_at_the_next_l
         let failing = models(&path, &fixture, &base, &host);
         failing.resume_on_launch(false);
         failing.fetched().await;
-        assert_eq!(failing.state(), LocalModelState::Ready);
+        assert_eq!(failing.status().state, LocalModelState::Ready);
         assert_eq!(asr_in_use(&path), Asr::Previous);
         assert!(previous.join("Encoder.mlmodelc/weight.bin").exists());
 
@@ -886,7 +886,7 @@ fn a_helper_that_missed_the_previous_model_after_the_switch_leaves_the_current_o
     models.invalidate(Asr::Previous);
     assert!(models.is_ready());
     assert_eq!(
-        models_after_restart(&path, &fixture, &host).state(),
+        models_after_restart(&path, &fixture, &host).status().state,
         LocalModelState::Ready
     );
 }
@@ -914,7 +914,7 @@ fn a_delete_during_the_background_switch_cancels_it_and_deletes_everything() {
             .await
             .unwrap()
             .unwrap();
-        assert_eq!(models.state(), LocalModelState::Missing);
+        assert_eq!(models.status().state, LocalModelState::Missing);
         assert!(!path.exists());
         assert!(!previous.exists());
         assert_eq!(host.prepared.load(Ordering::SeqCst), 0);

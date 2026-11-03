@@ -92,13 +92,6 @@ fn known_words<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Vec<Word>, 
     Ok(crate::engine::local::unknown::words_without_unknown(words))
 }
 
-fn some_known_words<'de, D: Deserializer<'de>>(
-    deserializer: D,
-) -> Result<Option<Vec<Word>>, D::Error> {
-    let words = Option::<Vec<Word>>::deserialize(deserializer)?;
-    Ok(words.map(crate::engine::local::unknown::words_without_unknown))
-}
-
 pub fn parse_line(line: &str) -> serde_json::Result<Message> {
     serde_json::from_str(line)
 }
@@ -396,17 +389,12 @@ mod tests {
     fn unknown_tokens_from_the_model_never_reach_the_app() {
         assert_eq!(
             parse_reply(
-                r#"{"type":"text","id":3,"text":"Le mot <unk> civis <unk> signifie citoyen <unk>.","words":[{"w":"Le","s":0,"e":0.1},{"w":"mot","s":0.1,"e":0.2},{"w":"<unk>","s":0.2,"e":0.3},{"w":"civis","s":0.3,"e":0.4},{"w":"<unk>","s":0.4,"e":0.5},{"w":"signifie","s":0.5,"e":0.6},{"w":"citoyen","s":0.6,"e":0.7},{"w":"<unk>.","s":0.7,"e":0.8}]}"#
+                r#"{"type":"text","id":3,"text":"Le mot <unk> civis <unk> signifie citoyen <unk>."}"#
             )
             .unwrap(),
             Reply::Text {
                 id: 3,
                 text: "Le mot civis signifie citoyen.".into(),
-                words: Some(
-                    [("Le", 0.0, 0.1), ("mot", 0.1, 0.2), ("civis", 0.3, 0.4), ("signifie", 0.5, 0.6), ("citoyen.", 0.6, 0.8)]
-                        .map(|(w, s, e)| Word { w: w.into(), s, e })
-                        .to_vec()
-                ),
             }
         );
         assert_eq!(
