@@ -39,6 +39,8 @@ declare global {
       /** The call prompt's answers, oldest first. */
       callAnswers(): string[];
       restoreCalls(): number;
+      meetingNoticeCalls(): string[];
+      releaseMeetingCopy(): void;
     };
   }
 }

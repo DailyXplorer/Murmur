@@ -277,7 +277,8 @@
    the window to it. The body is clipped while the pill opens from the orb.
    The microphone warning has a pill of its own, sized the same way. */
 .ov-capsule.ov-copy,
-.ov-capsule.ov-warning {
+.ov-capsule.ov-warning,
+.ov-capsule.ov-meeting-notice {
   width: auto;
   height: auto;
   min-width: var(--ov-orb);
@@ -428,6 +429,67 @@
 .ov-call-button:focus-visible {
   outline: 2px solid rgb(10 132 255);
   outline-offset: 2px;
+}
+
+.ov-capsule.ov-meeting-notice {
+  border-radius: 24px;
+}
+.ov-meeting-notice-body {
+  box-sizing: border-box;
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: max-content;
+  max-width: var(--ov-copy-max-w);
+  min-height: var(--ov-h);
+  padding: 5px;
+  padding-inline-start: 10px;
+  text-align: start;
+}
+.ov-meeting-notice-text {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  line-height: 16px;
+}
+.ov-meeting-notice-headline {
+  min-width: 0;
+  /* Leave space for the detail and actions inside the fitted 560px notice. */
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+.ov-meeting-notice-detail {
+  flex: none;
+  white-space: nowrap;
+  font-weight: 500;
+  color: rgb(255 255 255 / 0.7);
+}
+.ov-meeting-notice-actions {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.ov-meeting-notice--stacked .ov-meeting-notice-body {
+  padding-block: 7px;
+}
+.ov-meeting-notice--stacked .ov-meeting-notice-text {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+.ov-meeting-notice-close {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  padding: 0;
+  color: rgb(255 255 255 / 0.7);
+  background: transparent;
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -5,10 +5,15 @@ import RecordingOverlay from "../../src/overlay/RecordingOverlay";
 const root = ReactDOM.createRoot(
   document.getElementById("root") as HTMLElement,
 );
+const meetingLayout = new URLSearchParams(window.location.search).get(
+  "meetingLayout",
+);
 
 root.render(
   <React.StrictMode>
-    <RecordingOverlay />
+    <RecordingOverlay
+      meetingLayout={meetingLayout === "inline" ? "inline" : "stacked"}
+    />
   </React.StrictMode>,
 );
 

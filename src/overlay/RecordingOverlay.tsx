@@ -1,6 +1,8 @@
 import { ArrowCounterClockwiseIcon } from "@phosphor-icons/react/dist/csr/ArrowCounterClockwise";
 import { CheckIcon } from "@phosphor-icons/react/dist/csr/Check";
 import { CopyIcon } from "@phosphor-icons/react/dist/csr/Copy";
+import { XIcon } from "@phosphor-icons/react/dist/csr/X";
+import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import React, {
   useEffect,
@@ -30,7 +32,18 @@ type View =
   | { kind: "copy"; labels: CopyLabels; copied: boolean }
   | { kind: "warning"; message: string }
   | { kind: "cancelled"; labels: CancelledLabels }
+  | { kind: "meetingNotice"; labels: MeetingNoticeLabels; copied: boolean }
   | { kind: "meeting"; startedAtMs: number; stopsAtMs: number };
+
+export interface MeetingNoticeLabels {
+  tone: "ready" | "failed";
+  headline: string;
+  detail: string | null;
+  open: string;
+  copy: string | null;
+  copied: string;
+  close: string;
+}
 
 /** Payload of `show-overlay-meeting`, from `overlay::MeetingPill`. */
 interface MeetingPill {
@@ -106,7 +119,9 @@ void document.fonts
   .load('1em "Instrument Sans Variable"')
   .catch(() => undefined);
 
-const RecordingOverlay: React.FC = () => {
+const RecordingOverlay: React.FC<{
+  meetingLayout?: "inline" | "stacked";
+}> = ({ meetingLayout = "stacked" }) => {
   const [view, setView] = useState<View>({ kind: "hidden" });
   const [position, setPosition] = useState<"top" | "bottom">("bottom");
   const reducedMotion = useReducedMotion();
@@ -161,6 +176,11 @@ const RecordingOverlay: React.FC = () => {
         startedAtMs: event.payload.started_at_ms,
         stopsAtMs: event.payload.stops_at_ms,
       });
+      refreshPosition();
+    }).then(storeUnlistener, () => undefined);
+
+    void listen<MeetingNoticeLabels>("show-overlay-meeting-notice", (event) => {
+      setView({ kind: "meetingNotice", labels: event.payload, copied: false });
       refreshPosition();
     }).then(storeUnlistener, () => undefined);
 
@@ -234,13 +254,13 @@ const RecordingOverlay: React.FC = () => {
     };
   }, [animating]);
 
-  // The copy pill's body, and the warning pill's, sizes itself from its
-  // text, whatever font renders it, and the window is fitted to it: only the
-  // webview can measure it. The backend opens each notice at a default size,
-  // so every such view, even one replacing a showing one, observes and
-  // reports again.
+  // Only the webview can measure the body. Native notices start at a default
+  // size, so even a notice replacing a showing one must report its fit again.
   const fittedView =
-    view.kind === "copy" || view.kind === "warning" || view.kind === "cancelled"
+    view.kind === "copy" ||
+    view.kind === "warning" ||
+    view.kind === "cancelled" ||
+    view.kind === "meetingNotice"
       ? view
       : null;
   useLayoutEffect(() => {
@@ -252,7 +272,7 @@ const RecordingOverlay: React.FC = () => {
       commands
         .fitCopyNotice(box.inlineSize, box.blockSize)
         .catch((error: unknown) => {
-          console.warn("Fitting the copy pill's window failed:", error);
+          console.warn("Fitting the notice pill's window failed:", error);
         });
     });
     observer.observe(body);
@@ -279,6 +299,97 @@ const RecordingOverlay: React.FC = () => {
           startedAtMs={view.startedAtMs}
           stopsAtMs={view.stopsAtMs}
         />
+      </div>
+    );
+  }
+
+  if (view.kind === "meetingNotice") {
+    const copyMeeting = () => {
+      void invoke<void>("copy_meeting_notice")
+        .then(() => {
+          setView((current) =>
+            current.kind === "meetingNotice" && current.labels === view.labels
+              ? { ...current, copied: true }
+              : current,
+          );
+        })
+        .catch((error: unknown) => {
+          console.warn("Copying the meeting notice failed:", error);
+        });
+    };
+    const openMeeting = () => {
+      void invoke<void>("open_meeting_notice").catch((error: unknown) => {
+        console.warn("Opening the meeting notice failed:", error);
+      });
+    };
+    const dismissMeeting = () => {
+      void invoke<void>("dismiss_meeting_notice").catch((error: unknown) => {
+        console.warn("Dismissing the meeting notice failed:", error);
+      });
+    };
+    const Icon = view.copied ? CheckIcon : CopyIcon;
+    return (
+      <div className={`ov-stage ${position}`}>
+        <div
+          ref={setPill}
+          className={`ov-capsule ov-meeting-notice ov-meeting-notice--${meetingLayout}${view.labels.tone === "failed" ? " ov-warning" : ""}`}
+          role="status"
+          dir="auto"
+        >
+          <span ref={noticeBodyRef} className="ov-meeting-notice-body">
+            <Glyph kind={view.labels.tone === "ready" ? "done" : "off"} />
+            <span className="ov-meeting-notice-text">
+              <span className="ov-meeting-notice-headline">
+                {view.labels.headline}
+              </span>
+              {view.labels.detail !== null && (
+                <span className="ov-meeting-notice-detail">
+                  {view.labels.detail}
+                </span>
+              )}
+            </span>
+            <span className="ov-meeting-notice-actions">
+              <button
+                type="button"
+                className="ov-call-button"
+                onClick={openMeeting}
+              >
+                {view.labels.open}
+              </button>
+              {view.labels.copy !== null && (
+                <button
+                  type="button"
+                  className="ov-call-button ov-copy-action"
+                  aria-labelledby={`${noticeId}-action`}
+                  onClick={copyMeeting}
+                >
+                  <Icon
+                    size={14}
+                    weight="bold"
+                    aria-hidden="true"
+                    data-icon={view.copied ? "check" : "copy"}
+                  />
+                  <span className="ov-copy-label">
+                    <span id={`${noticeId}-action`} aria-live="polite">
+                      {view.copied ? view.labels.copied : view.labels.copy}
+                    </span>
+                    <span className="ov-copy-label-spare" aria-hidden="true">
+                      {view.copied ? view.labels.copy : view.labels.copied}
+                    </span>
+                  </span>
+                </button>
+              )}
+            </span>
+            <button
+              type="button"
+              className="ov-call-button ov-meeting-notice-close"
+              aria-label={view.labels.close}
+              onClick={dismissMeeting}
+            >
+              <XIcon size={12} weight="bold" aria-hidden="true" />
+            </button>
+          </span>
+        </div>
       </div>
     );
   }
