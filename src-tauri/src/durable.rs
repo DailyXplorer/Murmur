@@ -1,34 +1,56 @@
-//! Crash-safe file writes. A crash, force quit or power cut during a write
-//! leaves the old file or the new one at `path`, never part of either.
+//! Atomic file writes through a flushed temporary file in the same folder.
+//! macOS syncs the directory after rename. Windows requests a write-through
+//! rename. Power-loss durability still depends on the filesystem and drive.
 
-use std::fs::{self, File, OpenOptions};
+#[cfg(target_os = "macos")]
+use std::fs::File;
+use std::fs::{self, OpenOptions};
 use std::io::{self, Write};
+#[cfg(target_os = "macos")]
 use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
-/// Replaces the file at `path` with `bytes`. The file keeps its permissions;
-/// a symlink stays a link, and the file it points to is replaced.
+#[cfg(target_os = "windows")]
+mod windows;
+
+/// Replaces the file at `path` with `bytes`. macOS keeps its permissions;
+/// Windows inherits the folder's ACL and refuses a read-only target.
+/// A symlink stays a link, and the file it points to is replaced.
 pub fn write(path: &Path, bytes: &[u8]) -> io::Result<()> {
     let target = resolve_links(path)?;
+    #[cfg(target_os = "macos")]
     let mode = match fs::metadata(&target) {
         Ok(metadata) => Some(metadata.permissions().mode() & 0o7777),
         Err(error) if error.kind() == io::ErrorKind::NotFound => None,
         Err(error) => return Err(error),
     };
+    #[cfg(target_os = "windows")]
+    let mode = None;
     let staged = stage(&target, bytes, mode)?;
-    finish(&target, &staged, fs::rename(&staged, &target))
+    #[cfg(target_os = "macos")]
+    let replaced = fs::rename(&staged, &target).and_then(|()| sync_parent(&target));
+    #[cfg(target_os = "windows")]
+    let replaced = windows::replace(&staged, &target);
+    finish(&staged, replaced)
 }
 
-/// Writes `bytes` to `path` only if nothing is there yet, with `mode`.
+/// Writes `bytes` only if nothing is at `path`, with `mode` on macOS.
+/// On Windows the new file inherits the folder's ACL, not a POSIX mode.
 /// `Ok(false)` when `path` already exists, which is then left untouched.
 pub fn create(path: &Path, bytes: &[u8], mode: u32) -> io::Result<bool> {
     let staged = stage(path, bytes, Some(mode))?;
+    #[cfg(target_os = "macos")]
     // A hard link, unlike a rename, refuses to replace an existing file.
     let linked = fs::hard_link(&staged, path);
+    #[cfg(target_os = "windows")]
+    let linked = windows::create(&staged, path);
     let _ = fs::remove_file(&staged);
     match linked {
+        #[cfg(target_os = "macos")]
         Ok(()) => sync_parent(path).map(|()| true),
+        #[cfg(target_os = "windows")]
+        Ok(()) => Ok(true),
         Err(error) if error.kind() == io::ErrorKind::AlreadyExists => Ok(false),
         Err(error) => Err(error),
     }
@@ -36,7 +58,7 @@ pub fn create(path: &Path, bytes: &[u8], mode: u32) -> io::Result<bool> {
 
 /// A complete, synced copy of `bytes` next to `target`, under a name no
 /// other writer uses. Without `mode` it gets a new file's default.
-fn stage(target: &Path, bytes: &[u8], mode: Option<u32>) -> io::Result<PathBuf> {
+fn stage(target: &Path, bytes: &[u8], _mode: Option<u32>) -> io::Result<PathBuf> {
     static SEQUENCE: AtomicU64 = AtomicU64::new(0);
     let name = target
         .file_name()
@@ -50,26 +72,30 @@ fn stage(target: &Path, bytes: &[u8], mode: Option<u32>) -> io::Result<PathBuf> 
     let staged = target.with_file_name(staged_name);
     let mut options = OpenOptions::new();
     options.write(true).create_new(true);
-    if let Some(mode) = mode {
+    #[cfg(target_os = "macos")]
+    if let Some(mode) = _mode {
         options.mode(mode);
     }
     let mut file = options.open(&staged)?;
     let result = (|| {
-        if let Some(mode) = mode {
+        #[cfg(target_os = "macos")]
+        if let Some(mode) = _mode {
             // The umask applies at creation; the copy must match exactly.
             file.set_permissions(fs::Permissions::from_mode(mode))?;
         }
         file.write_all(bytes)?;
         file.sync_all()
     })();
-    finish(target, &staged, result).map(|()| staged)
+    // Windows cannot remove or rename an open staged file without compatible
+    // sharing flags. Close it before either committing or cleaning it up.
+    drop(file);
+    finish(&staged, result).map(|()| staged)
 }
 
-/// On success the directory entry is synced too; on failure the staged
-/// file is removed.
-fn finish(target: &Path, staged: &Path, result: io::Result<()>) -> io::Result<()> {
+/// Removes the staged file on failure.
+fn finish(staged: &Path, result: io::Result<()>) -> io::Result<()> {
     match result {
-        Ok(()) => sync_parent(target),
+        Ok(()) => Ok(()),
         Err(error) => {
             let _ = fs::remove_file(staged);
             Err(error)
@@ -78,6 +104,7 @@ fn finish(target: &Path, staged: &Path, result: io::Result<()>) -> io::Result<()
 }
 
 /// A rename is durable only once the directory holding it is synced.
+#[cfg(target_os = "macos")]
 fn sync_parent(path: &Path) -> io::Result<()> {
     let parent = match path.parent() {
         Some(parent) if !parent.as_os_str().is_empty() => parent,
@@ -159,6 +186,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(target_os = "macos")]
     fn durable_write_keeps_symlink() {
         let dir = tempfile::tempdir().unwrap();
         let real = dir.path().join("real.json");
@@ -225,9 +253,9 @@ mod tests {
         }
     }
 
-    /// Files that no longer parse after 200 SIGKILLs at random points of a
+    /// Files that no longer parse after process kills at random points of a
     /// loop rewriting 1 MB, and the staged copies left behind.
-    fn kill_rewrites(plain: bool) -> (usize, usize) {
+    fn kill_rewrites(plain: bool, rounds: usize) -> (usize, usize) {
         use std::io::{BufRead, BufReader};
         use std::process::{Command, Stdio};
 
@@ -236,7 +264,7 @@ mod tests {
         fs::write(&path, settings_like(0)).unwrap();
         let mut seed: u64 = 0x9e37_79b9_7f4a_7c15;
         let mut unreadable = 0;
-        for _ in 0..200 {
+        for _ in 0..rounds {
             let mut command = Command::new(std::env::current_exe().unwrap());
             command
                 .args([
@@ -267,7 +295,11 @@ mod tests {
             child.wait().unwrap();
 
             let bytes = fs::read(&path).unwrap();
-            if serde_json::from_slice::<serde_json::Value>(&bytes).is_err() {
+            let whole = serde_json::from_slice::<serde_json::Value>(&bytes)
+                .ok()
+                .and_then(|value| value["settings"]["round"].as_u64())
+                .is_some_and(|round| bytes == settings_like(round));
+            if !whole {
                 unreadable += 1;
                 fs::write(&path, settings_like(0)).unwrap();
             }
@@ -279,12 +311,76 @@ mod tests {
     #[test]
     #[ignore = "about a minute; run once for the pull request"]
     fn durable_write_survives_sigkill() {
-        let (durable, staged) = kill_rewrites(false);
-        let (plain, _) = kill_rewrites(true);
+        let (durable, staged) = kill_rewrites(false, 200);
+        let (plain, _) = kill_rewrites(true, 200);
         eprintln!(
             "200 kills: durable::write {durable} unreadable ({staged} staged copies left), \
              fs::write {plain} unreadable"
         );
         assert_eq!(durable, 0);
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn durable_write_survives_process_termination() {
+        assert_eq!(kill_rewrites(false, 12).0, 0);
+    }
+
+    #[test]
+    fn durable_write_replaces_an_existing_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("réglages-設定.json");
+        fs::write(&path, b"old settings").unwrap();
+
+        write(&path, b"new settings").unwrap();
+
+        assert_eq!(fs::read(&path).unwrap(), b"new settings");
+        assert_eq!(fs::read_dir(dir.path()).unwrap().count(), 1);
+    }
+
+    #[test]
+    fn durable_create_keeps_the_first_complete_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("unreadable.json");
+
+        assert!(create(&path, b"original", 0o600).unwrap());
+        assert!(!create(&path, b"replacement", 0o600).unwrap());
+
+        assert_eq!(fs::read(&path).unwrap(), b"original");
+        assert_eq!(entries(dir.path()), ["unreadable.json"]);
+    }
+
+    #[test]
+    fn durable_write_reports_a_missing_folder_without_creating_it() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("missing").join("settings_store.json");
+
+        assert_eq!(
+            write(&path, b"new").unwrap_err().kind(),
+            io::ErrorKind::NotFound
+        );
+        assert!(entries(dir.path()).is_empty());
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn durable_write_leaves_a_read_only_file_untouched() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("settings_store.json");
+        fs::write(&path, b"old").unwrap();
+        let original = fs::metadata(&path).unwrap().permissions();
+        let mut read_only = original.clone();
+        read_only.set_readonly(true);
+        fs::set_permissions(&path, read_only).unwrap();
+
+        let result = write(&path, b"new");
+        let bytes = fs::read(&path).unwrap();
+        let still_read_only = fs::metadata(&path).unwrap().permissions().readonly();
+        fs::set_permissions(&path, original).unwrap();
+
+        assert_eq!(result.unwrap_err().kind(), io::ErrorKind::PermissionDenied);
+        assert_eq!(bytes, b"old");
+        assert!(still_read_only);
+        assert_eq!(entries(dir.path()), ["settings_store.json"]);
     }
 }

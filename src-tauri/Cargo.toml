@@ -148,7 +148,3 @@ lto = true
 codegen-units = 1
 strip = true
 panic = "unwind"
-# The shipped binary stays stripped; its line tables go to murmur.dSYM, which
-# build.yml uploads, so the addresses of a panic backtrace can be resolved.
-debug = "line-tables-only"
-split-debuginfo = "packed"
