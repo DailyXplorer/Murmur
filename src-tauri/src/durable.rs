@@ -422,4 +422,35 @@ mod tests {
         assert_eq!(fs::read(&path).unwrap(), b"new");
         assert_eq!(entries(dir.path()), ["settings_store.json"]);
     }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn durable_write_and_create_support_paths_past_max_path() {
+        use std::os::windows::ffi::OsStrExt;
+
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().to_string_lossy();
+        let root = if let Some(unc) = root.strip_prefix(r"\\?\UNC\") {
+            format!(r"\\{unc}")
+        } else {
+            root.strip_prefix(r"\\?\").unwrap_or(&root).to_owned()
+        };
+        let mut directory = PathBuf::from(root);
+        for _ in 0..10 {
+            directory.push("long-settings-directory-component");
+        }
+        fs::create_dir_all(&directory).unwrap();
+        let path = directory.join("settings_store.json");
+        assert!(path.as_os_str().encode_wide().count() > 260);
+        assert!(!path.to_string_lossy().starts_with(r"\\?\"));
+
+        write(&path, b"old").unwrap();
+        write(&path, b"new").unwrap();
+        assert_eq!(fs::read(&path).unwrap(), b"new");
+
+        let copy = directory.join("settings_store.json.unreadable-test");
+        assert!(create(&copy, b"original", 0o600).unwrap());
+        assert!(!create(&copy, b"replacement", 0o600).unwrap());
+        assert_eq!(fs::read(copy).unwrap(), b"original");
+    }
 }

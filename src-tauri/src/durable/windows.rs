@@ -67,3 +67,30 @@ fn wide_path(path: &Path) -> io::Result<Vec<u16>> {
     wide.push(0);
     Ok(wide)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn unc_paths_use_the_extended_unc_namespace() {
+        let path = Path::new(r"\\server\share\folder\settings_store.json");
+        let expected: Vec<u16> = r"\\?\UNC\server\share\folder\settings_store.json"
+            .encode_utf16()
+            .chain([0])
+            .collect();
+
+        assert_eq!(wide_path(path).unwrap(), expected);
+    }
+
+    #[test]
+    fn extended_paths_are_not_prefixed_twice() {
+        for path in [
+            r"\\?\C:\folder\settings_store.json",
+            r"\\?\UNC\server\share\folder\settings_store.json",
+        ] {
+            let expected: Vec<u16> = path.encode_utf16().chain([0]).collect();
+            assert_eq!(wide_path(Path::new(path)).unwrap(), expected);
+        }
+    }
+}

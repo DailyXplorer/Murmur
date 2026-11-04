@@ -303,10 +303,21 @@ mod tests {
 
     #[test]
     fn opening_settings_removes_only_its_staged_copies() {
+        use std::process::{Command, Stdio};
+
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("settings_store.json");
-        let staged = dir.path().join("settings_store.json.123.0.tmp");
-        let unrelated = dir.path().join("other.json.123.0.tmp");
+        let mut owner = Command::new(std::env::current_exe().unwrap())
+            .arg("--list")
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .unwrap();
+        assert!(owner.wait().unwrap().success());
+        let staged = dir
+            .path()
+            .join(format!("settings_store.json.{}.0.tmp", owner.id()));
+        let unrelated = dir.path().join("other.json.0.0.tmp");
         fs::write(&staged, b"partial").unwrap();
         fs::write(&unrelated, b"kept").unwrap();
 
@@ -314,6 +325,95 @@ mod tests {
 
         assert!(!staged.exists());
         assert_eq!(fs::read(unrelated).unwrap(), b"kept");
+    }
+
+    #[test]
+    fn startup_cleanup_respects_a_live_staging_owner() {
+        use std::io::{BufRead, BufReader, Read, Write};
+        use std::process::{Command, Stdio};
+
+        const CHILD: &str = "MURMUR_STAGING_OWNER_TEST_CHILD";
+        if std::env::var_os(CHILD).is_some() {
+            println!("staging owner ready");
+            std::io::stdout().flush().unwrap();
+            let _ = std::io::stdin().read(&mut [0]);
+            return;
+        }
+
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("settings_store.json");
+        let mut owner = Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--exact",
+                "settings::file::tests::startup_cleanup_respects_a_live_staging_owner",
+                "--nocapture",
+            ])
+            .env(CHILD, "1")
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .spawn()
+            .unwrap();
+        let mut output = BufReader::new(owner.stdout.take().unwrap());
+        let mut line = String::new();
+        loop {
+            assert!(
+                output.read_line(&mut line).unwrap() > 0,
+                "owner did not start"
+            );
+            if line.contains("staging owner ready") {
+                break;
+            }
+            line.clear();
+        }
+
+        let staged = dir
+            .path()
+            .join(format!("settings_store.json.{}.0.tmp", owner.id()));
+        fs::write(&staged, b"live writer's complete staging").unwrap();
+        let file = SettingsFile::open(path.clone());
+        let live_copy = fs::read(&staged).ok();
+
+        drop(owner.stdin.take());
+        assert!(owner.wait().unwrap().success());
+        fs::write(&staged, b"abandoned staging").unwrap();
+        let reopened = SettingsFile::open(path);
+        let dead_copy_remains = staged.exists();
+        drop((file, reopened));
+
+        assert_eq!(
+            live_copy.as_deref(),
+            Some(b"live writer's complete staging".as_slice())
+        );
+        assert!(!dead_copy_remains, "dead owner's staging was not removed");
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn flush_retries_a_background_save_after_a_reader_exhausts_the_budget() {
+        use ::windows::Win32::Storage::FileSystem::{FILE_SHARE_READ, FILE_SHARE_WRITE};
+        use std::os::windows::fs::OpenOptionsExt;
+
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("settings_store.json");
+        let file = SettingsFile::open(path.clone());
+        file.store_checked(serde_json::json!({ "history_limit": 42 }))
+            .unwrap();
+        let reader = fs::OpenOptions::new()
+            .read(true)
+            .share_mode((FILE_SHARE_READ | FILE_SHARE_WRITE).0)
+            .open(&path)
+            .unwrap();
+
+        file.store(serde_json::json!({ "history_limit": 100 }));
+        file.flush();
+        let blocked: Value = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
+        assert_eq!(blocked["settings"]["history_limit"], 42);
+
+        drop(reader);
+        file.flush();
+
+        let on_disk: Value = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
+        assert_eq!(on_disk["settings"]["history_limit"], 100);
     }
 
     #[cfg(target_os = "windows")]
