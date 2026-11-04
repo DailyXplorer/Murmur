@@ -2019,8 +2019,7 @@ mod tests {
         file.flush();
         let persisted: serde_json::Value =
             serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
-        let persisted: AppSettings =
-            serde_json::from_value(persisted["settings"].clone()).unwrap();
+        let persisted: AppSettings = serde_json::from_value(persisted["settings"].clone()).unwrap();
         assert!(!persisted.meetings_enabled);
         assert!(!persisted.update_checks_enabled);
         assert!(persisted.clamshell_microphone.is_none());

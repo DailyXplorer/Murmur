@@ -34,3 +34,5 @@ fn timeout_probe_hangs() {
 } finally {
     Remove-Item -LiteralPath $directory -Recurse -Force
 }
+
+exit 0
