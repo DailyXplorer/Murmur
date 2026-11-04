@@ -383,4 +383,43 @@ mod tests {
         assert!(still_read_only);
         assert_eq!(entries(dir.path()), ["settings_store.json"]);
     }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn durable_write_waits_for_a_short_lived_reader_to_close() {
+        use ::windows::Win32::Storage::FileSystem::{FILE_SHARE_READ, FILE_SHARE_WRITE};
+        use std::os::windows::fs::OpenOptionsExt;
+        use std::sync::mpsc;
+        use std::time::Duration;
+
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("settings_store.json");
+        fs::write(&path, b"old").unwrap();
+        let reader = OpenOptions::new()
+            .read(true)
+            .share_mode((FILE_SHARE_READ | FILE_SHARE_WRITE).0)
+            .open(&path)
+            .unwrap();
+        let (started_tx, started_rx) = mpsc::channel();
+        let (done_tx, done_rx) = mpsc::channel();
+        let writing = {
+            let path = path.clone();
+            std::thread::spawn(move || {
+                started_tx.send(()).unwrap();
+                done_tx.send(write(&path, b"new")).unwrap();
+            })
+        };
+        started_rx.recv_timeout(Duration::from_secs(5)).unwrap();
+        let while_open = done_rx.recv_timeout(Duration::from_millis(50));
+        drop(reader);
+
+        assert!(matches!(while_open, Err(mpsc::RecvTimeoutError::Timeout)));
+        done_rx
+            .recv_timeout(Duration::from_secs(5))
+            .unwrap()
+            .unwrap();
+        writing.join().unwrap();
+        assert_eq!(fs::read(&path).unwrap(), b"new");
+        assert_eq!(entries(dir.path()), ["settings_store.json"]);
+    }
 }
