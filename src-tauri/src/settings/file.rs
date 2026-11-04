@@ -16,6 +16,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Condvar, Mutex, MutexGuard, PoisonError};
 
 const SETTINGS_KEY: &str = "settings";
+const UNREADABLE_DIGEST_BYTES: usize = 6;
 
 pub(crate) struct SettingsFile {
     shared: Arc<Shared>,
@@ -108,8 +109,8 @@ impl SettingsFile {
         )
     }
 
-    /// Waits for the worker, then makes one attempt at any still-dirty value.
-    /// A failed attempt stays dirty for a later flush, without a retry loop.
+    /// Waits for the worker, then drains dirty changes through the same loop.
+    /// The first failed write stops the drain and stays dirty for a later flush.
     pub(crate) fn flush(&self) {
         let mut writer = self.shared.writer();
         while writer.running {
@@ -123,14 +124,8 @@ impl SettingsFile {
             return;
         }
         writer.running = true;
-        writer.dirty = false;
         drop(writer);
-
-        let saved = self.shared.write_logged();
-        let mut writer = self.shared.writer();
-        writer.dirty |= !saved;
-        writer.running = false;
-        self.shared.writer_done.notify_all();
+        self.shared.write_pending();
     }
 
     /// Keeps the file as it is on disk next to it, before a repair rewrites
@@ -143,7 +138,10 @@ impl SettingsFile {
             Err(error) => return Err(error),
         };
         let digest = Sha256::digest(&bytes);
-        let prefix: String = digest[..6].iter().map(|b| format!("{b:02x}")).collect();
+        let prefix: String = digest[..UNREADABLE_DIGEST_BYTES]
+            .iter()
+            .map(|b| format!("{b:02x}"))
+            .collect();
         let mut name = self.shared.path.as_os_str().to_owned();
         name.push(format!(".unreadable-{prefix}"));
         let copy = PathBuf::from(name);
@@ -170,7 +168,12 @@ impl Shared {
                 }
                 writer.dirty = false;
             }
-            if !self.write_logged() {
+            let result = {
+                let _disk = self.disk();
+                self.write()
+            };
+            if let Err(write_error) = result {
+                error!("Cannot save the settings: {write_error}");
                 let mut writer = self.writer();
                 writer.dirty = true;
                 writer.running = false;
@@ -178,15 +181,6 @@ impl Shared {
                 return;
             }
         }
-    }
-
-    fn write_logged(&self) -> bool {
-        let _disk = self.disk();
-        if let Err(write_error) = self.write() {
-            error!("Cannot save the settings: {write_error}");
-            return false;
-        }
-        true
     }
 
     /// Only called while `disk` is held.
@@ -237,19 +231,32 @@ fn remove_staged_copies(path: &Path) {
     let Ok(entries) = fs::read_dir(dir) else {
         return;
     };
-    let prefix = format!("{}.", name.to_string_lossy());
+    let name = name.to_string_lossy();
+    let backup = format!("{name}.bak");
+    let unreadable_prefix = format!("{name}.unreadable-");
     for entry in entries.flatten() {
         let entry_name = entry.file_name();
         let entry_name = entry_name.to_string_lossy();
-        let Some(staged) = entry_name
-            .strip_prefix(&prefix)
-            .and_then(|name| name.strip_suffix(".tmp"))
-        else {
+        let Some(staged) = entry_name.strip_suffix(".tmp") else {
             continue;
         };
-        let Some((pid, sequence)) = staged.split_once('.') else {
+        let Some((target_and_pid, sequence)) = staged.rsplit_once('.') else {
             continue;
         };
+        let Some((target, pid)) = target_and_pid.rsplit_once('.') else {
+            continue;
+        };
+        let target_is_ours = target == name.as_ref()
+            || target == backup.as_str()
+            || target
+                .strip_prefix(unreadable_prefix.as_str())
+                .is_some_and(|hash| {
+                    hash.len() == UNREADABLE_DIGEST_BYTES * 2
+                        && hash.bytes().all(|byte| byte.is_ascii_hexdigit())
+                });
+        if !target_is_ours {
+            continue;
+        }
         let Ok(pid) = pid.parse::<u32>() else {
             continue;
         };
