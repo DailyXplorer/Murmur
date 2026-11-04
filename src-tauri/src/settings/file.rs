@@ -35,7 +35,7 @@ struct Shared {
 #[derive(Default)]
 struct Writer {
     running: bool,
-    pending: bool,
+    dirty: bool,
 }
 
 impl SettingsFile {
@@ -78,7 +78,7 @@ impl SettingsFile {
     pub(crate) fn store(&self, value: Value) {
         self.set(Some(value));
         let mut writer = self.shared.writer();
-        writer.pending = true;
+        writer.dirty = true;
         if writer.running {
             return;
         }
@@ -89,10 +89,9 @@ impl SettingsFile {
         match spawned {
             Ok(_) => writer.running = true,
             Err(spawn_error) => {
-                writer.pending = false;
                 drop(writer);
                 warn!("Cannot start the settings writer: {spawn_error}");
-                self.shared.write_logged();
+                self.flush();
             }
         }
     }
@@ -109,7 +108,8 @@ impl SettingsFile {
         )
     }
 
-    /// Returns once every change `store` took is on disk, or failed.
+    /// Waits for the worker, then makes one attempt at any still-dirty value.
+    /// A failed attempt stays dirty for a later flush, without a retry loop.
     pub(crate) fn flush(&self) {
         let mut writer = self.shared.writer();
         while writer.running {
@@ -119,6 +119,18 @@ impl SettingsFile {
                 .wait(writer)
                 .unwrap_or_else(PoisonError::into_inner);
         }
+        if !writer.dirty {
+            return;
+        }
+        writer.running = true;
+        writer.dirty = false;
+        drop(writer);
+
+        let saved = self.shared.write_logged();
+        let mut writer = self.shared.writer();
+        writer.dirty |= !saved;
+        writer.running = false;
+        self.shared.writer_done.notify_all();
     }
 
     /// Keeps the file as it is on disk next to it, before a repair rewrites
@@ -146,27 +158,35 @@ impl Drop for SettingsFile {
 }
 
 impl Shared {
-    /// The writer thread: writes the latest value until no change waits.
+    /// Writes the latest value, leaving failed work dirty for the next flush.
     fn write_pending(&self) {
         loop {
             {
                 let mut writer = self.writer();
-                if !writer.pending {
+                if !writer.dirty {
                     writer.running = false;
                     self.writer_done.notify_all();
                     return;
                 }
-                writer.pending = false;
+                writer.dirty = false;
             }
-            self.write_logged();
+            if !self.write_logged() {
+                let mut writer = self.writer();
+                writer.dirty = true;
+                writer.running = false;
+                self.writer_done.notify_all();
+                return;
+            }
         }
     }
 
-    fn write_logged(&self) {
+    fn write_logged(&self) -> bool {
         let _disk = self.disk();
         if let Err(write_error) = self.write() {
             error!("Cannot save the settings: {write_error}");
+            return false;
         }
+        true
     }
 
     /// Only called while `disk` is held.
@@ -208,8 +228,8 @@ fn decode(bytes: &[u8]) -> serde_json::Result<Map<String, Value>> {
     serde_json::from_slice(bytes)
 }
 
-/// Copies a write cut off by a crash left behind (`<name>.<pid>.<n>.tmp`).
-/// This runs before this process writes anything.
+/// Remove only a staged copy whose owner is known to have exited. A second,
+/// headless instance can open these settings while the first one writes.
 fn remove_staged_copies(path: &Path) {
     let (Some(dir), Some(name)) = (path.parent(), path.file_name()) else {
         return;
@@ -221,10 +241,55 @@ fn remove_staged_copies(path: &Path) {
     for entry in entries.flatten() {
         let entry_name = entry.file_name();
         let entry_name = entry_name.to_string_lossy();
-        if entry_name.starts_with(&prefix) && entry_name.ends_with(".tmp") {
+        let Some(staged) = entry_name
+            .strip_prefix(&prefix)
+            .and_then(|name| name.strip_suffix(".tmp"))
+        else {
+            continue;
+        };
+        let Some((pid, sequence)) = staged.split_once('.') else {
+            continue;
+        };
+        let Ok(pid) = pid.parse::<u32>() else {
+            continue;
+        };
+        if pid != 0 && sequence.parse::<u64>().is_ok() && process_is_dead(pid) {
             let _ = fs::remove_file(entry.path());
         }
     }
+}
+
+#[cfg(target_os = "windows")]
+fn process_is_dead(pid: u32) -> bool {
+    use windows::core::HRESULT;
+    use windows::Win32::Foundation::{CloseHandle, ERROR_INVALID_PARAMETER, WAIT_OBJECT_0};
+    use windows::Win32::System::Threading::{
+        OpenProcess, WaitForSingleObject, PROCESS_SYNCHRONIZE,
+    };
+
+    // SAFETY: only query whether the process has exited. No process is changed.
+    let process = match unsafe { OpenProcess(PROCESS_SYNCHRONIZE, false, pid) } {
+        Ok(process) => process,
+        Err(error) => {
+            // Access denied and other unknown states must preserve the file.
+            return error.code() == HRESULT::from_win32(ERROR_INVALID_PARAMETER.0);
+        }
+    };
+    // SAFETY: this is a live owned handle, queried without waiting and closed
+    // exactly once. A failed wait is not proof that the owner is dead.
+    let exited = unsafe { WaitForSingleObject(process, 0) } == WAIT_OBJECT_0;
+    let _ = unsafe { CloseHandle(process) };
+    exited
+}
+
+#[cfg(target_os = "macos")]
+fn process_is_dead(pid: u32) -> bool {
+    let Ok(pid) = libc::pid_t::try_from(pid) else {
+        return false;
+    };
+    // SAFETY: signal 0 checks existence and permission without sending a signal.
+    (unsafe { libc::kill(pid, 0) }) == -1
+        && io::Error::last_os_error().raw_os_error() == Some(libc::ESRCH)
 }
 
 #[cfg(test)]

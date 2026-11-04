@@ -4,7 +4,7 @@
 use std::fs;
 use std::io;
 use std::os::windows::ffi::OsStrExt;
-use std::path::Path;
+use std::path::{Component, Path, Prefix};
 use std::time::{Duration, Instant};
 use windows::core::PCWSTR;
 use windows::Win32::Foundation::{
@@ -60,10 +60,28 @@ fn move_file(staged: &Path, target: &Path, flags: MOVE_FILE_FLAGS) -> io::Result
 }
 
 fn wide_path(path: &Path) -> io::Result<Vec<u16>> {
-    let mut wide: Vec<u16> = path.as_os_str().encode_wide().collect();
+    let absolute = std::path::absolute(path)?;
+    let wide: Vec<u16> = absolute.as_os_str().encode_wide().collect();
     if wide.contains(&0) {
         return Err(io::Error::new(io::ErrorKind::InvalidInput, "NUL in path"));
     }
+    let Some(Component::Prefix(prefix)) = absolute.components().next() else {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "not an absolute Windows path",
+        ));
+    };
+    let mut wide: Vec<u16> = match prefix.kind() {
+        Prefix::Disk(_) => r"\\?\".encode_utf16().chain(wide).collect(),
+        Prefix::UNC(_, _) => r"\\?\UNC\"
+            .encode_utf16()
+            .chain(wide.into_iter().skip(2))
+            .collect(),
+        Prefix::Verbatim(_)
+        | Prefix::VerbatimUNC(_, _)
+        | Prefix::VerbatimDisk(_)
+        | Prefix::DeviceNS(_) => wide,
+    };
     wide.push(0);
     Ok(wide)
 }
