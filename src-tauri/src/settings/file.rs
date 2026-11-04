@@ -431,25 +431,47 @@ mod tests {
             line.clear();
         }
 
-        let staged = dir
+        let staged: Vec<PathBuf> = [
+            "settings_store.json",
+            "settings_store.json.bak",
+            "settings_store.json.unreadable-0123456789ab",
+        ]
+        .iter()
+        .map(|target| dir.path().join(format!("{target}.{}.0.tmp", owner.id())))
+        .collect();
+        let unrelated = dir
             .path()
-            .join(format!("settings_store.json.{}.0.tmp", owner.id()));
-        fs::write(&staged, b"live writer's complete staging").unwrap();
+            .join(format!("settings_store.json.not-ours.{}.0.tmp", owner.id()));
+        fs::write(&unrelated, b"kept").unwrap();
+        for copy in &staged {
+            fs::write(copy, b"live writer's complete staging").unwrap();
+        }
         let file = SettingsFile::open(path.clone());
-        let live_copy = fs::read(&staged).ok();
+        let live_copies: Vec<_> = staged.iter().map(|copy| fs::read(copy).ok()).collect();
 
         drop(owner.stdin.take());
         assert!(owner.wait().unwrap().success());
-        fs::write(&staged, b"abandoned staging").unwrap();
+        for copy in &staged {
+            fs::write(copy, b"abandoned staging").unwrap();
+        }
         let reopened = SettingsFile::open(path);
-        let dead_copy_remains = staged.exists();
+        let dead_copies: Vec<_> = staged
+            .iter()
+            .filter(|copy| copy.exists())
+            .cloned()
+            .collect();
         drop((file, reopened));
 
-        assert_eq!(
-            live_copy.as_deref(),
-            Some(b"live writer's complete staging".as_slice())
-        );
-        assert!(!dead_copy_remains, "dead owner's staging was not removed");
+        for (copy, bytes) in staged.iter().zip(live_copies) {
+            assert_eq!(
+                bytes.as_deref(),
+                Some(b"live writer's complete staging".as_slice()),
+                "live staging {}",
+                copy.display()
+            );
+        }
+        assert_eq!(dead_copies, Vec::<PathBuf>::new());
+        assert_eq!(fs::read(unrelated).unwrap(), b"kept");
     }
 
     #[cfg(target_os = "windows")]
@@ -479,6 +501,55 @@ mod tests {
 
         let on_disk: Value = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
         assert_eq!(on_disk["settings"]["history_limit"], 100);
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn flush_drains_a_change_queued_after_its_snapshot() {
+        use ::windows::Win32::Storage::FileSystem::{FILE_SHARE_READ, FILE_SHARE_WRITE};
+        use std::os::windows::fs::OpenOptionsExt;
+        use std::time::Instant;
+
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("settings_store.json");
+        let file = Arc::new(SettingsFile::open(path.clone()));
+        file.store_checked(serde_json::json!({ "history_limit": 42 }))
+            .unwrap();
+        let reader = fs::OpenOptions::new()
+            .read(true)
+            .share_mode((FILE_SHARE_READ | FILE_SHARE_WRITE).0)
+            .open(&path)
+            .unwrap();
+
+        file.store(serde_json::json!({ "history_limit": 100 }));
+        file.flush();
+        let flushing = {
+            let file = Arc::clone(&file);
+            std::thread::spawn(move || file.flush())
+        };
+        let deadline = Instant::now() + Duration::from_secs(5);
+        loop {
+            let staged_a = fs::read_dir(dir.path()).unwrap().flatten().any(|entry| {
+                entry.file_name().to_string_lossy().ends_with(".tmp")
+                    && fs::read(entry.path())
+                        .ok()
+                        .and_then(|bytes| serde_json::from_slice::<Value>(&bytes).ok())
+                        .is_some_and(|value| value["settings"]["history_limit"] == 100)
+            });
+            if staged_a {
+                break;
+            }
+            assert!(Instant::now() < deadline, "flush did not stage value A");
+            std::thread::sleep(Duration::from_millis(1));
+        }
+        assert!(!flushing.is_finished(), "reader must still block flush A");
+
+        file.store(serde_json::json!({ "history_limit": 200 }));
+        drop(reader);
+        flushing.join().unwrap();
+
+        let on_disk: Value = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
+        assert_eq!(on_disk["settings"]["history_limit"], 200);
     }
 
     #[cfg(target_os = "windows")]
