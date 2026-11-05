@@ -47,12 +47,12 @@ fn the_data_dir_is_the_roaming_app_data_folder() {
 #[cfg(target_os = "macos")]
 #[test]
 fn the_data_dir_is_the_application_support_folder() {
-    let pairs = [("HOME", "/Users/someone")];
+    let pairs = [("HOME", "/home/someone")];
 
     assert_eq!(
         super::data_dir_from(environment(&pairs)),
         Some(std::path::PathBuf::from(
-            "/Users/someone/Library/Application Support/com.dailyxplorer.murmur"
+            "/home/someone/Library/Application Support/com.dailyxplorer.murmur"
         ))
     );
     assert_eq!(super::data_dir_from(environment(&[])), None);
