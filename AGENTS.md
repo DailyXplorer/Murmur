@@ -32,7 +32,7 @@ bun run preview    # Preview built frontend
 **Checks (run before pushing):**
 
 ```bash
-bun run check             # CI code-quality job: audit, translations, macOS guard, versions, ESLint, format (Prettier + cargo fmt --check), build, test typecheck. Clippy on macOS.
+bun run check             # CI code-quality job: audit, translations, platform guard, versions, ESLint, format (Prettier + cargo fmt --check), build, test typecheck. Clippy on macOS.
 bun run test:playwright   # UI changes. This is the Playwright CI job.
 ```
 
@@ -92,7 +92,7 @@ Murmur is a macOS desktop speech-to-text application built with Tauri 2.x (Rust 
 
 **Pipeline Processing:** Audio → quiet-speech gain (`audio_toolkit/gain.rs`) → local or Codex transcription (`engine/`) → dictionary (`audio_toolkit/text.rs`) → AI cleanup through the Codex session (`cleanup/`, raw text on any failure) → Clipboard/Paste
 
-**State Flow:** Zustand → Tauri Command → Rust State → Persistence (tauri-plugin-store)
+**State Flow:** Zustand → Tauri Command → Rust State → Persistence (`settings_store.json` through `durable::write`)
 
 ### Technology Stack
 
@@ -113,7 +113,19 @@ Murmur is a macOS desktop speech-to-text application built with Tauri 2.x (Rust 
 
 ### Settings System
 
-Settings are stored using Tauri's store plugin with reactive updates:
+Settings live in `settings_store.json` in the app data folder, as `{"settings": …}` pretty-printed, the shape the store plugin of earlier versions wrote. `settings/file.rs` keeps the top-level map and writes changes through a background thread. A burst of changes lands as its latest value without a disk sync on the caller. Background saves and exit flush use the same drain loop, which writes the latest value until nothing is dirty. The first failed write stops the drain and keeps the value dirty for a later flush, without an endless retry loop. `update_settings_checked` waits for its write and reports failure. Parsing and normalization retain beta's Windows restrictions and its one-time window-context migration. Startup recognizes staged copies of the main file, `.bak`, and `.unreadable-<hash>` files. It removes them only when the filename's PID is proven dead. Live owners and unknown process status keep their files, because a headless instance can run alongside the GUI.
+
+| Rule                                    | Enforcement                                                                    |
+| --------------------------------------- | ------------------------------------------------------------------------------ |
+| Use one background and exit save drain. | `Shared::write_pending` and `flush_drains_a_change_queued_after_its_snapshot`. |
+
+Use `durable::write` for crash-safe replacement, never a truncating `fs::write`. It writes a unique temporary file in the same folder, flushes the bytes, closes the handle, and replaces the target. macOS keeps POSIX permissions and syncs the directory after rename. Windows uses `MoveFileExW` with `MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH`, without a copy fallback or directory fsync. Readers can briefly block replacement on Windows, so sharing-related failures retry the same rename for at most one second. Windows files inherit the folder's ACL, as the auth writer does, and read-only targets return an error without retry. Same-volume replacement protects against partial files after process termination. Survival of a power loss depends on the filesystem and drive honoring flushes and is not proven by process-kill tests. A symlink stays a link. A field this version cannot read falls back to its default after the original bytes are kept once as `settings_store.json.unreadable-<12 hex of its SHA-256>`, mode 0600 on macOS and with the folder's ACL on Windows.
+
+Both paths passed to the Windows rename are absolute extended-length paths, including `\\?\UNC\` for a network share. Do not pass a plain UTF-16 encoding of the path to Win32. Rust's filesystem calls support long paths even when the app manifest has no `longPathAware` flag, and the unique staging suffix can push the source past MAX_PATH.
+
+Panics on any thread go to `murmur.log` as one `error` record in `panic_log.rs`. The record has the thread, `file:line:col`, executable image base, and full backtrace. It never includes the panic message, which can quote dictated text. Windows reads the image base with `GetModuleHandleW(NULL)` rather than macOS's dyld. Windows symbolication needs the matching build's PDB, with the logged image base used to adjust frame addresses for ASLR. The release profile remains stripped with no debug information, and `windows-beta.yml` retains no PDB. This port does not add symbol packaging or the macOS dSYM upload.
+
+The settings cover:
 
 - Keyboard shortcuts (configurable; the recording shortcut is hold-to-talk or double-tap hands-free, see `dictation_gesture.rs`)
 - Audio devices (microphone/output selection)
@@ -188,6 +200,7 @@ Access debug features with `Cmd+Shift+D`.
 ## Platform Notes
 
 - Accessibility permission is required for keyboard shortcuts and text insertion
+- Windows work stays on `beta`. Run `bun run check:platforms`. Keep native APIs behind the existing macOS and Windows cfg boundaries. The Windows beta keeps meetings and the updater disabled.
 
 ## Troubleshooting
 
@@ -209,6 +222,8 @@ See the [Troubleshooting](BUILD.md#troubleshooting) section in BUILD.md.
 Run `bun run check` before pushing. It is the CI `code quality` job. On macOS it also runs Clippy.
 
 For a UI change, also run `bun run test:playwright`. For Rust behavior, from `src-tauri` run `cargo test --locked`.
+
+CI runs the Rust tests with `cargo nextest run --locked --profile ci`, one process per test. `.config/nextest.toml` terminates a test after two 60-second slow periods. Both macOS and Windows then run doctests with `cargo test --locked --doc`. Windows CPU-model tests also use nextest. `.github/scripts/check-nextest-timeout.ps1` proves that the real CI profile terminates a hung test and reports its name. `cargo test --locked` still works locally. Tests must not depend on another test's global state. Tests of the panic hook and logger run in a private child process.
 
 For a change to how meetings record or process, also run the 3-hour soak on a Mac with the models downloaded: from `src-tauri`, `cargo test --locked meetings_soak -- --ignored --nocapture` (about half an hour, headless). It rewrites `src/meetings/soak-report.md`.
 
