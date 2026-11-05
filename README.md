@@ -111,6 +111,14 @@ The Windows source lives on the `beta` branch for now, not on `main`.
 - AI cleanup through the Codex session, on by default: removes fillers,
   applies self-corrections, fixes punctuation, and formats lists and spoken
   line breaks. Any failure or timeout pastes the raw transcript.
+- Short dictations, under 20 words, are pasted right away without AI cleanup
+  unless you chose a Formal or Casual style or turned on "Also clean up short
+  dictations"
+- Instant fixes on English and French dictations, without AI: hesitations
+  (um, uh, euh) removed, and "new line", "new paragraph" or "à la ligne" turned
+  into breaks; spoken punctuation ("comma", "question mark", "virgule") too
+  when AI cleanup did not run
+- Dictation styles for cleanup: Formal, Normal (the default) or Casual
 - A dictionary of custom words, spelled your way in each dictation
 - Names from the frontmost window as spelling hints for AI cleanup, read
   through Accessibility and never stored
@@ -254,7 +262,7 @@ Murmur uses Tauri 2 with a Rust backend and a React/TypeScript frontend. The
 runtime pipeline is:
 
 ```text
-microphone -> quiet-speech gain -> local (Parakeet) or Codex transcription -> dictionary -> AI cleanup (Codex) -> clipboard/paste
+microphone -> quiet-speech gain -> local (Parakeet) or Codex transcription -> dictionary -> text passes -> AI cleanup (Codex, 20 words or more) -> clipboard/paste
 ```
 
 The backend owns audio capture, the Codex session and its refresh, transcription,
@@ -269,9 +277,10 @@ the local model can't help; History marks those. In cloud mode, audio sent for
 transcription leaves the computer and is handled by ChatGPT. Do not describe
 Murmur as offline while AI cleanup or the cloud fallback can run.
 
-While AI cleanup is on, the transcript is sent to ChatGPT for cleanup. A
-cleanup request contains the transcript, your custom dictionary words, and the
-names found in the frontmost window.
+While AI cleanup is on, the transcript is sent to ChatGPT for cleanup, except
+for a short dictation that the default cleanup skips. A cleanup request
+contains the transcript, your custom dictionary words, and the names found in
+the frontmost window.
 
 Those names are read on the Mac through Accessibility when a dictation starts,
 only while AI cleanup and the window-names setting are both on. They are never
