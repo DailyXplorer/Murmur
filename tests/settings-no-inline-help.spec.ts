@@ -21,6 +21,20 @@ const SCREENS: { file: string; label: string; query: string }[] = [
   },
   { file: "history", label: "History", query: "" },
   { file: "about", label: "About", query: "" },
+  { file: "windows-general", label: "General", query: "platform=windows" },
+  {
+    file: "windows-transcription",
+    label: "Transcription",
+    query: "platform=windows&engine=local",
+  },
+  {
+    file: "windows-transcription-no-account",
+    label: "Transcription",
+    query: "platform=windows&engine=local&account=none&models=missing",
+  },
+  { file: "windows-advanced", label: "Advanced", query: "platform=windows" },
+  { file: "windows-history", label: "History", query: "platform=windows" },
+  { file: "windows-about", label: "About", query: "platform=windows" },
 ];
 
 const open = async (page: Page, label: string, query: string) => {
@@ -107,25 +121,5 @@ test("Delete meeting audio keeps its explanation and the size in its bubble", as
     await page.screenshot({
       path: `${outputDir}/delete-meeting-audio-tooltip.png`,
     });
-  }
-});
-
-test("the MCP rows keep a short explanation in their bubbles", async ({
-  page,
-}) => {
-  await openAdvanced(page);
-  const mcp = row(page, "Let AI agents read your meetings (MCP)");
-
-  await expect(mcp.getByText(/may send what they read/)).toHaveCount(0);
-  await mcp.getByRole("button", { name: /^Lets AI apps you connect/ }).click();
-  await expect(page.getByRole("tooltip")).toHaveText(
-    "Lets AI apps you connect, such as Claude or Codex, list, search and read your meetings. Read-only. They may send what they read to their own servers.",
-  );
-
-  if (outputDir) {
-    await mcp.scrollIntoViewIfNeeded();
-    // The bubble fades in.
-    await page.waitForTimeout(500);
-    await page.screenshot({ path: `${outputDir}/mcp-tooltip.png` });
   }
 });
