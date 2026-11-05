@@ -343,13 +343,19 @@ fn center_settings_window_on_pointer_screen(
 /// Builds the settings window, hidden. Closing it can destroy it, so every
 /// open after the first may build it again.
 fn build_main_window(app: &AppHandle) -> tauri::Result<tauri::WebviewWindow> {
+    // A rebuilt window opens at the size the user left it at; its position is
+    // chosen by `center_settings_window_on_pointer_screen` at every show.
+    #[cfg(target_os = "windows")]
+    let size = settings_window::remembered_size(app).unwrap_or(SETTINGS_WINDOW_SIZE);
+    #[cfg(not(target_os = "windows"))]
+    let size = SETTINGS_WINDOW_SIZE;
     let window = tauri::WebviewWindowBuilder::new(
         app,
         settings_window::MAIN_WINDOW,
         tauri::WebviewUrl::App("/".into()),
     )
     .title("Murmur")
-    .inner_size(SETTINGS_WINDOW_SIZE.0, SETTINGS_WINDOW_SIZE.1)
+    .inner_size(size.0, size.1)
     .min_inner_size(SETTINGS_WINDOW_MIN_SIZE.0, SETTINGS_WINDOW_MIN_SIZE.1)
     .resizable(true)
     .maximizable(true)
@@ -359,7 +365,35 @@ fn build_main_window(app: &AppHandle) -> tauri::Result<tauri::WebviewWindow> {
     // the window is shown, so it matches the in-app palette without a flash
     // of the wrong theme.
     shortcut::apply_window_theme(app, get_settings(app).theme);
+    // The taskbar shows the window's own icon, which a new window lacks.
+    #[cfg(target_os = "windows")]
+    if let Err(error) = accent::apply_native_accent(app, get_settings(app).accent_color) {
+        log::warn!("Failed to apply native accent icon: {error}");
+    }
     Ok(window)
+}
+
+/// The logical inner size of a settings window that is neither full screen,
+/// maximized nor minimized.
+#[cfg(target_os = "windows")]
+fn settings_window_restorable_size(window: &tauri::Window) -> tauri::Result<Option<(f64, f64)>> {
+    if window.is_fullscreen()? || window.is_maximized()? || window.is_minimized()? {
+        return Ok(None);
+    }
+    let size = window
+        .inner_size()?
+        .to_logical::<f64>(window.scale_factor()?);
+    Ok(Some((size.width, size.height)))
+}
+
+/// Keeps the size of the settings window about to be destroyed.
+#[cfg(target_os = "windows")]
+fn remember_settings_window_size(window: &tauri::Window) {
+    match settings_window_restorable_size(window) {
+        Ok(Some(size)) => settings_window::remember_size(window.app_handle(), size),
+        Ok(None) => {}
+        Err(error) => log::warn!("Failed to keep the settings window size: {error}"),
+    }
 }
 
 fn show_main_window(app: &AppHandle) {
@@ -1061,6 +1095,10 @@ pub fn run(cli_args: CliArgs) {
                 if !destroy {
                     api.prevent_close();
                     let _res = window.hide();
+                }
+                #[cfg(target_os = "windows")]
+                if destroy {
+                    remember_settings_window_size(window);
                 }
 
                 #[cfg(target_os = "macos")]

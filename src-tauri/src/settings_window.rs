@@ -60,6 +60,8 @@ struct Inner {
     last_section: Option<String>,
     pending: Vec<MainAction>,
     holds: u32,
+    #[cfg(target_os = "windows")]
+    size: Option<(f64, f64)>,
 }
 
 /// Lives as long as the app, not the window. Kept in memory only.
@@ -73,6 +75,8 @@ impl Default for SettingsWindow {
             last_section: None,
             pending: Vec::new(),
             holds: 0,
+            #[cfg(target_os = "windows")]
+            size: None,
         }))
     }
 }
@@ -120,6 +124,16 @@ impl SettingsWindow {
         self.lock().last_section.clone()
     }
 
+    #[cfg(target_os = "windows")]
+    fn remember_size(&self, size: (f64, f64)) {
+        self.lock().size = Some(size);
+    }
+
+    #[cfg(target_os = "windows")]
+    fn size(&self) -> Option<(f64, f64)> {
+        self.lock().size
+    }
+
     fn queue(&self, action: MainAction) {
         let mut inner = self.lock();
         if !inner.pending.contains(&action) {
@@ -137,6 +151,22 @@ impl SettingsWindow {
 
 pub fn tray_visible(app: &AppHandle) -> bool {
     crate::settings::get_settings(app).show_tray_icon && !app.state::<CliArgs>().no_tray
+}
+
+/// A destroyed window takes its size with it, as a hidden one does not: the
+/// logical inner size the user left, for the next window to open at.
+#[cfg(target_os = "windows")]
+pub fn remember_size(app: &AppHandle, size: (f64, f64)) {
+    if let Some(state) = app.try_state::<SettingsWindow>() {
+        state.remember_size(size);
+    }
+}
+
+/// The size `remember_size` kept, if a window was destroyed at one.
+#[cfg(target_os = "windows")]
+pub fn remembered_size(app: &AppHandle) -> Option<(f64, f64)> {
+    app.try_state::<SettingsWindow>()
+        .and_then(|state| state.size())
 }
 
 /// What closing the settings window does now.
@@ -294,6 +324,18 @@ mod tests {
         assert!(!state.take(MainAction::CheckUpdates));
         assert!(state.take(MainAction::SwitchedToLocal));
         assert!(!state.take(MainAction::SwitchedToLocal));
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn size_outlives_the_window() {
+        let state = SettingsWindow::default();
+        assert_eq!(state.size(), None);
+        state.remember_size((900.0, 640.0));
+
+        state.forget_page();
+
+        assert_eq!(state.size(), Some((900.0, 640.0)));
     }
 
     #[test]
