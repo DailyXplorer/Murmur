@@ -13,8 +13,8 @@ const COPIED_MS = 2000;
 const ID_PREFIX = "mcp-client";
 
 /** Lets AI apps read meetings (macOS) and dictations through `murmur mcp`,
- * off until turned on, and shows what to paste into the app. The first switch
- * alone shares nothing on Windows, which has no meetings. */
+ * off until turned on, and shows what to paste into the app. The Windows copy
+ * speaks of dictations only while Meetings are hidden there. */
 export const McpAccess: React.FC = () => {
   const { t } = useTranslation();
   const { getSetting, updateSetting, isUpdating } = useSettings();

@@ -269,10 +269,11 @@ claude mcp add murmur -- /Applications/Murmur.app/Contents/MacOS/murmur mcp
 - If Murmur was updated and not opened since, open it once: the server never
   changes your data to catch up.
 
-On Windows, which has no Meetings, the assistant reads your dictation history
-only, through two tools: `search` and `recent_dictations`. Both are off until
+On Windows the assistant has the same five tools. Meetings are not available
+on Windows yet, so the meeting tools find nothing there, and it reads your
+dictation history through `search` and `recent_dictations`. They are off until
 you turn on "Let AI agents connect (MCP)" and then "Include dictation history"
-in Settings → Advanced; the first switch alone shares nothing. Settings shows
+in Settings → Advanced. Settings shows
 the command with the real path of your `murmur.exe`. For Claude Code, for
 example, in PowerShell or cmd (keep the quotes if the path holds spaces):
 

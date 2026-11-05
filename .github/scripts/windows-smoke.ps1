@@ -129,8 +129,9 @@ function Assert-McpServer {
         if ($replies[0].result.serverInfo.name -ne 'murmur') { throw 'murmur mcp did not answer initialize' }
         $tools = @($replies[1].result.tools.name)
         Write-Host "murmur mcp lists: $($tools -join ', ')"
-        if ($tools -notcontains 'search') { throw 'murmur mcp lists no search tool' }
-        if ($tools -contains 'list_meetings') { throw 'murmur mcp lists a meeting tool on Windows' }
+        foreach ($tool in 'list_meetings', 'search', 'get_transcript', 'get_summary', 'recent_dictations') {
+            if ($tools -notcontains $tool) { throw "murmur mcp lists no $tool tool" }
+        }
 
         $server.StandardInput.Close()
         if (-not $server.WaitForExit(20000)) { throw 'murmur mcp did not exit when its stdin closed' }
