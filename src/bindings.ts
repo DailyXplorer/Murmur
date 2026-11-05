@@ -1206,11 +1206,7 @@ export type BindingResponse = { success: boolean; binding: ShortcutBinding | nul
 /**
  * Payload of `show-overlay-call`, and what `get_call_prompt` answers.
  */
-export type CallPromptLabels = { 
-/**
- * The call app's name.
- */
-app: string; question: string; accept: string; decline: string; 
+export type CallPromptLabels = { question: string; accept: string; decline: string; 
 /**
  * The overlay's side of the screen, which the prompt sits on too.
  */

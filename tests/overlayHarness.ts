@@ -1,9 +1,11 @@
 import { expect, type Page } from "@playwright/test";
 
-// CARD_MARGIN, OVERLAY_* and ERROR_OVERLAY_* in src-tauri/src/overlay.rs.
+// CARD_MARGIN, ORB_OVERLAY_SIZE, OVERLAY_* and ERROR_OVERLAY_* in
+// src-tauri/src/overlay.rs.
 const CARD_MARGIN = 16;
-export const RECORDING_WINDOW = { width: 158, height: 62 };
-export const ERROR_WINDOW = { width: 312, height: 116 };
+export const ORB_WINDOW = { width: 66, height: 66 };
+export const MEETING_WINDOW = { width: 140, height: 66 };
+export const ERROR_WINDOW = { width: 336, height: 116 };
 
 /** Opens the overlay page, or the call prompt's with `fixture`, with
  * Tauri's event bridge mocked; `readyOn` is an event the page listens to,
@@ -153,6 +155,35 @@ export async function fitCopyWindow(page: Page) {
   await page.setViewportSize(size);
   return size;
 }
+
+/** Sends `event`, then reads the laid-out width of the capsule `selector`
+ * finds on every animation frame for 0.9 s, from the first frame it shows
+ * `shows` (a pill replacing another of the same capsule): a pill that opens
+ * from the orb starts at its 34 points. */
+export const widthsAfter = (
+  page: Page,
+  event: string,
+  payload: unknown,
+  selector: string,
+  shows = "",
+) =>
+  page.evaluate(
+    ([name, value, capsule, text]) =>
+      new Promise<number[]>((resolve) => {
+        window.overlayHarness.dispatch(name as string, value);
+        const seen: number[] = [];
+        const start = performance.now();
+        requestAnimationFrame(function sample(now) {
+          const pill = document.querySelector<HTMLElement>(capsule as string);
+          if (pill?.textContent?.includes(text as string)) {
+            seen.push(pill.offsetWidth);
+          }
+          if (now - start < 900) requestAnimationFrame(sample);
+          else resolve(seen);
+        });
+      }),
+    [event, payload, selector, shows] as const,
+  );
 
 // Drawn sizes include the capsule's pop-in scale until it ends.
 export const entranceFinished = (page: Page) =>

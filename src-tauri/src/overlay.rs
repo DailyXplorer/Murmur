@@ -39,13 +39,17 @@ tauri_panel! {
 // ignores the mouse except while a fitted pill shows, so that margin never
 // blocks clicks.
 const CARD_MARGIN: f64 = 16.0;
-// Capsule: 30 high, 108 wide at rest, up to 126 at full voice level. The width
-// stays even so the centred capsule's edges sit on whole points.
-const OVERLAY_WIDTH: f64 = 126.0 + 2.0 * CARD_MARGIN;
-const OVERLAY_HEIGHT: f64 = 30.0 + 2.0 * CARD_MARGIN;
-// Error capsule: at most 280 wide and four lines of text, so the longest
-// message fits in every locale whatever the fallback font.
-const ERROR_OVERLAY_WIDTH: f64 = 280.0 + 2.0 * CARD_MARGIN;
+// Dictation: the 34-point orb. Its size never changes.
+const ORB_OVERLAY_SIZE: f64 = 34.0 + 2.0 * CARD_MARGIN;
+// Meeting pill: 108 wide and 34 high, the least size of a fitted pill's
+// window too. The width stays even so the centred capsule's edges sit on
+// whole points.
+const MEETING_OVERLAY_WIDTH: f64 = 108.0 + 2.0 * CARD_MARGIN;
+const MEETING_OVERLAY_HEIGHT: f64 = 34.0 + 2.0 * CARD_MARGIN;
+// Error capsule: at most 304 wide (the orb, then the text) and four lines of
+// text, so the longest message fits in every locale whatever the fallback
+// font.
+const ERROR_OVERLAY_WIDTH: f64 = 304.0 + 2.0 * CARD_MARGIN;
 const ERROR_OVERLAY_HEIGHT: f64 = 84.0 + 2.0 * CARD_MARGIN;
 const ERROR_DISPLAY_TIME: Duration = Duration::from_secs(4);
 // Copy capsule: its note wraps, so only the webview knows its size; it
@@ -69,10 +73,13 @@ static OVERLAY_GENERATION: AtomicU64 = AtomicU64::new(0);
 enum Notice {
     Error,
     /// No text field had the focus; `write` puts the text on the clipboard
-    /// only if the user clicks Copy.
+    /// only if the user clicks Copy. With `mic_lost_next`, the microphone
+    /// went away too, and its warning shows once this pill goes: one
+    /// message at a time.
     Copy {
         text: String,
         write: ClipboardWriter,
+        mic_lost_next: bool,
     },
     /// The microphone went away during the dictation, so its text ends
     /// early.
@@ -122,8 +129,6 @@ struct CopyNoticeLabels {
     copied: String,
     /// Says there was no text field to paste into.
     note: String,
-    /// Says the microphone went away, when it did.
-    warning: Option<String>,
 }
 
 /// Payload of `show-overlay-cancelled`.
@@ -145,8 +150,6 @@ const CALL_PROMPT_OFFSET: f64 = 84.0 + 8.0;
 /// Payload of `show-overlay-call`, and what `get_call_prompt` answers.
 #[derive(Clone, serde::Serialize, specta::Type)]
 pub struct CallPromptLabels {
-    /// The call app's name.
-    app: String,
     question: String,
     accept: String,
     decline: String,
@@ -399,7 +402,7 @@ pub fn create_recording_overlay(app_handle: &AppHandle) {
         WebviewUrl::App("src/overlay/index.html".into()),
     )
     .title("Recording")
-    .inner_size(OVERLAY_WIDTH, OVERLAY_HEIGHT)
+    .inner_size(ORB_OVERLAY_SIZE, ORB_OVERLAY_SIZE)
     .resizable(false)
     .maximizable(false)
     .minimizable(false)
@@ -431,8 +434,8 @@ pub fn create_recording_overlay(app_handle: &AppHandle) {
         .title("Recording")
         .level(PanelLevel::Status)
         .size(tauri::Size::Logical(tauri::LogicalSize {
-            width: OVERLAY_WIDTH,
-            height: OVERLAY_HEIGHT,
+            width: MEETING_OVERLAY_WIDTH,
+            height: MEETING_OVERLAY_HEIGHT,
         }))
         .has_shadow(false)
         .transparent(true)
@@ -487,7 +490,7 @@ fn show_overlay_state(app_handle: &AppHandle, state: &str) {
     let state = state.to_string();
     let _ = app_handle.run_on_main_thread(move || {
         if let Some(window) =
-            present_overlay_window(&handle, &state, OVERLAY_WIDTH, OVERLAY_HEIGHT, false)
+            present_overlay_window(&handle, &state, ORB_OVERLAY_SIZE, ORB_OVERLAY_SIZE, false)
         {
             let _ = window.emit("show-overlay", state);
         }
@@ -537,14 +540,20 @@ pub fn show_error_overlay(app_handle: &AppHandle, message: String) -> bool {
 }
 
 /// Keeps `text` as the copy notice's, for its Copy click to hand to `write`.
-pub(crate) fn hold_copy_notice(text: String, write: ClipboardWriter) {
-    *notice() = Some(Notice::Copy { text, write });
+/// With `mic_lost`, the microphone warning follows the pill.
+pub(crate) fn hold_copy_notice(text: String, write: ClipboardWriter, mic_lost: bool) {
+    *notice() = Some(Notice::Copy {
+        text,
+        write,
+        mic_lost_next: mic_lost,
+    });
 }
 
 /// Shows the copy pill, a short note and a "Copy" action, because no text
-/// field had the focus, with the microphone warning above the note when
-/// `mic_lost`. A click hands the text to `write`, Escape dismisses it.
-/// Returns false when the overlay is disabled, so there is no pill to click.
+/// field had the focus. A click hands the text to `write`, Escape dismisses
+/// it. With `mic_lost`, the microphone warning shows once the pill goes, so
+/// the two never share a pill. Returns false when the overlay is disabled,
+/// so there is no pill to click.
 /// Only macOS Accessibility tells that no text field has the focus,
 /// so Windows never shows it.
 #[cfg_attr(target_os = "windows", allow(dead_code))]
@@ -563,9 +572,8 @@ pub fn show_copy_notice(
         copy: strings.overlay_copy,
         copied: strings.overlay_copied,
         note: strings.overlay_not_pasted,
-        warning: mic_lost.then_some(strings.overlay_mic_disconnected),
     };
-    hold_copy_notice(text, write);
+    hold_copy_notice(text, write, mic_lost);
     let generation = OVERLAY_GENERATION.fetch_add(1, Ordering::SeqCst) + 1;
     let handle = app_handle.clone();
     let _ = app_handle.run_on_main_thread(move || {
@@ -584,7 +592,7 @@ pub fn show_copy_notice(
 }
 
 /// Holds the microphone warning as `operation`'s notice, unless the copy
-/// pill shows: it carries the warning already, and its Copy must keep its
+/// pill shows: the warning follows it already, and its Copy must keep its
 /// text. A cancelled operation holds nothing: a newer dictation may own the
 /// overlay since its cancel.
 fn hold_mic_lost_notice(notice: &mut Option<Notice>, operation: &ProcessingOperation) -> bool {
@@ -609,6 +617,13 @@ pub fn show_mic_lost_notice(app_handle: &AppHandle, operation: &ProcessingOperat
     if !hold_mic_lost_notice(&mut held, operation) {
         return;
     }
+    present_mic_lost_notice(app_handle, held);
+}
+
+/// Shows the microphone warning `held` holds, and lets the lock go once the
+/// pill is queued.
+fn present_mic_lost_notice(app_handle: &AppHandle, held: MutexGuard<'static, Option<Notice>>) {
+    let settings = settings::get_settings(app_handle);
     let message = get_tray_translations(Some(settings.app_language)).overlay_mic_disconnected;
     let generation = OVERLAY_GENERATION.fetch_add(1, Ordering::SeqCst) + 1;
     let handle = app_handle.clone();
@@ -719,15 +734,14 @@ pub fn create_call_prompt(app_handle: &AppHandle) {
     }
 }
 
-/// Asks whether to record the call `app` started, with "Record" and "Not
+/// Asks whether to record the call that started, with "Record" and "Not
 /// now", in a panel of its own: a dictation, an error or the meeting pill
 /// never hides it. It shows even with the overlay off: the call prompt has
 /// a setting of its own. The panel never takes the focus from the call.
-pub fn show_call_prompt(app_handle: &AppHandle, app: &str) {
+pub fn show_call_prompt(app_handle: &AppHandle) {
     let settings = settings::get_settings(app_handle);
     let strings = get_tray_translations(Some(settings.app_language));
     let labels = CallPromptLabels {
-        app: app.to_string(),
         question: strings.call_record_question,
         accept: strings.call_record,
         decline: strings.call_not_now,
@@ -866,7 +880,7 @@ fn fitted_window_size(app_handle: &AppHandle, width: f64, height: f64) -> (f64, 
 }
 
 /// The copy notice's window around a measured capsule: CARD_MARGIN on each
-/// side, never smaller than the dictation window, and never taller or wider
+/// side, never smaller than the meeting pill's window, and never taller or wider
 /// than the work area left below the top offset, so the capsule stays on
 /// screen whichever edge it sits at.
 fn copy_window_size(capsule: (f64, f64), work_area: (f64, f64)) -> (f64, f64) {
@@ -879,15 +893,19 @@ fn copy_window_size(capsule: (f64, f64), work_area: (f64, f64)) -> (f64, f64) {
         wanted.min(most).max(least)
     };
     (
-        fit(capsule.0, OVERLAY_WIDTH, work_area.0),
-        fit(capsule.1, OVERLAY_HEIGHT, work_area.1 - OVERLAY_TOP_OFFSET),
+        fit(capsule.0, MEETING_OVERLAY_WIDTH, work_area.0),
+        fit(
+            capsule.1,
+            MEETING_OVERLAY_HEIGHT,
+            work_area.1 - OVERLAY_TOP_OFFSET,
+        ),
     )
 }
 
 /// Hands the copy notice's text to its writer, outside the notice lock.
 pub(crate) fn copy_held_notice() -> Result<(), String> {
     let (text, write) = match &*notice() {
-        Some(Notice::Copy { text, write }) => (text.clone(), Arc::clone(write)),
+        Some(Notice::Copy { text, write, .. }) => (text.clone(), Arc::clone(write)),
         _ => return Err("The copy notice is no longer showing".to_string()),
     };
     write(&text)
@@ -906,9 +924,24 @@ pub async fn copy_notice_again(app: AppHandle) -> Result<(), String> {
     receiver
         .await
         .map_err(|_| "The clipboard write did not run".to_string())??;
-    let generation = OVERLAY_GENERATION.fetch_add(1, Ordering::SeqCst) + 1;
+    // Its own timer may have ended the pill a moment before: the text is
+    // copied, but the warning that followed the pill keeps its time, with no
+    // "Copied".
+    let generation = {
+        let held = notice();
+        if !copy_pill_showing(&held) {
+            return Ok(());
+        }
+        OVERLAY_GENERATION.fetch_add(1, Ordering::SeqCst) + 1
+    };
     dismiss_notice_after(&app, generation, COPIED_DISPLAY_TIME, false);
     Ok(())
+}
+
+/// Whether the copy pill a Copy click came from still shows, so "Copied"
+/// may take its place.
+fn copy_pill_showing(notice: &Option<Notice>) -> bool {
+    matches!(notice, Some(Notice::Copy { .. }))
 }
 
 /// With `hover_holds`, the notice outlasts `delay` while the pointer is over
@@ -924,7 +957,7 @@ fn dismiss_notice_after(
         std::thread::sleep(delay);
         while OVERLAY_GENERATION.load(Ordering::SeqCst) == generation {
             if !(hover_holds && pointer_over_overlay(&handle)) {
-                dismiss_notice(&handle);
+                dismiss_notice(&handle, Dismissal::Timer(generation));
                 return;
             }
             std::thread::sleep(COPY_HOVER_RECHECK);
@@ -932,15 +965,79 @@ fn dismiss_notice_after(
     });
 }
 
-fn dismiss_notice(app_handle: &AppHandle) {
-    *notice() = None;
-    hide_recording_overlay(app_handle);
+/// What ends a notice: its own timer, started at a generation, or Escape on
+/// a fitted pill.
+#[derive(Clone, Copy)]
+enum Dismissal {
+    Timer(u64),
+    /// Only macOS watches Escape: on Windows the pills only time out.
+    #[cfg_attr(target_os = "windows", allow(dead_code))]
+    Escape,
 }
 
-#[cfg(target_os = "macos")]
-fn dismiss_fitted_notice(app_handle: &AppHandle) {
-    if notice().as_ref().is_some_and(Notice::is_fitted) {
-        dismiss_notice(app_handle);
+/// What the overlay shows once a notice is dismissed.
+#[derive(Debug, PartialEq, Eq)]
+enum AfterDismissal {
+    /// The microphone warning the copy pill held back.
+    Warning,
+    /// The meeting pill, or nothing.
+    Settled,
+}
+
+/// Replaces `notice` with the one that follows it, when `dismissal` still
+/// applies at `generation`, read under the notice lock: a timer the overlay
+/// moved past, such as the copy pill's after Escape showed the warning that
+/// follows it, or Escape with no fitted pill showing, leaves it alone and
+/// gives `None`. With the overlay turned off since the copy pill showed,
+/// nothing follows it.
+fn dismiss(
+    notice: &mut Option<Notice>,
+    dismissal: Dismissal,
+    generation: u64,
+    style: OverlayStyle,
+) -> Option<AfterDismissal> {
+    let applies = match dismissal {
+        Dismissal::Timer(started) => started == generation,
+        Dismissal::Escape => notice.as_ref().is_some_and(Notice::is_fitted),
+    };
+    if !applies {
+        return None;
+    }
+    *notice = notice_after(notice.take()).filter(|_| style != OverlayStyle::None);
+    Some(if matches!(notice, Some(Notice::MicLost)) {
+        AfterDismissal::Warning
+    } else {
+        AfterDismissal::Settled
+    })
+}
+
+fn dismiss_notice(app_handle: &AppHandle, dismissal: Dismissal) {
+    let style = settings::get_settings(app_handle).overlay_style;
+    let mut held = notice();
+    match dismiss(
+        &mut held,
+        dismissal,
+        OVERLAY_GENERATION.load(Ordering::SeqCst),
+        style,
+    ) {
+        None => {}
+        Some(AfterDismissal::Warning) => present_mic_lost_notice(app_handle, held),
+        Some(AfterDismissal::Settled) => {
+            drop(held);
+            hide_recording_overlay(app_handle);
+        }
+    }
+}
+
+/// The notice that takes the place of `gone`: the microphone warning a copy
+/// pill held back, or none.
+fn notice_after(gone: Option<Notice>) -> Option<Notice> {
+    match gone {
+        Some(Notice::Copy {
+            mic_lost_next: true,
+            ..
+        }) => Some(Notice::MicLost),
+        _ => None,
     }
 }
 
@@ -985,7 +1082,7 @@ fn add_escape_monitor(app_handle: &AppHandle) -> Option<EscapeMonitor> {
         if unsafe { event.as_ref() }.keyCode() == ESCAPE_KEY_CODE {
             // Dismissing removes this monitor, so it runs outside the handler.
             let app = app.clone();
-            std::thread::spawn(move || dismiss_fitted_notice(&app));
+            std::thread::spawn(move || dismiss_notice(&app, Dismissal::Escape));
         }
     });
     objc2_app_kit::NSEvent::addGlobalMonitorForEventsMatchingMask_handler(
@@ -1084,7 +1181,7 @@ fn update_overlay_position_on_main(app_handle: &AppHandle) {
     update_call_prompt_position(app_handle);
     if let Some(overlay_window) = app_handle.get_webview_window("recording_overlay") {
         let (width, height) = current_overlay_logical_size(&overlay_window)
-            .unwrap_or((OVERLAY_WIDTH, OVERLAY_HEIGHT));
+            .unwrap_or((ORB_OVERLAY_SIZE, ORB_OVERLAY_SIZE));
         #[cfg(target_os = "windows")]
         place_overlay(app_handle, &overlay_window, width, height, 0.0);
         #[cfg(target_os = "macos")]
@@ -1151,9 +1248,13 @@ fn present_meeting_pill(app_handle: &AppHandle, pill: MeetingPill) {
     OVERLAY_GENERATION.fetch_add(1, Ordering::SeqCst);
     let handle = app_handle.clone();
     let _ = app_handle.run_on_main_thread(move || {
-        if let Some(window) =
-            present_overlay_window(&handle, "meeting", OVERLAY_WIDTH, OVERLAY_HEIGHT, false)
-        {
+        if let Some(window) = present_overlay_window(
+            &handle,
+            "meeting",
+            MEETING_OVERLAY_WIDTH,
+            MEETING_OVERLAY_HEIGHT,
+            false,
+        ) {
             let _ = window.emit("show-overlay-meeting", pill);
         }
     });
@@ -1233,13 +1334,13 @@ mod tests {
     fn copy_window_wraps_the_measured_capsule_in_its_margins() {
         let screen = (1440.0, 875.0);
         assert_eq!(copy_window_size((300.4, 62.0), screen), (333.0, 94.0));
-        assert_eq!(copy_window_size((340.0, 30.0), screen), (372.0, 62.0));
+        assert_eq!(copy_window_size((340.0, 34.0), screen), (372.0, 66.0));
     }
 
     #[test]
-    fn copy_window_stays_between_the_dictation_window_and_the_screen() {
+    fn copy_window_stays_between_the_meeting_window_and_the_screen() {
         let screen = (1440.0, 875.0);
-        let least = (OVERLAY_WIDTH, OVERLAY_HEIGHT);
+        let least = (MEETING_OVERLAY_WIDTH, MEETING_OVERLAY_HEIGHT);
         assert_eq!(copy_window_size((40.0, 12.0), screen), least);
         assert_eq!(copy_window_size((-5.0, 0.0), screen), least);
         assert_eq!(copy_window_size((f64::NAN, f64::INFINITY), screen), least);
@@ -1260,6 +1361,7 @@ mod tests {
                 written.lock().unwrap().push(text.to_string());
                 Ok(())
             }),
+            mic_lost_next: false,
         });
         (notice, pasteboard)
     }
@@ -1267,14 +1369,13 @@ mod tests {
     /// Clicks Copy as `copy_held_notice` does.
     fn click_copy(notice: &Option<Notice>) -> Result<(), String> {
         match notice {
-            Some(Notice::Copy { text, write }) => write(text),
+            Some(Notice::Copy { text, write, .. }) => write(text),
             _ => Err("The copy notice is no longer showing".to_string()),
         }
     }
 
     #[test]
     fn a_late_transcribing_state_or_warning_leaves_the_copy_pills_text() {
-        // The copy pill shows, its note under the microphone warning.
         let (mut notice, pasteboard) = copy_pill("the dictated text");
 
         assert!(!dictation_takes_overlay(&mut notice, "transcribing"));
@@ -1285,6 +1386,103 @@ mod tests {
         assert!(
             dictation_takes_overlay(&mut notice, "recording"),
             "a new recording replaces it"
+        );
+        assert!(notice.is_none());
+    }
+
+    #[test]
+    fn a_copy_pill_and_the_microphone_warning_show_one_after_the_other() {
+        let (mut both, _) = copy_pill("the dictated text");
+        if let Some(Notice::Copy { mic_lost_next, .. }) = both.as_mut() {
+            *mic_lost_next = true;
+        }
+        assert_eq!(
+            dismiss(&mut both, Dismissal::Timer(1), 1, OverlayStyle::Minimal),
+            Some(AfterDismissal::Warning),
+            "the warning shows once the copy pill goes"
+        );
+        assert_eq!(
+            dismiss(&mut both, Dismissal::Timer(2), 2, OverlayStyle::Minimal),
+            Some(AfterDismissal::Settled),
+            "then nothing"
+        );
+
+        for mut alone in [
+            copy_pill("text").0,
+            Some(Notice::Error),
+            Some(Notice::Cancelled),
+        ] {
+            assert_eq!(
+                dismiss(&mut alone, Dismissal::Timer(1), 1, OverlayStyle::Minimal),
+                Some(AfterDismissal::Settled)
+            );
+            assert!(alone.is_none());
+        }
+    }
+
+    #[test]
+    fn a_late_timer_leaves_the_warning_that_followed_the_copy_pill() {
+        let (mut notice, _) = copy_pill("the dictated text");
+        if let Some(Notice::Copy { mic_lost_next, .. }) = notice.as_mut() {
+            *mic_lost_next = true;
+        }
+        // Escape on the copy pill shows the warning, at generation 2.
+        assert_eq!(
+            dismiss(&mut notice, Dismissal::Escape, 1, OverlayStyle::Minimal),
+            Some(AfterDismissal::Warning)
+        );
+        assert!(matches!(notice, Some(Notice::MicLost)));
+
+        // The copy pill's timer, started at generation 1, wakes late.
+        assert_eq!(
+            dismiss(&mut notice, Dismissal::Timer(1), 2, OverlayStyle::Minimal),
+            None
+        );
+        assert!(
+            matches!(notice, Some(Notice::MicLost)),
+            "the warning keeps its time"
+        );
+        assert_eq!(
+            dismiss(&mut notice, Dismissal::Timer(2), 2, OverlayStyle::Minimal),
+            Some(AfterDismissal::Settled)
+        );
+        assert!(notice.is_none());
+
+        let mut error = Some(Notice::Error);
+        assert_eq!(
+            dismiss(&mut error, Dismissal::Escape, 3, OverlayStyle::Minimal),
+            None,
+            "Escape leaves an error"
+        );
+        assert!(matches!(error, Some(Notice::Error)));
+    }
+
+    /// A copy pill whose warning follows it.
+    fn copy_pill_then_warning() -> Option<Notice> {
+        let (mut notice, _) = copy_pill("the dictated text");
+        if let Some(Notice::Copy { mic_lost_next, .. }) = notice.as_mut() {
+            *mic_lost_next = true;
+        }
+        notice
+    }
+
+    #[test]
+    fn a_copy_click_after_the_timer_showed_the_warning_leaves_the_warning_its_time() {
+        assert!(copy_pill_showing(&copy_pill("text").0));
+        let mut notice = copy_pill_then_warning();
+        dismiss(&mut notice, Dismissal::Timer(1), 1, OverlayStyle::Minimal);
+        assert!(
+            !copy_pill_showing(&notice),
+            "the click arms no Copied timer over the warning"
+        );
+    }
+
+    #[test]
+    fn with_the_overlay_turned_off_nothing_follows_the_copy_pill() {
+        let mut notice = copy_pill_then_warning();
+        assert_eq!(
+            dismiss(&mut notice, Dismissal::Timer(1), 1, OverlayStyle::None),
+            Some(AfterDismissal::Settled)
         );
         assert!(notice.is_none());
     }

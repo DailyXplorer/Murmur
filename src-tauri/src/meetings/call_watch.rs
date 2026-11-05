@@ -140,7 +140,7 @@ fn tick(app: &AppHandle, seen: &mut Vec<String>, browser_calls: &mut BTreeMap<Br
     match watch.update(&snapshot) {
         Some(Action::Prompt(call)) => {
             info!("{} started a call: offering to record it", call.name());
-            overlay::show_call_prompt(app, call.name());
+            overlay::show_call_prompt(app);
         }
         Some(Action::Hide) => overlay::hide_call_prompt(app),
         None => {}

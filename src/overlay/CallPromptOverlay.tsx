@@ -7,6 +7,7 @@ import React, {
   useState,
 } from "react";
 import "./RecordingOverlay.css";
+import { openFromOrb, useReducedMotion } from "./openFromOrb";
 import { commands, type CallPromptLabels } from "@/bindings";
 
 // The window renders no text until its first message, so without this the
@@ -20,6 +21,8 @@ void document.fonts
 const CallPromptOverlay: React.FC = () => {
   const [labels, setLabels] = useState<CallPromptLabels | null>(null);
   const bodyRef = useRef<HTMLSpanElement>(null);
+  const capsuleRef = useRef<HTMLDivElement>(null);
+  const reducedMotion = useReducedMotion();
   const id = useId();
 
   useEffect(() => {
@@ -77,6 +80,15 @@ const CallPromptOverlay: React.FC = () => {
     return () => observer.disconnect();
   }, [labels]);
 
+  // Opens from the orb each time the prompt appears.
+  const showing = labels !== null;
+  useLayoutEffect(() => {
+    const capsule = capsuleRef.current;
+    if (!showing || !capsule || reducedMotion) return;
+    const growth = openFromOrb(capsule);
+    return () => growth.cancel();
+  }, [showing, reducedMotion]);
+
   if (!labels) return null;
 
   const answer = (accept: boolean) => {
@@ -88,20 +100,16 @@ const CallPromptOverlay: React.FC = () => {
   return (
     <div className={`ov-stage ${labels.position}`}>
       <div
+        ref={capsuleRef}
         role="alertdialog"
         dir="auto"
         className="ov-capsule ov-call"
         aria-labelledby={`${id}-question`}
-        aria-describedby={`${id}-app`}
       >
         <span ref={bodyRef} className="ov-call-body">
-          <span className="ov-call-text">
-            <span id={`${id}-question`} className="ov-call-question">
-              {labels.question}
-            </span>
-            <span id={`${id}-app`} className="ov-call-app">
-              {labels.app}
-            </span>
+          <span className="ov-glyph rec" aria-hidden="true" />
+          <span id={`${id}-question`} className="ov-call-question">
+            {labels.question}
           </span>
           <button
             type="button"
