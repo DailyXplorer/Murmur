@@ -1,9 +1,19 @@
-use clap::Parser;
+use clap::{Parser, Subcommand};
 use std::path::PathBuf;
+
+#[derive(Subcommand, Debug, Clone)]
+pub enum CliCommand {
+    /// Serve your meetings read-only to an AI app over stdio (Model Context
+    /// Protocol). The AI app launches this; it starts no window.
+    Mcp,
+}
 
 #[derive(Parser, Debug, Clone, Default)]
 #[command(name = "murmur", about = "Murmur - Speech to Text")]
 pub struct CliArgs {
+    #[command(subcommand)]
+    pub command: Option<CliCommand>,
+
     /// Start with the main window hidden
     #[arg(long)]
     pub start_hidden: bool,

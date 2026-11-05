@@ -28,6 +28,7 @@ mod insights;
 mod leading_space;
 pub mod local_models;
 mod managers;
+pub mod mcp;
 mod meetings;
 mod operation;
 mod overlay;
@@ -785,6 +786,9 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::meetings::change_meeting_audio_retention_setting,
             commands::meetings::get_meetings_storage,
             commands::meetings::change_meeting_call_prompt_setting,
+            commands::mcp::change_mcp_enabled_setting,
+            commands::mcp::change_mcp_include_dictations_setting,
+            commands::mcp::get_mcp_setup,
             commands::meetings::answer_call_prompt,
             overlay::fit_call_prompt,
             overlay::get_call_prompt,

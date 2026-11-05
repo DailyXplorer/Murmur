@@ -260,7 +260,8 @@
         "history": "History",
         "experimental": "Experimental",
         "updates": "Updates",
-        "storage": "Storage"
+        "storage": "Storage",
+        "mcp": "AI assistants"
       },
       "experimentalToggle": {
         "label": "Experimental features",
@@ -334,6 +335,25 @@
         "add": "Add",
         "remove": "Remove {{word}}",
         "duplicate": "\"{{word}}\" already exists"
+      },
+      "mcp": {
+        "label": "Let AI agents read your meetings (MCP)",
+        "description": "AI apps you connect, such as Claude or Codex, can list, search and read your meeting transcripts and summaries. They may send what they read to their own servers. Murmur never changes anything through this.",
+        "dictations": "Include dictation history",
+        "dictationsDescription": "Also lets them read your latest dictations, which are more personal than meetings.",
+        "labelWindows": "Let AI agents connect (MCP)",
+        "descriptionWindows": "AI apps you connect, such as Claude or Codex, can ask Murmur for what you share below. Murmur never changes anything through this.",
+        "dictationsDescriptionWindows": "Lets them search and read your dictations. They may send what they read to their own servers.",
+        "setupTitle": "Connect an app",
+        "setupDescription": "Pick your app, then paste this into it. No window, no network port.",
+        "clientsLabel": "AI app",
+        "clients": {
+          "claude_code": "Claude Code",
+          "codex": "Codex",
+          "claude_desktop": "Claude Desktop"
+        },
+        "copyConfig": "Copy setup for your app",
+        "copied": "Copied"
       },
       "meetingsToggle": {
         "label": "Meetings",

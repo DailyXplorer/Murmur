@@ -385,6 +385,14 @@ pub struct AppSettings {
     /// they are pasted right away.
     #[serde(default)]
     pub cleanup_short_dictations: bool,
+    /// AI apps the user connects (`murmur mcp`) may read meetings. Off until
+    /// the user turns it on; `mcp::access` reads this key straight from the
+    /// settings file.
+    #[serde(default)]
+    pub mcp_enabled: bool,
+    /// Those apps may also read dictations. Needs `mcp_enabled`.
+    #[serde(default)]
+    pub mcp_include_dictations: bool,
 }
 
 impl AppSettings {
@@ -680,6 +688,8 @@ pub fn get_default_settings() -> AppSettings {
         local_model_download_wanted: false,
         switch_to_local_when_ready: false,
         cleanup_short_dictations: false,
+        mcp_enabled: false,
+        mcp_include_dictations: false,
     }
 }
 

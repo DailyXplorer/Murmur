@@ -31,7 +31,7 @@ const MAX_COMPRESS_FAILURES: i64 = 3;
 /// transcribe.
 const MIN_RECOVERED_MS: u64 = 1_000;
 
-fn migrations() -> Migrations<'static> {
+pub(crate) fn migrations() -> Migrations<'static> {
     Migrations::new(vec![
         M::up(
             "CREATE TABLE meetings (
@@ -783,6 +783,21 @@ fn meetings_with_every(conn: &Connection, terms: &[String]) -> Result<HashSet<i6
 /// the speakers' names and Markdown marks are dropped. Hits inside a
 /// marker are dropped with it: names are not searched.
 fn summary_line(marked: &str, names: &HashMap<String, String>) -> String {
+    with_speaker_names(marked, names)
+        .lines()
+        .map(|line| {
+            line.trim_start_matches(['#', '-', '*', '>', ' '])
+                .trim_end()
+        })
+        .filter(|line| !line.is_empty())
+        .collect::<Vec<_>>()
+        .join(" ")
+        .replace("**", "")
+}
+
+/// `marked` with each `[[key]]` replaced by that speaker's name, or by the
+/// key itself for a speaker without one.
+pub fn with_speaker_names(marked: &str, names: &HashMap<String, String>) -> String {
     let mut named = String::with_capacity(marked.len());
     let mut rest = marked;
     while let Some(start) = rest.find("[[") {
@@ -799,15 +814,52 @@ fn summary_line(marked: &str, names: &HashMap<String, String>) -> String {
     }
     named.push_str(rest);
     named
-        .lines()
-        .map(|line| {
-            line.trim_start_matches(['#', '-', '*', '>', ' '])
-                .trim_end()
+}
+
+/// Newest first; `cursor` is the id of the last meeting already shown.
+/// Read-only: it works on any connection to `meetings.db`.
+pub fn list_page(conn: &Connection, cursor: Option<i64>, limit: usize) -> Result<MeetingsPage> {
+    let mut statement = conn.prepare(
+        "SELECT id, title, started_at_ms, duration_ms, status, capture_mode
+         FROM meetings WHERE id < ?1 ORDER BY id DESC LIMIT ?2",
+    )?;
+    let mut meetings = statement
+        .query_map(
+            params![cursor.unwrap_or(i64::MAX), limit as i64 + 1],
+            |row| {
+                Ok((
+                    row.get::<_, i64>(0)?,
+                    row.get::<_, Option<String>>(1)?,
+                    row.get::<_, i64>(2)?,
+                    row.get::<_, i64>(3)?,
+                    row.get::<_, String>(4)?,
+                    row.get::<_, String>(5)?,
+                ))
+            },
+        )?
+        .filter_map(|row| match row {
+            Ok((id, title, started_at_ms, duration_ms, status, tracks)) => {
+                match (
+                    MeetingStatus::from_db(&status),
+                    MeetingTracks::from_db(&tracks),
+                ) {
+                    (Some(status), Some(tracks)) => Some(Ok(MeetingListItem {
+                        id,
+                        title,
+                        started_at_ms,
+                        duration_ms,
+                        status,
+                        tracks,
+                    })),
+                    _ => None,
+                }
+            }
+            Err(error) => Some(Err(error)),
         })
-        .filter(|line| !line.is_empty())
-        .collect::<Vec<_>>()
-        .join(" ")
-        .replace("**", "")
+        .collect::<rusqlite::Result<Vec<_>>>()?;
+    let has_more = meetings.len() > limit;
+    meetings.truncate(limit);
+    Ok(MeetingsPage { meetings, has_more })
 }
 
 pub struct MeetingsStore {
@@ -901,48 +953,7 @@ impl MeetingsStore {
 
     /// Newest first; `cursor` is the id of the last meeting already shown.
     pub fn list(&self, cursor: Option<i64>, limit: usize) -> Result<MeetingsPage> {
-        let conn = self.connection()?;
-        let mut statement = conn.prepare(
-            "SELECT id, title, started_at_ms, duration_ms, status, capture_mode
-             FROM meetings WHERE id < ?1 ORDER BY id DESC LIMIT ?2",
-        )?;
-        let mut meetings = statement
-            .query_map(
-                params![cursor.unwrap_or(i64::MAX), limit as i64 + 1],
-                |row| {
-                    Ok((
-                        row.get::<_, i64>(0)?,
-                        row.get::<_, Option<String>>(1)?,
-                        row.get::<_, i64>(2)?,
-                        row.get::<_, i64>(3)?,
-                        row.get::<_, String>(4)?,
-                        row.get::<_, String>(5)?,
-                    ))
-                },
-            )?
-            .filter_map(|row| match row {
-                Ok((id, title, started_at_ms, duration_ms, status, tracks)) => {
-                    match (
-                        MeetingStatus::from_db(&status),
-                        MeetingTracks::from_db(&tracks),
-                    ) {
-                        (Some(status), Some(tracks)) => Some(Ok(MeetingListItem {
-                            id,
-                            title,
-                            started_at_ms,
-                            duration_ms,
-                            status,
-                            tracks,
-                        })),
-                        _ => None,
-                    }
-                }
-                Err(error) => Some(Err(error)),
-            })
-            .collect::<rusqlite::Result<Vec<_>>>()?;
-        let has_more = meetings.len() > limit;
-        meetings.truncate(limit);
-        Ok(MeetingsPage { meetings, has_more })
+        list_page(&self.connection()?, cursor, limit)
     }
 
     pub fn search(&self, query: &str, limit: usize) -> Result<Vec<MeetingHit>> {
