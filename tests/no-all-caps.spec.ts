@@ -29,6 +29,7 @@ const PROPER_PHRASES = [
   "System Audio Recording",
   "Privacy & Security",
   "System Settings",
+  "NVIDIA Open Model License",
   "Apache License",
   "Fluid Inference",
   "Parakeet Ultra",

@@ -22,6 +22,7 @@ use crate::ProcessingOperation;
 
 pub const ANALYSIS_FILE: &str = "analysis.json";
 /// A 3-hour meeting takes a few minutes; this only catches a hung helper.
+#[cfg_attr(target_os = "windows", allow(dead_code))]
 const ANALYZE_TIMEOUT: Duration = Duration::from_secs(30 * 60);
 /// System audio where this many words were heard holds the remote side of
 /// a call, however long the user spoke. A ringtone or a chime gives next to
@@ -124,7 +125,25 @@ pub trait Analyzer: Send + Sync + 'static {
     fn analyze(&self, request: AnalysisRequest, operation: ProcessingOperation) -> AnalyzeFuture;
 }
 
+/// The analyzer this platform runs: the helper process on a Mac, the models
+/// in the app on Windows (`analysis_cpp`).
+pub fn platform_analyzer(models: Arc<Models>) -> Arc<dyn Analyzer> {
+    #[cfg(all(target_os = "windows", target_arch = "x86_64"))]
+    {
+        Arc::new(super::analysis_cpp::CppAnalyzer { models })
+    }
+    #[cfg(not(all(target_os = "windows", target_arch = "x86_64")))]
+    {
+        Arc::new(HelperAnalyzer {
+            models,
+            support: helper::support(),
+        })
+    }
+}
+
 /// Runs the analysis in `murmur-meetings-helper` with the downloaded models.
+/// Windows has no helper: it runs the models in the app (`analysis_cpp`).
+#[cfg_attr(target_os = "windows", allow(dead_code))]
 pub struct HelperAnalyzer {
     pub models: Arc<Models>,
     pub support: AnalysisSupport,
@@ -207,6 +226,7 @@ impl Analyzer for HelperAnalyzer {
 
 /// Runs one helper `command` on `tracks`, adding what it prints to
 /// `analysis`. `None` when the helper cannot be run.
+#[cfg_attr(target_os = "windows", allow(dead_code))]
 async fn run_helper(
     program: &Path,
     command: &str,
@@ -235,6 +255,7 @@ async fn run_helper(
     .ok()
 }
 
+#[cfg_attr(target_os = "windows", allow(dead_code))]
 fn track_arg(track: Track) -> &'static str {
     match track {
         Track::Mic => "mic",

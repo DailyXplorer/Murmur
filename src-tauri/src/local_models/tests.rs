@@ -10,6 +10,7 @@ struct FakeHost {
     prepared: AtomicUsize,
     prepare_fails: bool,
     notified: Mutex<Vec<LocalModelState>>,
+    optional_off: bool,
 }
 
 impl Host for FakeHost {
@@ -21,6 +22,9 @@ impl Host for FakeHost {
     }
     fn free_bytes(&self, _: &Path) -> Option<u64> {
         self.free
+    }
+    fn optional_wanted(&self) -> bool {
+        !self.optional_off
     }
     fn prepare(&self, _: PathBuf, _: ProcessingOperation) -> PrepareFuture {
         self.prepared.fetch_add(1, Ordering::SeqCst);
@@ -685,6 +689,63 @@ fn models_ready_before_the_optional_source_stay_ready_and_fetch_it_quietly() {
         assert!(after_restart.is_ready());
         assert_eq!(seen.lock().unwrap().len(), 1, "fetched again");
         assert_eq!(host.prepared.load(Ordering::SeqCst), 1, "prepared again");
+    });
+}
+
+/// Windows fetches its speaker model only for a user who has Meetings on:
+/// until then ready models fetch nothing, at launch or after a download.
+#[test]
+fn optional_files_are_not_fetched_while_the_host_does_not_want_them() {
+    let fixture = fixture_with_optional();
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("models");
+    fixture.write_ready_without_optional(&path);
+    let host = Arc::new(FakeHost {
+        optional_off: true,
+        ..FakeHost::default()
+    });
+    tauri::async_runtime::block_on(async {
+        let (base, seen) = test_server::start(fixture.serving()).await;
+        let ready = models(&path, &fixture, &base, &host);
+        ready.resume_on_launch(false);
+        ready.fetched().await;
+        assert!(ready.is_ready());
+        assert!(seen.lock().unwrap().is_empty(), "fetched at launch");
+        assert!(!path.join("ctc").exists());
+        assert!(
+            !ready
+                .wait_optional(&ProcessingOperation::new(OperationId(1)))
+                .await
+        );
+    });
+}
+
+/// A meeting start fetches what ready models lack, and the analysis that
+/// follows waits for it.
+#[test]
+fn a_meeting_start_fetches_the_optional_files_of_ready_models_and_waits_for_them() {
+    let fixture = fixture_with_optional();
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("models");
+    fixture.write_ready_without_optional(&path);
+    let host = Arc::new(FakeHost::default());
+    tauri::async_runtime::block_on(async {
+        let (base, seen) = test_server::start(fixture.serving()).await;
+        let ready = models(&path, &fixture, &base, &host);
+        ready.download_unless_declined();
+        let operation = ProcessingOperation::new(OperationId(1));
+        assert!(ready.wait_optional(&operation).await);
+        assert_eq!(paths(&seen), [CTC_URL]);
+        assert!(path.join("ctc").join(CTC_WEIGHTS).exists());
+        // Nothing more to fetch the next time.
+        ready.download_unless_declined();
+        assert!(ready.wait_optional(&operation).await);
+        assert_eq!(seen.lock().unwrap().len(), 1);
+
+        // A cancelled analysis stops waiting.
+        let cancelled = ProcessingOperation::new(OperationId(2));
+        cancelled.cancel();
+        assert!(!ready.wait_optional(&cancelled).await);
     });
 }
 

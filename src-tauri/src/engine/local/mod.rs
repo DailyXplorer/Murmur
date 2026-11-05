@@ -4,7 +4,7 @@
 
 pub mod boost;
 #[cfg(target_arch = "x86_64")]
-mod cpu;
+pub(crate) mod cpu;
 #[cfg(target_arch = "aarch64")]
 mod fluid;
 #[cfg(test)]
@@ -29,7 +29,7 @@ const SAMPLES_PER_SECOND: usize = TARGET_SAMPLE_RATE as usize;
 const MAX_PIECE: usize = SAMPLES_PER_SECOND * 29 / 2;
 /// transcribe.cpp turns to local attention above 20.5 s, less accurate.
 #[cfg(not(target_arch = "aarch64"))]
-const MAX_PIECE: usize = SAMPLES_PER_SECOND * 20;
+pub(crate) const MAX_PIECE: usize = SAMPLES_PER_SECOND * 20;
 
 /// FluidAudio refuses audio under 0.3 s; shorter speech gets silence after it.
 const MIN_PIECE: usize = SAMPLES_PER_SECOND / 2;

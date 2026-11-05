@@ -778,7 +778,8 @@
       "licence": {
         "parakeet": "Reconocimiento de voz: Parakeet Ultra de Moondream, basado en Parakeet TDT 0.6B v3 de NVIDIA, CC BY 4.0. Convertido a Core ML por Fluid Inference (Apple silicon) y a GGUF de 8 bits por handy-computer (Mac con Intel).",
         "diarization": "Diarización Community-1: pyannote, CC BY 4.0, con WeSpeaker y BUT Speech@FIT. Conversión a Core ML modificada de Fluid Inference.",
-        "fluidaudio": "FluidAudio: Fluid Inference, licencia Apache 2.0."
+        "fluidaudio": "FluidAudio: Fluid Inference, licencia Apache 2.0.",
+        "sortformer": "Detección de hablantes en Windows: Sortformer v2.1 de NVIDIA, NVIDIA Open Model License. Convertido a GGUF de 8 bits por handy-computer."
       }
     },
     "transcript": {

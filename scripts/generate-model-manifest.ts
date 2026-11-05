@@ -14,7 +14,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
 type Source = {
-  set: "APPLE_SILICON" | "X86_64";
+  set: "APPLE_SILICON" | "X86_64" | "WINDOWS";
   repo: string;
   commit: string;
   folder: string;
@@ -85,6 +85,30 @@ const SOURCES: Source[] = [
     fluidRevisionMarker: false,
     optional: false,
     take: ["parakeet-ultra-Q8_0.gguf"],
+    rootMetadata: false,
+  },
+  {
+    // The Windows set is the Intel Mac set plus the speaker model, so its
+    // first source must stay the same as `X86_64`'s (a test checks it).
+    set: "WINDOWS",
+    repo: "handy-computer/parakeet-ultra-gguf",
+    commit: "a1539be1b849ea7463b88343e5277b373d0c4ea9",
+    folder: "parakeet-ultra",
+    fluidRevisionMarker: false,
+    optional: false,
+    take: ["parakeet-ultra-Q8_0.gguf"],
+    rootMetadata: false,
+  },
+  {
+    set: "WINDOWS",
+    // Sortformer (NVIDIA Open Model License), up to 4 speakers: tells the
+    // voices of a meeting apart. Not needed to dictate, so optional.
+    repo: "handy-computer/diar_streaming_sortformer_4spk-v2.1-gguf",
+    commit: "60ebab3ef7cae9869be0abcde13360347e96ba03",
+    folder: "sortformer",
+    fluidRevisionMarker: false,
+    optional: true,
+    take: ["diar_streaming_sortformer_4spk-v2.1-Q8_0.gguf"],
     rootMetadata: false,
   },
 ];
