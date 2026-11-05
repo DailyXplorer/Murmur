@@ -12,6 +12,7 @@
 //! Nothing here needs a permission: Windows has no consent for loopback.
 
 use std::ffi::c_void;
+use std::mem::ManuallyDrop;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{mpsc, Arc};
 use std::thread::JoinHandle;
@@ -302,6 +303,26 @@ impl IActivateAudioInterfaceCompletionHandler_Impl for Activated_Impl {
     }
 }
 
+/// The `PROPVARIANT` that hands `params` to `ActivateAudioInterfaceAsync`. Its
+/// blob points at the caller's stack, not at COM memory, so it must never be
+/// cleared: `PROPVARIANT` frees a `VT_BLOB` with `CoTaskMemFree` when it drops,
+/// which on this pointer corrupts the heap. `ManuallyDrop` keeps the destructor
+/// from running on any path, `?` returns included.
+fn loopback_variant(params: &mut AUDIOCLIENT_ACTIVATION_PARAMS) -> ManuallyDrop<PROPVARIANT> {
+    let mut variant = ManuallyDrop::new(PROPVARIANT::default());
+    // SAFETY: tags a VT_BLOB variant that borrows `params`; the caller keeps
+    // `params` alive for as long as it uses the variant.
+    unsafe {
+        let inner = &mut *variant.Anonymous.Anonymous;
+        inner.vt = VT_BLOB;
+        inner.Anonymous.blob = BLOB {
+            cbSize: std::mem::size_of::<AUDIOCLIENT_ACTIVATION_PARAMS>() as u32,
+            pBlobData: std::ptr::from_mut(params).cast::<u8>(),
+        };
+    }
+    variant
+}
+
 /// The audio client of a loopback of everything but `pid`'s process tree.
 fn activate_process_loopback(pid: u32) -> WinResult<IAudioClient> {
     let mut params = AUDIOCLIENT_ACTIVATION_PARAMS {
@@ -313,26 +334,15 @@ fn activate_process_loopback(pid: u32) -> WinResult<IAudioClient> {
             },
         },
     };
-    let mut variant = PROPVARIANT::default();
-    // SAFETY: tags a VT_BLOB variant that points at `params`, which lives
-    // until this function returns. The variant is never cleared, so nothing
-    // frees the blob.
-    unsafe {
-        let inner = &mut *variant.Anonymous.Anonymous;
-        inner.vt = VT_BLOB;
-        inner.Anonymous.blob = BLOB {
-            cbSize: std::mem::size_of::<AUDIOCLIENT_ACTIVATION_PARAMS>() as u32,
-            pBlobData: std::ptr::from_mut(&mut params).cast::<u8>(),
-        };
-    }
+    let variant = loopback_variant(&mut params);
     let (sender, receiver) = mpsc::channel();
     let handler: IActivateAudioInterfaceCompletionHandler = Activated(sender).into();
-    // SAFETY: `variant` and `handler` outlive the call.
+    // SAFETY: `variant`, `params` and `handler` outlive the call.
     let operation = unsafe {
         ActivateAudioInterfaceAsync(
             VIRTUAL_AUDIO_DEVICE_PROCESS_LOOPBACK,
             &IAudioClient::IID,
-            Some(&variant as *const PROPVARIANT),
+            Some(&*variant as *const PROPVARIANT),
             &handler,
         )
     }?;
@@ -557,6 +567,34 @@ impl Drop for LoopbackCapture {
 mod tests {
     use super::*;
     use crate::meetings::capture::TrackWriter;
+
+    #[test]
+    fn the_activation_variant_borrows_its_blob_and_is_never_freed() {
+        let mut params = AUDIOCLIENT_ACTIVATION_PARAMS {
+            ActivationType: AUDIOCLIENT_ACTIVATION_TYPE_PROCESS_LOOPBACK,
+            Anonymous: AUDIOCLIENT_ACTIVATION_PARAMS_0 {
+                ProcessLoopbackParams: AUDIOCLIENT_PROCESS_LOOPBACK_PARAMS {
+                    TargetProcessId: 4242,
+                    ProcessLoopbackMode: PROCESS_LOOPBACK_MODE_EXCLUDE_TARGET_PROCESS_TREE,
+                },
+            },
+        };
+        let address = std::ptr::from_mut(&mut params).cast::<u8>();
+        // Dropping a plain PROPVARIANT here would hand a stack address to
+        // CoTaskMemFree; the helper returns one that cannot be dropped.
+        let variant = loopback_variant(&mut params);
+        // SAFETY: reads the tags the helper just wrote.
+        let inner = unsafe { &*variant.Anonymous.Anonymous };
+        assert_eq!(inner.vt, VT_BLOB);
+        // SAFETY: the variant was tagged VT_BLOB above.
+        let blob = unsafe { inner.Anonymous.blob };
+        assert_eq!(blob.pBlobData, address);
+        assert_eq!(
+            blob.cbSize as usize,
+            std::mem::size_of::<AUDIOCLIENT_ACTIVATION_PARAMS>()
+        );
+        drop(variant);
+    }
 
     /// Plays a 1 kHz tone on the default output for `seconds` seconds.
     fn play_tone(seconds: usize) -> Option<rodio::OutputStream> {
