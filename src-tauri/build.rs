@@ -49,6 +49,7 @@ const APP_COMMANDS: &[&str] = &[
     "release_settings_window",
     "take_main_action",
     "relaunch_after_update",
+    "prepare_update_install",
     "get_update_status",
     "check_for_updates",
     "cancel_operation",

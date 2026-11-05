@@ -137,6 +137,58 @@ codesign -dr - /Applications/Murmur.app 2>&1
 
 Install official builds from [GitHub Releases](https://github.com/DailyXplorer/Murmur/releases).
 
+## Windows beta releases
+
+A Windows beta is published by pushing a tag, from the `beta` branch. The
+installer is signed with the updater key (the one of the macOS releases) and
+the Windows app finds it through the `windows-beta` feed. Windows work is
+described in `AGENTS.md`, "Windows beta updates".
+
+1. **Release-prep PR into `beta`**, titled `chore(release): prepare
+v1.9.0-beta.N (Windows)`. It sets `1.9.0-beta.N` in `package.json`,
+   `src-tauri/Cargo.toml`, the `murmur` entry of `src-tauri/Cargo.lock` and
+   `src-tauri/tauri.conf.json`. Do not add a release-notes file: the beta uses
+   `src/content/release-notes/1.9.0.md`. `bun run check:versions` must pass,
+   and so must the `windows beta` run on the merged head.
+2. **Write the notes** in a file, in the words of a tester: what is new. The
+   workflow adds the title, "Not on Windows yet", the install steps, the update
+   paragraph and the SHA-256.
+3. **Tag the merged head** with an annotated tag whose message is that file, and
+   push it. The tag must equal `v` plus the version in `tauri.conf.json`.
+
+   ```bash
+   git tag -a v1.9.0-beta.7 -F notes.md <sha-on-beta>
+   git push origin v1.9.0-beta.7
+   ```
+
+4. **Watch `windows beta release`**: `build`, `manifest`, `publish`, `verify`.
+   `build` refuses a tag that is not `vX.Y.Z-beta.N`, a tag pushed by someone
+   other than the repository owner, a tag that differs from the version in
+   `tauri.conf.json`, a commit that is not on `beta`, and a release that
+   already exists. `verify` reads what GitHub serves: the feed, the installer
+   and its signature, the checksum in the notes, the macOS feed (still
+   darwin-only) and the latest release (still not a beta).
+5. **Check by hand** that `gh release list` shows `v1.9.0-beta.N` and
+   `windows-beta` as pre-releases and the macOS release as latest.
+
+A pull request that changes `beta-release.yml`, the feed tooling or the Tauri
+configs runs the same build, signature and feed checks as a dry run and
+publishes nothing. Its build uses a `-beta.0` version while the files still
+carry the plain one.
+
+**Rollback.** A bad beta cannot be taken back from the PCs that installed it:
+ship the next number. To stop offering it, upload the previous beta's
+`latest.json` (it is an asset of that beta's release) to the feed with
+`gh release upload windows-beta latest.json --clobber`, and delete the bad
+versioned release if needed.
+
+**The first update.** Beta 6 and older have no updater. The first beta that
+updates itself is installed by hand once; the next beta is the first
+end-to-end update test.
+
+The installer has no Authenticode certificate, so SmartScreen still asks on an
+install by hand.
+
 ## Troubleshooting
 
 ### macOS Accessibility remains enabled after a local rebuild

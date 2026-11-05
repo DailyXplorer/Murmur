@@ -8,6 +8,7 @@ assert.deepEqual(
     "bun run check:translations",
     "bun run check:platforms",
     "bun run test:updater-manifest",
+    "bun run test:windows-updater",
     "bun run test:versions",
     "bun run check:versions",
     "bun run lint",

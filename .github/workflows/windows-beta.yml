@@ -1,7 +1,8 @@
 name: "windows beta"
 # The Windows beta lives on the beta branch and windows/* work branches:
-# dictation, per-user NSIS installer, no updater. Every push is checked,
-# built, installed and run.
+# dictation, per-user NSIS installer, updates from the windows-beta feed.
+# Every push is checked, built, installed and run. Publishing a beta is the
+# job of beta-release.yml, which a pushed tag v<version>-beta.N starts.
 on:
   workflow_dispatch:
   push:
@@ -40,6 +41,9 @@ jobs:
 
       - name: Check platform invariants
         run: bun run check:platforms
+
+      - name: Test the Windows update feed
+        run: bun run test:windows-updater
 
       - name: Run ESLint
         run: bun run lint

@@ -2982,6 +2982,7 @@ dependencies = [
  "rusqlite",
  "rusqlite_migration",
  "rustfft",
+ "semver",
  "serde",
  "serde_json",
  "sha2",

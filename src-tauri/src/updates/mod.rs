@@ -7,7 +7,7 @@ mod checks;
 mod schedule;
 
 use checks::{Checks, Found};
-use log::warn;
+use log::{info, warn};
 use schedule::{Moment, Schedule, TICK};
 use serde::Serialize;
 use specta::Type;
@@ -69,7 +69,11 @@ async fn find(app: &AppHandle) -> Found {
         .check()
         .await
         .map_err(|error| error.to_string())?;
-    Ok(update.map(|update| update.version))
+    let found = update.map(|update| update.version);
+    if let Some(version) = &found {
+        info!("Update check found version {version}");
+    }
+    Ok(found)
 }
 
 #[tauri::command]
@@ -89,4 +93,31 @@ pub async fn check_for_updates(app: AppHandle) -> Result<UpdateStatus, String> {
     }
     let available = app.state::<Checks>().check_now(find(&app)).await?;
     Ok(UpdateStatus { available })
+}
+
+/// The updater offers a build only when the announced version is greater by
+/// semver, and the beta numbers (`1.9.0-beta.N`) must climb that way.
+#[cfg(test)]
+mod versions {
+    use semver::Version;
+
+    fn parse(version: &str) -> Version {
+        Version::parse(version).unwrap()
+    }
+
+    #[test]
+    fn a_later_beta_is_newer() {
+        assert!(parse("1.9.0-beta.7") > parse("1.9.0-beta.6"));
+        assert!(parse("1.9.0-beta.10") > parse("1.9.0-beta.9"));
+    }
+
+    #[test]
+    fn a_beta_is_older_than_its_release() {
+        assert!(parse("1.9.0-beta.7") < parse("1.9.0"));
+    }
+
+    #[test]
+    fn this_build_has_a_version_the_updater_can_compare() {
+        parse(env!("CARGO_PKG_VERSION"));
+    }
 }

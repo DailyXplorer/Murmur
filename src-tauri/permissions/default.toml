@@ -53,6 +53,7 @@ permissions = [
   "allow-release-settings-window",
   "allow-take-main-action",
   "allow-relaunch-after-update",
+  "allow-prepare-update-install",
   "allow-get-update-status",
   "allow-check-for-updates",
   "allow-cancel-operation",

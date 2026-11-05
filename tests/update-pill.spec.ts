@@ -178,3 +178,37 @@ test("an update withdrawn before it installs no longer shows as available", asyn
   // Nothing left to finish: the window may go again.
   await expect.poll(() => commands(page)).toContain("release_settings_window");
 });
+
+test("on Windows the settings are saved before the installer starts", async ({
+  page,
+}) => {
+  await open(page, "platform=windows&update=1", "light");
+  await page.getByRole("button", { name: "Update available" }).click();
+  await expect(footer(page).getByText(/Downloading\.\.\.\s+42%/)).toBeVisible();
+
+  const calls = await commands(page);
+  expect(calls.indexOf("prepare_update_install")).toBeGreaterThanOrEqual(0);
+  expect(calls.indexOf("prepare_update_install")).toBeLessThan(
+    calls.indexOf("plugin:updater|download_and_install"),
+  );
+  expect(
+    await page.evaluate(() => window.settingsPages.unhandledCommands),
+  ).toEqual([]);
+});
+
+test("the Windows footer offers the update checks like the Mac one", async ({
+  page,
+}) => {
+  await open(page, "platform=windows", "light");
+  const check = page.getByRole("button", { name: "Check for updates" });
+  await expect(check).toBeVisible();
+
+  await page.evaluate(() => window.settingsPages.emitUpdateStatus("1.9.0"));
+  await expect(
+    page.getByRole("button", { name: "Update available" }),
+  ).toBeVisible();
+
+  await page.evaluate(() => window.settingsPages.emitUpdateStatus(null));
+  await check.click();
+  await expect(footer(page).getByText("Up to date")).toBeVisible();
+});

@@ -632,17 +632,34 @@ fn take_update_relaunch_marker(app_data_dir: &std::path::Path) -> bool {
     std::fs::remove_file(app_data_dir.join(UPDATE_RELAUNCH_MARKER)).is_ok()
 }
 
-/// Restarts into the installed update and shows the settings window again.
-#[tauri::command]
-#[specta::specta]
-fn relaunch_after_update(app: AppHandle) -> Result<(), String> {
+fn mark_update_relaunch(app: &AppHandle) -> Result<(), String> {
     let app_data_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
     if let Err(e) = leave_update_relaunch_marker(&app_data_dir) {
         // The update is installed either way; only the window stays hidden.
         log::warn!("Failed to mark the update relaunch: {e}");
     }
+    Ok(())
+}
+
+/// Restarts into the installed update and shows the settings window again.
+#[tauri::command]
+#[specta::specta]
+fn relaunch_after_update(app: AppHandle) -> Result<(), String> {
+    mark_update_relaunch(&app)?;
     app.request_restart();
     Ok(())
+}
+
+/// Run before an update installs: on Windows the updater plugin ends the
+/// process once the installer starts, so the exit sequence never runs.
+/// Leaves the relaunch marker and writes the settings kept in memory.
+#[tauri::command]
+#[specta::specta]
+fn prepare_update_install(app: AppHandle) {
+    if let Err(e) = mark_update_relaunch(&app) {
+        log::warn!("Failed to prepare the update install: {e}");
+    }
+    settings::flush_pending_save(&app);
 }
 
 /// Convert an unexpected panic on the headless worker into a normal CLI
@@ -800,6 +817,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             settings_window::release_settings_window,
             settings_window::take_main_action,
             relaunch_after_update,
+            prepare_update_install,
             updates::get_update_status,
             updates::check_for_updates,
             commands::cancel_operation,
@@ -1345,6 +1363,17 @@ mod headless_guard_tests {
         assert!(take_update_relaunch_marker(&app_data_dir));
         // The next start, at login for instance, follows "Start hidden" again.
         assert!(!take_update_relaunch_marker(&app_data_dir));
+    }
+
+    #[test]
+    fn marking_an_update_relaunch_twice_still_shows_the_window_once() {
+        // `prepare_update_install` marks before the install and
+        // `relaunch_after_update` marks again on macOS.
+        let dir = tempfile::tempdir().unwrap();
+        leave_update_relaunch_marker(dir.path()).unwrap();
+        leave_update_relaunch_marker(dir.path()).unwrap();
+        assert!(take_update_relaunch_marker(dir.path()));
+        assert!(!take_update_relaunch_marker(dir.path()));
     }
 
     /// `MURMUR_WRITE_BINDINGS=1 cargo test bindings_are_current` rewrites the

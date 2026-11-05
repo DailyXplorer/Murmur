@@ -66,7 +66,9 @@ test.describe("Windows build", () => {
 
     await expect(nav(page, "General")).toBeVisible();
     await expect(nav(page, "Meetings")).toHaveCount(0);
-    await expect(page.getByText(/update/i)).toHaveCount(0);
+    await expect(
+      page.getByRole("button", { name: "Check for updates" }),
+    ).toBeVisible();
 
     await nav(page, "Transcription").click();
     await expect(page.getByText("Cleanup and formatting")).toBeVisible();
@@ -75,6 +77,10 @@ test.describe("Windows build", () => {
     await expect(page.getByText(/\bMac\b/)).toHaveCount(0);
 
     await nav(page, "Advanced").click();
+    await expect(page.getByText("Updates", { exact: true })).toBeVisible();
+    await expect(
+      page.getByRole("checkbox", { name: "Check for updates" }),
+    ).toBeVisible();
     await expect(page.getByText("Show what's new")).toHaveCount(0);
     await expect(page.getByText("Meetings", { exact: true })).toHaveCount(0);
     await expect(page.getByRole("dialog")).toHaveCount(0);

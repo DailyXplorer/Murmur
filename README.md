@@ -84,11 +84,20 @@ does not store anything in the keychain.
 ### Windows (beta)
 
 1. Open the [Windows releases](https://github.com/DailyXplorer/Murmur/releases?q=Murmur%20for%20Windows&expanded=true)
-   and download `Murmur_…_x64-setup.exe` from the first one in the list.
+   and download `Murmur_…_x64-setup.exe` from the newest one named
+   "Murmur for Windows 1.9.0-beta.N" (the one named "update feed" has no
+   installer).
 2. Run the installer. It is not signed, so SmartScreen blocks it: click
    **More info**, then **Run anyway**. Murmur installs for the current user.
 3. Open Murmur and connect Codex. Hold Ctrl+Win to dictate, or double-tap it
    to record hands-free.
+
+Murmur for Windows updates itself: the footer offers each new beta, which
+installs with a progress bar and no administrator prompt, and Murmur comes back
+by itself. **Check for updates** in the footer or the tray menu looks right
+away, and Settings, Advanced, Updates turns the automatic checks off. Beta 6
+and older have no updater, so install the first beta that updates itself by
+hand once, as above.
 
 The Windows source lives on the `beta` branch for now, not on `main`.
 
@@ -150,8 +159,8 @@ The Windows beta has dictation, transcription on the PC or in the cloud, AI
 cleanup with styles, names read from the active window, history you can search
 by words, Insights, custom words, a space added after a word, shortcut keys
 shown for your keyboard layout, sounds, launch at login, and read-only access to
-your dictation history for AI assistants. It does not have Meetings or automatic
-updates yet.
+your dictation history for AI assistants, and it updates itself. It does not
+have Meetings yet.
 
 ## Getting started
 
