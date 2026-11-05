@@ -420,6 +420,11 @@ fn current_overlay_logical_size(window: &tauri::webview::WebviewWindow) -> Optio
 /// in, and clicks go through it.
 #[cfg(target_os = "windows")]
 pub fn create_recording_overlay(app_handle: &AppHandle) {
+    meeting_notice::listen_for_page(app_handle);
+    if app_handle.get_webview_window("recording_overlay").is_some() {
+        return;
+    }
+    meeting_notice::reset_page(app_handle);
     match tauri::WebviewWindowBuilder::new(
         app_handle,
         "recording_overlay",
@@ -439,10 +444,22 @@ pub fn create_recording_overlay(app_handle: &AppHandle) {
     .focusable(false)
     .focused(false)
     .visible(false)
+    // A native load hook also runs when the old page cannot send unload IPC.
+    .on_page_load(|window, payload| {
+        if matches!(payload.event(), tauri::webview::PageLoadEvent::Started) {
+            meeting_notice::reset_page(window.app_handle());
+        }
+    })
     .build()
     {
         Ok(window) => {
             let _ = window.set_ignore_cursor_events(true);
+            let app = app_handle.clone();
+            window.on_window_event(move |event| {
+                if matches!(event, tauri::WindowEvent::Destroyed) {
+                    meeting_notice::reset_page(&app);
+                }
+            });
         }
         Err(e) => {
             log::error!("Failed to create recording overlay window: {}", e);

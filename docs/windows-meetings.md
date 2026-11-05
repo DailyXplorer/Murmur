@@ -27,7 +27,7 @@ Status: `Not yet` is not built. `Built, hidden` is built and tested but no scree
 | 13  | Live transcript, "Catching up", paste-new-text shortcut                            | Port of the live transcript                        | Not yet                                                                          |
 | 14  | Call detected, prompt to record (Zoom, Teams, Slack, Webex, Discord, browser Meet) | Microphone consent store, shared state machine     | Built, hidden (`meetings/call_probe_windows.rs`)                                 |
 | 15  | "Call ended" prompt                                                                | Port                                               | Built, hidden (`meetings/call_watch.rs`)                                         |
-| 16  | Transcript-ready pill, open from the notice                                        | Port                                               | Not yet                                                                          |
+| 16  | Transcript-ready pill, open from the notice                                        | Port                                               | Built, hidden (`overlay/meeting_notice.rs`)                                      |
 | 17  | MCP meeting tools                                                                  | Flip the Windows switch                            | Built, hidden (`mcp/`, the same five tools). Settings copy: at enable            |
 | 18  | Models fetched with a meeting unless declined, licences dialog                     | New speaker model source                           | Partly: speaker model source built, hidden (`pinned::WINDOWS`). The rest Not yet |
 | 19  | Settings: enable, call prompt, live transcript, retention, capture mode            | Port with Windows copy                             | Partly: the call prompt row has its Windows text. The rest Not yet               |
@@ -131,6 +131,15 @@ speed on a weak processor.
 - **Safe order.** The encoder writes `audio.m4a.part`. Before it counts as done, the whole file is decoded and its length compared with the longest track (within 1 s), and `compress` reads the container's length too. Only then is the part file renamed, and only then does `archive` delete the WAVs. After 3 failed attempts the WAVs stay for good and are no longer requeued.
 - **Export.** `IFileSaveDialog` owned by the active window, suggesting the file name and its extension, asking before it replaces a file, remembering the folder like any Windows app. Cancelling returns no path.
 - **Delete while compressing.** Windows keeps the part file open while the encoder writes, so deleting the audio in that window fails and the user tries again. On macOS the same click wins the race.
+
+## Meeting notices on Windows
+
+- **Where.** `meetings/announce.rs` (what finished, batching, the open target; no platform code), `overlay/meeting_notice.rs` (the notice on the orb overlay), `settings_window.rs` (`MainAction::OpenMeetings`, `viewed_meeting`). These are the macOS files, taken over with `git cherry-pick -x`; the module sits beside beta's single `overlay.rs` as `overlay/meeting_notice.rs`.
+- **When.** The processor tells the app once a meeting is ready or failed (`ProcessEvents::finished`, once per meeting, before the summary is written). The notice shows for 15 s. Several meetings that finish together become one line ("2 meetings ready"), with a second line when some failed.
+- **Not shown** while a dictation shows or another notice is up (it waits and appears afterwards), when overlay style is off, and for a meeting the user already has open in a visible Settings window. A dictation that starts replaces the notice; the notice returns afterwards.
+- **Actions.** Open shows the Settings window on that meeting, built again if it was closed (`show_main_window`, which builds it on a thread of its own on Windows). Copy puts the meeting's Markdown on the clipboard. Neither takes the focus: the overlay window is not focusable and only takes clicks while a notice shows. Escape is not taken on Windows; the notice times out like the copy pill.
+- **Windows glue.** The overlay window reports its page loads and its destruction to the notice state (`create_recording_overlay`), so a notice survives a reloaded page. `viewed_meeting` reads the window's visibility and minimized state (Windows has no Spaces). `clipboard::copy_to_keep` is no longer macOS-only.
+- **Dormant.** Meetings stay off on Windows, so nothing announces a meeting yet. The logic is tested without hardware.
 
 ## Known limits
 

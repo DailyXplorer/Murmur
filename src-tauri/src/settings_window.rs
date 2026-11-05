@@ -205,6 +205,7 @@ fn suppress_meeting_notice(
 }
 
 /// Main thread only, like `prepare_settings_window_for_active_space`.
+#[cfg(target_os = "macos")]
 pub fn viewed_meeting(app: &AppHandle) -> Option<i64> {
     let window = app.get_webview_window(MAIN_WINDOW)?;
     let native_window = window.ns_window().ok()?.cast::<objc2_app_kit::NSWindow>();
@@ -216,6 +217,16 @@ pub fn viewed_meeting(app: &AppHandle) -> Option<i64> {
             native_window.isMiniaturized(),
         )
     })
+}
+
+/// Windows has no Spaces, so a window on screen is on the active desktop.
+#[cfg(target_os = "windows")]
+pub fn viewed_meeting(app: &AppHandle) -> Option<i64> {
+    let window = app.get_webview_window(MAIN_WINDOW)?;
+    let visible = window.is_visible().unwrap_or(false);
+    let minimized = window.is_minimized().unwrap_or(false);
+    app.try_state::<SettingsWindow>()
+        .and_then(|state| state.viewed_meeting(visible, true, minimized))
 }
 
 pub fn tray_visible(app: &AppHandle) -> bool {
