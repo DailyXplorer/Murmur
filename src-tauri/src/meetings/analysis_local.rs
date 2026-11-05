@@ -501,7 +501,7 @@ mod tests {
                 Ok(vec![0.1; SECOND / 5])
             }
             fn pieces(&self, samples: &[f32]) -> Vec<Range<usize>> {
-                vec![0..samples.len()]
+                std::iter::once(0..samples.len()).collect()
             }
             fn is_silent(&self, _: &[f32]) -> bool {
                 false
