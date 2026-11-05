@@ -5,9 +5,11 @@
 
 use std::marker::PhantomData;
 use std::sync::{Mutex, PoisonError};
+use std::time::Instant;
 
 use crate::field_excerpt::SelectionText;
 use crate::foreground::ForegroundWindow;
+use crate::leading_space::Before;
 use windows::core::BOOL;
 use windows::Win32::Foundation::HWND;
 use windows::Win32::System::Com::{
@@ -59,6 +61,21 @@ pub fn frontmost_app() -> Option<ForegroundWindow> {
     let path = crate::foreground::process_image_path(foreground.pid)?;
     let executable = crate::foreground::executable_name(&path)?;
     (!is_password_app(&executable)).then_some(foreground)
+}
+
+/// The graphemes before the caret of the app that holds the keyboard, for
+/// the paste's leading space. None when the app is Murmur's or a password
+/// manager's, its focus is not in the foreground process, its field is
+/// secure, has a selection or does not expose a caret, or `deadline` passes.
+/// Call it on a background thread, as the module header says.
+pub fn char_before_caret(deadline: Instant) -> Option<Before> {
+    if Instant::now() >= deadline {
+        return None;
+    }
+    let app = frontmost_app()?;
+    let automation = Automation::new().ok()?;
+    let focused = automation.focus_in(app.pid)?;
+    crate::field_excerpt::char_before_selection(&focused, deadline)
 }
 
 /// This thread in COM's multithreaded apartment, left on drop. Not `Send`:
@@ -259,6 +276,19 @@ impl SelectionText for Element {
         self.text_selection()
     }
 
+    fn is_caret(&self, selection: &IUIAutomationTextRange) -> Option<bool> {
+        // SAFETY: compares two endpoints of the same live range.
+        let order = unsafe {
+            selection.CompareEndpoints(
+                TextPatternRangeEndpoint_Start,
+                selection,
+                TextPatternRangeEndpoint_End,
+            )
+        }
+        .ok()?;
+        Some(order == 0)
+    }
+
     fn before(&self, selection: &IUIAutomationTextRange, max: usize) -> Option<String> {
         let count = i32::try_from(max).ok()?;
         // SAFETY: each call returns an owned interface or an error.
@@ -335,6 +365,134 @@ mod tests {
         }
         for executable in ["chrome.exe", "notepad.exe", "keepass", "1password"] {
             assert!(!is_password_app(executable), "{executable}");
+        }
+    }
+
+    /// The leading-space read of a field, on real Win32 controls and on a
+    /// provider of the test's own.
+    mod caret {
+        use super::Automation;
+        use crate::field_excerpt::char_before_selection;
+        use crate::leading_space::needs_leading_space;
+        use crate::uia::test_fields::{self, requests, Read};
+        use crate::uia::test_window::{child, TestWindow};
+        use std::time::{Duration, Instant};
+        use windows::core::w;
+        use windows::Win32::Foundation::{LPARAM, WPARAM};
+        use windows::Win32::System::LibraryLoader::LoadLibraryW;
+        use windows::Win32::UI::WindowsAndMessaging::{
+            SendMessageW, ES_AUTOHSCROLL, ES_PASSWORD, WINDOW_STYLE, WS_BORDER,
+        };
+
+        const EM_SETSEL: u32 = 0x00B1;
+        const RICH_EDIT: &str = "RICHEDIT50W";
+
+        fn later() -> Instant {
+            Instant::now() + Duration::from_secs(60)
+        }
+
+        /// Whether "next" pasted at the selection `start..end` of a field
+        /// of `class` holding `text` gets a leading space; None when the
+        /// field gives no caret context.
+        fn space_before_next(
+            class: &'static str,
+            style: u32,
+            text: &str,
+            (start, end): (usize, usize),
+        ) -> Option<bool> {
+            if class == RICH_EDIT {
+                // SAFETY: loads a system library that registers the class.
+                unsafe { LoadLibraryW(w!("Msftedit.dll")) }.expect("Msftedit.dll");
+            }
+            let automation = Automation::new().expect("UI Automation client");
+            let text = text.to_string();
+            let window = TestWindow::open(move |window| {
+                let field = child(window, class, &text, WS_BORDER | WINDOW_STYLE(style));
+                // SAFETY: `field` is a live window of this thread.
+                unsafe {
+                    SendMessageW(
+                        field,
+                        EM_SETSEL,
+                        Some(WPARAM(start)),
+                        Some(LPARAM(end as isize)),
+                    )
+                };
+                vec![field.0 as isize]
+            });
+            let field = automation
+                .window(window.handles[0])
+                .expect("element of the field");
+            char_before_selection(&field, later()).map(|before| needs_leading_space(before, "next"))
+        }
+
+        #[test]
+        fn a_caret_after_a_word_gets_a_space_and_one_after_a_space_does_not() {
+            for class in ["EDIT", RICH_EDIT] {
+                let style = ES_AUTOHSCROLL as u32;
+                assert_eq!(
+                    space_before_next(class, style, "word", (4, 4)),
+                    Some(true),
+                    "{class} after a word"
+                );
+                assert_eq!(
+                    space_before_next(class, style, "word ", (5, 5)),
+                    Some(false),
+                    "{class} after a space"
+                );
+                assert_eq!(
+                    space_before_next(class, style, "word.", (5, 5)),
+                    Some(true),
+                    "{class} after a full stop"
+                );
+            }
+        }
+
+        #[test]
+        fn an_empty_field_or_the_start_of_one_gets_no_space() {
+            for class in ["EDIT", RICH_EDIT] {
+                let style = ES_AUTOHSCROLL as u32;
+                assert_eq!(
+                    space_before_next(class, style, "", (0, 0)),
+                    None,
+                    "{class} empty"
+                );
+                assert_eq!(
+                    space_before_next(class, style, "word", (0, 0)),
+                    None,
+                    "{class} start"
+                );
+            }
+        }
+
+        #[test]
+        fn a_selection_is_not_read_for_a_space() {
+            for class in ["EDIT", RICH_EDIT] {
+                assert_eq!(
+                    space_before_next(class, ES_AUTOHSCROLL as u32, "word", (0, 4)),
+                    None,
+                    "{class}"
+                );
+            }
+        }
+
+        #[test]
+        fn a_password_field_is_never_read() {
+            assert_eq!(
+                space_before_next("EDIT", ES_PASSWORD as u32, "hunter2 Corvina", (7, 7)),
+                None
+            );
+
+            let automation = Automation::new().expect("UI Automation client");
+            let window = test_fields::open();
+            let secret = automation
+                .window(window.handles[0])
+                .expect("element of the password field");
+            assert!(char_before_selection(&secret, later()).is_none());
+            assert_eq!(
+                [requests(true, Read::Value), requests(true, Read::Text)],
+                [0, 0],
+                "the password field's text"
+            );
         }
     }
 }

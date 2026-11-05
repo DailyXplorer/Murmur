@@ -1,6 +1,7 @@
 #[cfg(target_os = "macos")]
 use crate::accessibility::{Element, FocusedField};
 use crate::input::{self, TargetedModifier};
+use crate::leading_space::{needs_leading_space, Before};
 use crate::operation::ProcessingOperation;
 #[cfg(target_os = "macos")]
 use crate::overlay::ClipboardWriter;
@@ -9,7 +10,7 @@ use log::{info, warn};
 #[cfg(target_os = "macos")]
 use objc2_app_kit::{NSRunningApplication, NSWorkspace};
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use tauri::AppHandle;
 use tauri_plugin_clipboard_manager::ClipboardExt;
 use tokio::sync::oneshot;
@@ -18,6 +19,7 @@ use tokio::sync::oneshot;
 // is scheduled separately so the macOS main thread never waits for this hold.
 pub(crate) const PASTE_CHORD_HOLD: Duration = Duration::from_millis(100);
 const AUTO_SUBMIT_DELAY: Duration = Duration::from_millis(50);
+const LEADING_SPACE_BUDGET: Duration = Duration::from_millis(150);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum PasteOutcome {
@@ -111,6 +113,57 @@ async fn keyboard_focus() -> FocusedField {
         .unwrap_or(FocusedField::Unknown)
 }
 
+async fn with_leading_space(
+    text: String,
+    enabled: bool,
+    method: PasteMethod,
+    read: impl FnOnce(Instant) -> Option<Before> + Send + 'static,
+) -> String {
+    if !enabled || !matches!(method, PasteMethod::CtrlV | PasteMethod::Direct) {
+        return text;
+    }
+    let deadline = Instant::now() + LEADING_SPACE_BUDGET;
+    let before = tokio::time::timeout(
+        LEADING_SPACE_BUDGET,
+        tauri::async_runtime::spawn_blocking(move || read(deadline)),
+    )
+    .await
+    .ok()
+    .and_then(Result::ok)
+    .flatten();
+    let added = before.is_some_and(|before| needs_leading_space(before, &text));
+    info!("Leading space: added={added}");
+    if added {
+        format!(" {text}")
+    } else {
+        text
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn read_char_before_caret(app_handle: &AppHandle, deadline: Instant) -> Option<Before> {
+    if Instant::now() >= deadline {
+        return None;
+    }
+    let (sender, receiver) = std::sync::mpsc::sync_channel(1);
+    app_handle
+        .run_on_main_thread(move || {
+            let frontmost = (Instant::now() < deadline)
+                .then(|| {
+                    NSWorkspace::sharedWorkspace()
+                        .frontmostApplication()
+                        .map(|app| app.processIdentifier())
+                })
+                .flatten();
+            let _ = sender.send(frontmost);
+        })
+        .ok()?;
+    let frontmost = receiver
+        .recv_timeout(deadline.saturating_duration_since(Instant::now()))
+        .ok()?;
+    crate::accessibility::char_before_caret(frontmost, deadline)
+}
+
 #[cfg(target_os = "macos")]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct FrontmostTarget {
@@ -178,10 +231,15 @@ impl FrontmostTarget {
 /// that app, not to the panel. The keyboard focus wins unless it is Murmur's
 /// own or Accessibility cannot tell.
 #[cfg(target_os = "macos")]
-fn keyboard_target_pid(frontmost: Option<i32>, focused: Option<i32>, own_pid: u32) -> Option<i32> {
+pub(crate) fn keyboard_target_pid(
+    frontmost: Option<i32>,
+    focused: Option<i32>,
+    own_pid: u32,
+) -> Option<i32> {
     focused
-        .filter(|&pid| pid > 0 && u32::try_from(pid).ok() != Some(own_pid))
-        .or(frontmost)
+        .into_iter()
+        .chain(frontmost)
+        .find(|&pid| pid > 0 && u32::try_from(pid).ok() != Some(own_pid))
 }
 
 /// The app that holds the keyboard, which every paste, typed text and Return
@@ -469,6 +527,13 @@ pub(crate) async fn paste(
             |text, write| crate::overlay::show_copy_notice(&app_handle, text, write, mic_lost),
         ));
     }
+    #[cfg(target_os = "macos")]
+    let app_for_caret = app_handle.clone();
+    #[cfg(target_os = "macos")]
+    let read_caret = move |deadline| read_char_before_caret(&app_for_caret, deadline);
+    #[cfg(target_os = "windows")]
+    let read_caret = crate::uia::char_before_caret;
+    let text = with_leading_space(text, settings.leading_space, paste_method, read_caret).await;
     let text = if settings.append_trailing_space {
         format!("{text} ")
     } else {
@@ -574,6 +639,77 @@ pub(crate) async fn paste(
 mod tests {
     use super::*;
     use crate::operation::OperationId;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    fn after_word(_: Instant) -> Option<Before> {
+        Some(Before {
+            last: 'd',
+            previous: Some('r'),
+            last_is_emoji: false,
+        })
+    }
+
+    #[tokio::test]
+    async fn leading_space_formats_only_enabled_paste_methods() {
+        let reads = Arc::new(AtomicUsize::new(0));
+        let read_word = || {
+            let reads = Arc::clone(&reads);
+            move |deadline| {
+                reads.fetch_add(1, Ordering::SeqCst);
+                after_word(deadline)
+            }
+        };
+        for method in [PasteMethod::CtrlV, PasteMethod::Direct] {
+            assert_eq!(
+                with_leading_space("next".into(), true, method, read_word()).await,
+                " next"
+            );
+            assert_eq!(
+                with_leading_space("next".into(), false, method, read_word()).await,
+                "next"
+            );
+        }
+        assert_eq!(
+            with_leading_space("next".into(), true, PasteMethod::None, read_word()).await,
+            "next"
+        );
+        assert_eq!(reads.load(Ordering::SeqCst), 2);
+    }
+
+    #[tokio::test]
+    async fn unavailable_or_failed_caret_reads_leave_the_text_unchanged() {
+        assert_eq!(
+            with_leading_space("next".into(), true, PasteMethod::CtrlV, |_| None).await,
+            "next"
+        );
+        assert_eq!(
+            with_leading_space("next".into(), true, PasteMethod::Direct, |_| {
+                panic!("caret reader failed")
+            })
+            .await,
+            "next"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_hung_caret_read_does_not_hold_the_paste() {
+        let (release, blocked) = std::sync::mpsc::channel();
+        let (started, reading) = oneshot::channel();
+        let paste = tokio::spawn(with_leading_space(
+            "next".into(),
+            true,
+            PasteMethod::CtrlV,
+            move |deadline| {
+                let _ = started.send(());
+                let _ = blocked.recv();
+                after_word(deadline)
+            },
+        ));
+        reading.await.unwrap();
+        let result = tokio::time::timeout(Duration::from_secs(2), paste).await;
+        release.send(()).unwrap();
+        assert_eq!(result.unwrap().unwrap(), "next");
+    }
 
     #[cfg(target_os = "macos")]
     fn target(pid: i32) -> FrontmostTarget {
@@ -645,6 +781,8 @@ mod tests {
             (Some(100), Some(7), Some(100)),
             (Some(100), Some(0), Some(100)),
             (None, Some(200), Some(200)),
+            (Some(7), None, None),
+            (Some(0), None, None),
             (None, None, None),
         ];
         for (frontmost, focused, expected) in cases {
