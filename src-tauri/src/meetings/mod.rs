@@ -23,6 +23,10 @@ pub mod offline;
 pub mod paths;
 #[cfg(target_os = "macos")]
 pub mod power;
+// Kept apart from `power.rs` so that file stays what `main` has.
+#[cfg(target_os = "windows")]
+#[path = "power_windows.rs"]
+pub mod power;
 pub mod processor;
 pub mod protocol;
 pub mod rename;

@@ -2,6 +2,9 @@
 //! Core Audio process tap in `swift/meeting_audio.swift` (macOS 14.4+). The
 //! tap needs the "System Audio Recording" permission, not Screen Recording;
 //! macOS asks for it the first time a tap starts.
+//!
+//! On Windows the same track comes from WASAPI loopback (`wasapi.rs`), which
+//! asks for no permission.
 
 use serde::Serialize;
 use specta::Type;
@@ -50,8 +53,13 @@ mod bridge {
 }
 
 /// The default output, as Core Audio describes it now. `None` when there is
-/// none, and on Intel, which records no system audio to compare with.
+/// none, and on Intel, which records no system audio to compare with. On
+/// Windows, its form factor and bus (`None` when Windows does not say).
 pub fn output_route_facts() -> Option<RouteFacts> {
+    #[cfg(target_os = "windows")]
+    {
+        super::wasapi::output_route_facts()
+    }
     #[cfg(target_arch = "aarch64")]
     {
         let (mut transport, mut data_source, mut has_input) = (0u32, 0u32, 0i32);
@@ -66,7 +74,7 @@ pub fn output_route_facts() -> Option<RouteFacts> {
             has_input: has_input == 1,
         })
     }
-    #[cfg(not(target_arch = "aarch64"))]
+    #[cfg(not(any(target_arch = "aarch64", target_os = "windows")))]
     {
         None
     }
@@ -86,7 +94,10 @@ pub fn permission() -> SystemAudioPermission {
     #[cfg(target_arch = "aarch64")]
     // SAFETY: takes no arguments and only reads the permission.
     let code = unsafe { bridge::murmur_system_audio_permission() };
-    #[cfg(not(target_arch = "aarch64"))]
+    // Windows has no consent for loopback capture.
+    #[cfg(target_os = "windows")]
+    let code = 0;
+    #[cfg(not(any(target_arch = "aarch64", target_os = "windows")))]
     let code = 2;
     match code {
         0 => SystemAudioPermission::Granted,
@@ -96,6 +107,16 @@ pub fn permission() -> SystemAudioPermission {
 }
 
 pub fn support() -> SystemAudioSupport {
+    // Classic loopback exists since Windows Vista, and the process loopback
+    // is tried first and falls back to it, so no OS build is checked.
+    #[cfg(target_os = "windows")]
+    {
+        if cfg!(target_arch = "x86_64") {
+            SystemAudioSupport::Available
+        } else {
+            SystemAudioSupport::Unsupported
+        }
+    }
     #[cfg(target_arch = "aarch64")]
     {
         // SAFETY: takes no arguments and only reads the OS version.
@@ -104,7 +125,7 @@ pub fn support() -> SystemAudioSupport {
             _ => SystemAudioSupport::OsTooOld,
         }
     }
-    #[cfg(not(target_arch = "aarch64"))]
+    #[cfg(not(any(target_arch = "aarch64", target_os = "windows")))]
     {
         SystemAudioSupport::Unsupported
     }
@@ -147,10 +168,21 @@ pub struct SystemCapture {
     writer: TrackWriter,
     /// The boxed `Feeder` the bridge calls back with, as an address so the
     /// capture can move to another thread.
+    #[cfg(not(target_os = "windows"))]
     context: usize,
+    #[cfg(target_os = "windows")]
+    capture: super::wasapi::LoopbackCapture,
 }
 
 impl SystemCapture {
+    #[cfg(target_os = "windows")]
+    pub fn start(path: &Path, origin: Instant) -> Result<Self, String> {
+        let writer = TrackWriter::create(path, origin)?;
+        let capture = super::wasapi::LoopbackCapture::start(writer.feeder())?;
+        Ok(Self { writer, capture })
+    }
+
+    #[cfg(not(target_os = "windows"))]
     pub fn start(path: &Path, origin: Instant) -> Result<Self, String> {
         let writer = TrackWriter::create(path, origin)?;
         let context = Box::into_raw(Box::new(writer.feeder())).cast::<c_void>();
@@ -177,10 +209,12 @@ impl Track for SystemCapture {
     }
 
     fn interrupted(&self) -> bool {
+        #[cfg(target_os = "windows")]
+        return self.capture.interrupted();
         #[cfg(target_arch = "aarch64")]
         // SAFETY: takes no arguments and only reads the tap's state.
         return unsafe { bridge::murmur_system_tap_interrupted() } == 1;
-        #[cfg(not(target_arch = "aarch64"))]
+        #[cfg(not(any(target_arch = "aarch64", target_os = "windows")))]
         false
     }
 
@@ -188,6 +222,19 @@ impl Track for SystemCapture {
         self.writer.dropped_ms()
     }
 
+    /// On Windows the answer is always "no": it only feeds the check for a
+    /// denied System Audio Recording permission (zeros while another app
+    /// played), which Windows has no counterpart for. A silent loopback there
+    /// means nothing played.
+    #[cfg(target_os = "windows")]
+    fn finish(self: Box<Self>, duration: Duration) -> Result<bool, String> {
+        let this = *self;
+        // Stops the stream and joins its thread: no packet comes after.
+        drop(this.capture);
+        this.writer.finish(duration).map(|_| false)
+    }
+
+    #[cfg(not(target_os = "windows"))]
     fn finish(self: Box<Self>, duration: Duration) -> Result<bool, String> {
         #[cfg(target_arch = "aarch64")]
         // SAFETY: stops the tap started in `start`; no callback runs after it.
@@ -205,11 +252,20 @@ mod tests {
     use super::*;
 
     #[test]
-    fn apple_silicon_builds_answer_through_the_bridge() {
+    fn builds_with_a_backend_answer_through_it() {
         assert_eq!(
             support() == SystemAudioSupport::Unsupported,
-            cfg!(not(target_arch = "aarch64"))
+            cfg!(not(any(
+                target_arch = "aarch64",
+                all(target_os = "windows", target_arch = "x86_64")
+            )))
         );
+    }
+
+    #[test]
+    #[cfg(target_os = "windows")]
+    fn windows_asks_for_no_permission() {
+        assert_eq!(permission(), SystemAudioPermission::Granted);
     }
 
     /// A strong link to an API added in macOS 14.2 would stop the app from

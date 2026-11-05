@@ -207,6 +207,71 @@ jobs:
             2>&1 | tee "$RUNNER_TEMP/cpu-model.txt"
           grep -q "2 tests run: 2 passed" "$RUNNER_TEMP/cpu-model.txt"
 
+  # Meeting system audio against a real sound output: a tone is played and
+  # the WASAPI loopback must hear it, and the process loopback must not hear
+  # the test process's own tone. A hosted runner usually has no audio device
+  # and installs none here, so the tests skip with a logged reason and the
+  # job ends with a warning: not proven in CI. It cannot fail a push until it
+  # has been green on a runner that has an output.
+  meetings-audio:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    continue-on-error: true
+    steps:
+      - name: Keep line endings as committed
+        run: git config --global core.autocrlf false
+
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+
+      - name: Install pinned Rust toolchain
+        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # v1
+        with:
+          toolchain: 1.96.0
+
+      - uses: swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          workspaces: "./src-tauri -> target"
+          key: meetings-audio
+
+      # Windows Audio is off on a hosted runner. Turning it on gives an
+      # output only when the image has an audio device.
+      - name: Start the Windows Audio service
+        shell: powershell
+        run: |
+          foreach ($name in "AudioEndpointBuilder", "Audiosrv") {
+            try {
+              Set-Service -Name $name -StartupType Automatic
+              Start-Service -Name $name
+            } catch {
+              Write-Output "$name did not start: $($_.Exception.Message)"
+            }
+          }
+          Get-Service AudioEndpointBuilder, Audiosrv | Format-Table Name, Status
+          $devices = @(Get-CimInstance Win32_SoundDevice)
+          Write-Output "sound devices: $($devices.Count)"
+          $devices | ForEach-Object { Write-Output "  $($_.Name)" }
+
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@1919c4a95903d2c33e4a221102edca87309fc14b # v2.89.0
+        with:
+          tool: cargo-nextest
+
+      - name: Play a tone and record it back
+        working-directory: src-tauri
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo nextest run --locked --lib --profile ci --color never \
+            --run-ignored only --no-capture \
+            -E 'test(=meetings::capture::wasapi::tests::wasapi_loopback_hears_a_tone) | test(=meetings::capture::wasapi::tests::wasapi_process_loopback_leaves_out_the_own_process)' \
+            2>&1 | tee "$RUNNER_TEMP/meetings-audio.txt"
+          grep -q "2 tests run: 2 passed" "$RUNNER_TEMP/meetings-audio.txt"
+          if grep -q "skipped:" "$RUNNER_TEMP/meetings-audio.txt"; then
+            echo "::warning::not proven in CI: $(grep -h 'skipped:' "$RUNNER_TEMP/meetings-audio.txt" | sort -u | head -n 3 | tr '\n' ' ')"
+          fi
+
   installer:
     runs-on: windows-latest
     steps:
