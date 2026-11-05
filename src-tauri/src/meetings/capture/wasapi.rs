@@ -580,8 +580,9 @@ mod tests {
             },
         };
         let address = std::ptr::from_mut(&mut params).cast::<u8>();
-        // Dropping a plain PROPVARIANT here would hand a stack address to
-        // CoTaskMemFree; the helper returns one that cannot be dropped.
+        // A plain PROPVARIANT would hand a stack address to CoTaskMemFree when
+        // it goes out of scope; the helper returns a `ManuallyDrop` one, so
+        // leaving this test never frees `params`.
         let variant = loopback_variant(&mut params);
         // SAFETY: reads the tags the helper just wrote.
         let inner = unsafe { &*variant.Anonymous.Anonymous };
@@ -593,7 +594,6 @@ mod tests {
             blob.cbSize as usize,
             std::mem::size_of::<AUDIOCLIENT_ACTIVATION_PARAMS>()
         );
-        drop(variant);
     }
 
     /// Plays a 1 kHz tone on the default output for `seconds` seconds.
