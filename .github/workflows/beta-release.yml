@@ -1,27 +1,50 @@
 name: "windows beta release"
-# Publishes the Windows installer of the beta branch as a GitHub pre-release
-# v<version>-beta.N. A pre-release never becomes the latest release, so the
-# macOS updater feed (latest.json of the latest release) and the macOS
-# release flow stay untouched.
+# Publishes a Windows beta. Pushing the annotated tag v<version>-beta.N, on a
+# commit that is on beta, builds the NSIS installer, signs it with the updater
+# key, publishes it as the pre-release v<version>-beta.N, then points the
+# rolling pre-release "windows-beta" (the feed the Windows app reads) at it.
+# Both stay pre-releases and never become the latest release, so the macOS feed
+# (latest.json of the latest release) and the macOS release flow are untouched.
+#
+# A pull request that touches this file or the signing and feed tooling runs
+# the same build, signature and manifest checks and publishes nothing.
+#
+# A workflow_dispatch cannot start this file: it is not on the default branch.
 on:
-  workflow_dispatch:
-    inputs:
-      notes:
-        description: "What changed in this beta (Markdown), placed first in the release notes"
-        required: false
-        default: ""
+  push:
+    tags: ["v*-beta.*"]
+  pull_request:
+    branches: [beta]
+    paths:
+      - ".github/workflows/beta-release.yml"
+      - ".github/scripts/minisign.mjs"
+      - ".github/scripts/windows-updater-manifest*"
+      - ".github/scripts/fixtures/windows-updater/**"
+      - "src-tauri/tauri.conf.json"
+      - "src-tauri/tauri.windows.conf.json"
+      - "src-tauri/updater-artifacts.conf.json"
 
 permissions:
-  contents: write
+  contents: read
 
+# Releases queue behind each other: two feeds must never be written at once.
 concurrency:
-  group: ${{ github.workflow }}
+  group: ${{ github.workflow }}-${{ github.event_name == 'push' && 'release' || github.ref }}
   cancel-in-progress: false
 
 jobs:
-  release:
-    if: github.ref == 'refs/heads/beta'
+  # The only job that sees the signing key, and it has no write token.
+  build:
+    # Same-repository pull requests only: a fork has no secrets.
+    if: >-
+      github.event_name == 'push' ||
+      (github.event.pull_request.head.repo.full_name == github.repository &&
+       github.actor != 'dependabot[bot]')
     runs-on: windows-latest
+    timeout-minutes: 60
+    outputs:
+      tag: ${{ steps.name.outputs.tag }}
+      version: ${{ steps.name.outputs.version }}
     steps:
       - name: Keep line endings as committed
         run: git config --global core.autocrlf false
@@ -29,8 +52,40 @@ jobs:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           fetch-depth: 0
-          fetch-tags: true
           persist-credentials: false
+
+      - name: Check the tag before anything is built
+        id: name
+        shell: bash
+        env:
+          EVENT: ${{ github.event_name }}
+          REF_NAME: ${{ github.ref_name }}
+          ACTOR: ${{ github.actor }}
+          OWNER: ${{ github.repository_owner }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          fail() { echo "::error::$1"; exit 1; }
+          conf_version=$(jq -r .version src-tauri/tauri.conf.json)
+          if [ "$EVENT" = push ]; then
+            tag="$REF_NAME"
+            [[ "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-beta\.[0-9]+$ ]] || fail "tag is not vX.Y.Z-beta.N"
+            [ "$ACTOR" = "$OWNER" ] || fail "only the repository owner publishes a beta"
+            [ "$tag" = "v${conf_version}" ] || fail "tag does not match the version of tauri.conf.json"
+            git merge-base --is-ancestor "$GITHUB_SHA" origin/beta || fail "tagged commit is not on beta"
+            if gh release view "$tag" >/dev/null 2>&1; then fail "release $tag already exists"; fi
+            version="$conf_version"
+          else
+            # A dry run builds a beta even while the files carry the plain
+            # version, so the pre-release path of the build is exercised.
+            version="$conf_version"
+            case "$version" in *-beta.*) ;; *) version="${version}-beta.0" ;; esac
+            tag="v${version}"
+          fi
+          {
+            echo "tag=${tag}"
+            echo "version=${version}"
+          } >> "$GITHUB_OUTPUT"
 
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
@@ -41,84 +96,166 @@ jobs:
         with:
           toolchain: 1.96.0
 
+      # A release is built from scratch; the cache only speeds the dry run.
       - uses: swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        if: github.event_name != 'push'
         with:
           workspaces: "./src-tauri -> target"
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
-      - name: Name the beta
-        id: beta
-        shell: bash
-        run: |
-          set -euo pipefail
-          version=$(jq -r .version src-tauri/tauri.conf.json)
-          last=$(git tag --list "v${version}-beta.*" | sed "s/^v${version}-beta\.//" | sort -n | tail -n 1)
-          number=$(( ${last:-0} + 1 ))
-          {
-            echo "version=${version}"
-            echo "number=${number}"
-            echo "tag=v${version}-beta.${number}"
-          } >> "$GITHUB_OUTPUT"
+      - name: Check the four version files agree
+        run: bun run check:versions
 
       # Murmur then starts on a PC without the Visual C++ Redistributable.
       - name: Locate the Visual C++ runtime
         shell: pwsh
         run: ./.github/scripts/windows-vc-runtime.ps1
 
-      - name: Build the installer
-        run: bun run tauri build --target x86_64-pc-windows-msvc --bundles nsis
-
-      - name: Write the release notes
+      # The updater-artifacts config merges after the Windows overlay (which
+      # keeps them off for ordinary builds); a missing .sig fails the next step.
+      - name: Build and sign the installer
         shell: bash
         env:
-          VERSION: ${{ steps.beta.outputs.version }}
-          NUMBER: ${{ steps.beta.outputs.number }}
-          NOTES: ${{ inputs.notes }}
+          EVENT: ${{ github.event_name }}
+          VERSION: ${{ steps.name.outputs.version }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
           set -euo pipefail
-          asset="Murmur_${VERSION}-beta.${NUMBER}_x64-setup.exe"
-          cp src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe "$asset"
-          checksum=$(sha256sum "$asset" | cut -d ' ' -f 1)
-          {
-            echo "## Murmur for Windows, beta ${NUMBER}"
-            echo
-            echo "Built from the \`beta\` branch on Murmur ${VERSION}. This pre-release holds the Windows installer only; the macOS app and its updates are unchanged."
-            echo
-            if [ -n "$NOTES" ]; then
-              printf '%s\n\n' "$NOTES"
-            fi
-            echo "### On Windows"
-            echo
-            echo "- Dictation: hold Ctrl+Win to talk, or double-tap it for hands-free; the shortcut can be changed in Settings."
-            echo "- Transcription on this PC (Parakeet, 25 European languages, a one-time model download), or in the cloud through your ChatGPT account. Sign in from Murmur; the session is the one Codex keeps in \`%USERPROFILE%\\.codex\\auth.json\`."
-            echo "- AI cleanup with a Formal, Normal or Casual dictation style, custom words, History, Insights."
-            echo "- Paste into the app in front, recording overlay, tray menu, start at login, sounds."
-            echo
-            echo "Not in this beta: meetings, the copy offer when no text field has the focus, automatic updates."
-            echo
-            echo "### Install without administrator rights"
-            echo
-            echo "1. Download \`${asset}\` below and run it."
-            echo "2. The installer is not signed: if SmartScreen shows \"Windows protected your PC\", select **More info**, then **Run anyway**."
-            echo "3. Murmur installs for your account only, in \`%LOCALAPPDATA%\\Murmur\`, and appears in the Start menu. A new beta installs over the previous one. Nothing else to install: the Visual C++ runtime comes with Murmur."
-            echo
-            echo "SHA-256 of \`${asset}\`: \`${checksum}\`"
-          } > notes.md
-          echo "ASSET=${asset}" >> "$GITHUB_ENV"
+          args=(--target x86_64-pc-windows-msvc --bundles nsis --config src-tauri/updater-artifacts.conf.json)
+          if [ "$EVENT" != push ]; then
+            printf '{"version":"%s"}\n' "$VERSION" > dry-run-version.conf.json
+            args+=(--config dry-run-version.conf.json)
+          fi
+          bun run tauri build "${args[@]}"
 
-      - name: Publish the pre-release
+      - name: Collect the installer and its signature
         shell: bash
         env:
-          GH_TOKEN: ${{ github.token }}
-          TAG: ${{ steps.beta.outputs.tag }}
-          VERSION: ${{ steps.beta.outputs.version }}
-          NUMBER: ${{ steps.beta.outputs.number }}
+          VERSION: ${{ steps.name.outputs.version }}
         run: |
-          gh release create "$TAG" "$ASSET" \
-            --target "$GITHUB_SHA" \
+          set -euo pipefail
+          name="Murmur_${VERSION}_x64-setup.exe"
+          dir=src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis
+          [ -f "$dir/$name" ] || { echo "::error::$name was not built"; ls "$dir"; exit 1; }
+          [ -f "$dir/$name.sig" ] || { echo "::error::$name.sig was not written: updater artifacts are off"; ls "$dir"; exit 1; }
+          mkdir release
+          cp "$dir/$name" "$dir/$name.sig" release/
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: windows-beta-installer
+          path: release/*
+          if-no-files-found: error
+          retention-days: 7
+
+  # Notes, feed and offline signature check. Runs in the dry run too.
+  manifest:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: windows-beta-installer
+          path: release
+
+      - name: Write the notes, the feed, and check the signature
+        env:
+          EVENT: ${{ github.event_name }}
+          TAG: ${{ needs.build.outputs.tag }}
+          VERSION: ${{ needs.build.outputs.version }}
+        run: |
+          set -euo pipefail
+          name="Murmur_${VERSION}_x64-setup.exe"
+          script=.github/scripts/windows-updater-manifest.mjs
+          if [ "$EVENT" = push ]; then
+            # The checkout may have replaced the annotated tag by a lightweight
+            # one: read the real tag. A lightweight tag gives its commit message.
+            git fetch --force --depth=1 origin "+refs/tags/${TAG}:refs/tags/${TAG}"
+            git for-each-ref --format='%(contents)' "refs/tags/${TAG}" > message.txt
+          else
+            echo "Dry run: nothing is published." > message.txt
+          fi
+          node "$script" notes --version "$VERSION" --message message.txt --installer "release/$name" --out release/notes.md
+          node "$script" build --installer "release/$name" --sig "release/$name.sig" --tag "$TAG" --notes release/notes.md --repository "$GITHUB_REPOSITORY" --out release/latest.json
+          node "$script" verify --installer "release/$name" --manifest release/latest.json --tag "$TAG" --config src-tauri/tauri.conf.json
+
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: windows-beta-release
+          path: release/*
+          if-no-files-found: error
+          retention-days: 7
+
+  # The versioned release goes public first, then the feed points at it.
+  publish:
+    if: github.event_name == 'push'
+    needs: [build, manifest]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: windows-beta-release
+          path: release
+
+      - name: Publish the pre-release, then the feed
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ needs.build.outputs.tag }}
+          VERSION: ${{ needs.build.outputs.version }}
+        run: |
+          set -euo pipefail
+          name="Murmur_${VERSION}_x64-setup.exe"
+          gh release create "$TAG" "release/$name" "release/$name.sig" release/latest.json \
+            --verify-tag \
             --prerelease \
             --latest=false \
-            --title "Murmur for Windows ${VERSION} beta ${NUMBER}" \
-            --notes-file notes.md
+            --title "Murmur for Windows ${VERSION}" \
+            --notes-file release/notes.md
+          if ! gh release view windows-beta >/dev/null 2>&1; then
+            gh release create windows-beta \
+              --target "$GITHUB_SHA" \
+              --prerelease \
+              --latest=false \
+              --title "Murmur for Windows: update feed" \
+              --notes "Murmur for Windows updates itself from this release: the feed file below is read inside the app. Do not download anything from here. The installers are the releases named v<version>-beta.N."
+          fi
+          gh release upload windows-beta release/latest.json --clobber
+
+  # What GitHub serves now, as the app and a Mac would see it.
+  verify:
+    if: github.event_name == 'push'
+    needs: [build, publish]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+
+      - name: Check the public feed
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.build.outputs.tag }}
+        run: |
+          set -euo pipefail
+          for attempt in 1 2 3 4 5; do
+            if node .github/scripts/windows-updater-manifest.mjs verify-public \
+              --tag "$TAG" --repository "$GITHUB_REPOSITORY" --config src-tauri/tauri.conf.json; then
+              exit 0
+            fi
+            echo "Attempt ${attempt} failed."
+            sleep 5
+          done
+          exit 1
