@@ -46,6 +46,13 @@ impl Host for AppHost {
         crate::meetings::capture::free_bytes(dir)
     }
 
+    /// The speaker model is only for Meetings: a Windows user who never
+    /// turned them on does not download it with the dictation model.
+    #[cfg(target_os = "windows")]
+    fn optional_wanted(&self) -> bool {
+        get_settings(&self.app).meetings_enabled
+    }
+
     fn prepare(&self, dir: PathBuf, operation: ProcessingOperation) -> PrepareFuture {
         Box::pin(async move {
             // The CPU model loads in the app, with nothing to compile first.

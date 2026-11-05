@@ -3,7 +3,8 @@
 //!
 //!   cargo run --example fetch_models -- <models-dir>
 //!
-//! The meetings helper nightly runs it, then `prepare` and the analysis.
+//! The meetings helper nightly runs it, then `prepare` and the analysis; the
+//! Windows CPU model job runs it before the analysis test.
 
 use murmur::local_models::{
     manifest, AnalysisSupport, Host, LocalModelState, LocalModelStatus, LocalModels, PrepareFuture,
@@ -56,4 +57,8 @@ fn main() {
     if state != LocalModelState::Ready {
         std::process::exit(1);
     }
+    // The optional models (the speaker model of Windows) come after the
+    // others: the process must not end before they are in place.
+    let optional = tauri::async_runtime::block_on(models.optional_fetched());
+    println!("optional models in place: {optional}");
 }
