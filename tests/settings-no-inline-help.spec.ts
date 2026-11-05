@@ -12,7 +12,7 @@ const SCREENS: { file: string; label: string; query: string }[] = [
     label: "Transcription",
     query: "engine=local&account=none&models=missing",
   },
-  { file: "advanced", label: "Advanced", query: "mcp=1" },
+  { file: "advanced", label: "Advanced", query: "mcp=1&mcpDictations=1" },
   { file: "meetings", label: "Meetings", query: "meetings=1" },
   {
     file: "meetings-no-system-audio",
@@ -33,6 +33,11 @@ const SCREENS: { file: string; label: string; query: string }[] = [
     query: "platform=windows&engine=local&account=none&models=missing",
   },
   { file: "windows-advanced", label: "Advanced", query: "platform=windows" },
+  {
+    file: "windows-advanced-mcp",
+    label: "Advanced",
+    query: "platform=windows&mcp=1&mcpDictations=1",
+  },
   { file: "windows-history", label: "History", query: "platform=windows" },
   { file: "windows-about", label: "About", query: "platform=windows" },
 ];

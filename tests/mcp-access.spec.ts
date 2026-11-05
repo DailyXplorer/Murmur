@@ -145,11 +145,15 @@ test.describe("Windows build", () => {
     await expect(windowsAccess(page)).toBeChecked();
     await expect(dictations(page)).toBeVisible();
     await expect(group(page).getByText(/meeting/i)).toHaveCount(0);
-    await expect(
-      group(page).getByText(
-        "Lets them search and read your dictations. They may send what they read to their own servers.",
-      ),
-    ).toBeVisible();
+    // The explanation lives in the row's info bubble, not under its title.
+    await group(page)
+      .getByRole("button", {
+        name: /^Lets them search and read your dictations/,
+      })
+      .click();
+    await expect(page.getByRole("tooltip")).toHaveText(
+      "Lets them search and read your dictations. They may send what they read to their own servers.",
+    );
   });
 
   test("is off by default and shows nothing to connect", async ({ page }) => {

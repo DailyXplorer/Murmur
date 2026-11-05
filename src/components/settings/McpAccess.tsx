@@ -72,7 +72,6 @@ export const McpAccess: React.FC = () => {
             ? "settings.advanced.mcp.descriptionWindows"
             : "settings.advanced.mcp.description",
         )}
-        descriptionMode="inline"
         grouped={true}
       />
       {enabled && (
@@ -86,7 +85,6 @@ export const McpAccess: React.FC = () => {
               ? "settings.advanced.mcp.dictationsDescriptionWindows"
               : "settings.advanced.mcp.dictationsDescription",
           )}
-          descriptionMode="inline"
           grouped={true}
         />
       )}
@@ -94,7 +92,6 @@ export const McpAccess: React.FC = () => {
         <SettingContainer
           title={t("settings.advanced.mcp.setupTitle")}
           description={t("settings.advanced.mcp.setupDescription")}
-          descriptionMode="inline"
           grouped={true}
           layout="stacked"
         >
