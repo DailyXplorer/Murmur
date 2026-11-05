@@ -4,12 +4,11 @@ import { ToggleSwitch } from "../ui/ToggleSwitch";
 import { useSettings } from "../../hooks/useSettings";
 
 interface LazyStreamCloseProps {
-  descriptionMode?: "inline" | "tooltip";
   grouped?: boolean;
 }
 
 export const LazyStreamClose: React.FC<LazyStreamCloseProps> = React.memo(
-  ({ descriptionMode = "tooltip", grouped = false }) => {
+  ({ grouped = false }) => {
     const { t } = useTranslation();
     const { getSetting, updateSetting, isUpdating } = useSettings();
 
@@ -22,7 +21,6 @@ export const LazyStreamClose: React.FC<LazyStreamCloseProps> = React.memo(
         isUpdating={isUpdating("lazy_stream_close")}
         label={t("settings.advanced.lazyStreamClose.label")}
         description={t("settings.advanced.lazyStreamClose.description")}
-        descriptionMode={descriptionMode}
         grouped={grouped}
       />
     );

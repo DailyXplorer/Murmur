@@ -4,12 +4,11 @@ import { ToggleSwitch } from "../ui/ToggleSwitch";
 import { useSettings } from "../../hooks/useSettings";
 
 interface AppendTrailingSpaceProps {
-  descriptionMode?: "inline" | "tooltip";
   grouped?: boolean;
 }
 
 export const AppendTrailingSpace: React.FC<AppendTrailingSpaceProps> =
-  React.memo(({ descriptionMode = "tooltip", grouped = false }) => {
+  React.memo(({ grouped = false }) => {
     const { t } = useTranslation();
     const { getSetting, updateSetting, isUpdating } = useSettings();
 
@@ -22,7 +21,6 @@ export const AppendTrailingSpace: React.FC<AppendTrailingSpaceProps> =
         isUpdating={isUpdating("append_trailing_space")}
         label={t("settings.debug.appendTrailingSpace.label")}
         description={t("settings.debug.appendTrailingSpace.description")}
-        descriptionMode={descriptionMode}
         grouped={grouped}
       />
     );

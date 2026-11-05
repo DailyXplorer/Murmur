@@ -21,30 +21,22 @@ export const GeneralSettings: React.FC = () => {
   return (
     <SettingsPage label={t("sidebar.general")}>
       <SettingsGroup title={t("settings.general.groups.appearance")}>
-        <AppLanguageSelector descriptionMode="tooltip" grouped={true} />
-        <ThemeSelector descriptionMode="tooltip" grouped={true} />
-        <AccentColorSelector descriptionMode="tooltip" grouped={true} />
+        <AppLanguageSelector grouped={true} />
+        <ThemeSelector grouped={true} />
+        <AccentColorSelector grouped={true} />
       </SettingsGroup>
       <SettingsGroup title={t("settings.general.title")}>
         <ShortcutInput shortcutId="transcribe" grouped={true} />
         <ShortcutInput shortcutId="cancel" grouped={true} />
         <ShortcutInput shortcutId="paste_last" grouped={true} />
-        <LanguageSelector
-          descriptionMode="tooltip"
-          grouped={true}
-          supportsLanguageDetection={true}
-        />
+        <LanguageSelector grouped={true} supportsLanguageDetection={true} />
       </SettingsGroup>
       <SettingsGroup title={t("settings.sound.title")}>
-        <MicrophoneSelector descriptionMode="tooltip" grouped={true} />
-        <ChannelSelector descriptionMode="tooltip" grouped={true} />
-        <MuteWhileRecording descriptionMode="tooltip" grouped={true} />
-        <AudioFeedback descriptionMode="tooltip" grouped={true} />
-        <OutputDeviceSelector
-          descriptionMode="tooltip"
-          grouped={true}
-          disabled={!audioFeedbackEnabled}
-        />
+        <MicrophoneSelector grouped={true} />
+        <ChannelSelector grouped={true} />
+        <MuteWhileRecording grouped={true} />
+        <AudioFeedback grouped={true} />
+        <OutputDeviceSelector grouped={true} disabled={!audioFeedbackEnabled} />
         <VolumeSlider disabled={!audioFeedbackEnabled} />
       </SettingsGroup>
     </SettingsPage>

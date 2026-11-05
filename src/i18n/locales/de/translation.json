@@ -366,7 +366,6 @@
       "meetingsAudio": {
         "title": "Meeting-Audio löschen",
         "description": "Löscht das Audio verarbeiteter Meetings nach der gewählten Zeit, um Speicherplatz zu sparen. Transkripte und Zusammenfassungen bleiben erhalten.",
-        "textKept": "Transkripte und Zusammenfassungen bleiben erhalten.",
         "used": "Meeting-Audio belegt {{size}}.",
         "usedWithSetAside": "Meeting-Audio belegt {{size}}, dazu {{setAside}} nicht aufgeführte Aufnahmen, die nach 30 Tagen gelöscht werden.",
         "options": {
@@ -622,7 +621,7 @@
       },
       "chatgpt": {
         "title": "ChatGPT",
-        "optional": "Optional: verbinden für KI-Bereinigung und mehr Sprachen.",
+        "description": "Verbinde dein ChatGPT-Konto für KI-Bereinigung, mehr Sprachen und Cloud-Transkription.",
         "signedIn": "Angemeldet",
         "signIn": "Anmelden",
         "signOut": "Abmelden",

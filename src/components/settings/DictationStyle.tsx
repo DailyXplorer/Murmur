@@ -30,16 +30,14 @@ export const DictationStyleSetting: React.FC<{ noAccount: boolean }> = ({
   return (
     <SettingContainer
       title={t("settings.transcription.style.title")}
-      description={t("settings.transcription.style.description")}
+      description={[
+        off && t("settings.transcription.style.cleanupOff"),
+        t("settings.transcription.style.description"),
+      ]
+        .filter(Boolean)
+        .join(" ")}
       grouped={true}
       disabled={off}
-      detail={
-        off && (
-          <p className="text-pretty text-xs text-text/60">
-            {t("settings.transcription.style.cleanupOff")}
-          </p>
-        )
-      }
     >
       <Dropdown
         options={DICTATION_STYLES.map((style) => ({

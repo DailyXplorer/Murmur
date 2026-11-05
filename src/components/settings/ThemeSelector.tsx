@@ -7,12 +7,11 @@ import { applyTheme, THEME_OPTIONS } from "@/lib/utils/theme";
 import type { Theme } from "@/bindings";
 
 interface ThemeSelectorProps {
-  descriptionMode?: "inline" | "tooltip";
   grouped?: boolean;
 }
 
 export const ThemeSelector: React.FC<ThemeSelectorProps> = React.memo(
-  ({ descriptionMode = "tooltip", grouped = false }) => {
+  ({ grouped = false }) => {
     const { t } = useTranslation();
     const { settings, getSetting, isUpdating, updateSetting } = useSettings();
 
@@ -35,7 +34,6 @@ export const ThemeSelector: React.FC<ThemeSelectorProps> = React.memo(
       <SettingContainer
         title={t("theme.title")}
         description={t("theme.description")}
-        descriptionMode={descriptionMode}
         grouped={grouped}
       >
         <Dropdown

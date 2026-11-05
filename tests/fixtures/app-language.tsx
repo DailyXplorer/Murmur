@@ -50,7 +50,7 @@ const renderFixture = async () => {
       }}
       className="min-h-screen bg-background px-8 py-10 text-text"
     >
-      <AppLanguageSelector descriptionMode="inline" />
+      <AppLanguageSelector />
     </main>,
   );
 };

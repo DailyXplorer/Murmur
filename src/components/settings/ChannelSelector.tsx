@@ -7,12 +7,11 @@ import { commands } from "@/bindings";
 import { useSettings } from "../../hooks/useSettings";
 
 interface ChannelSelectorProps {
-  descriptionMode?: "inline" | "tooltip";
   grouped?: boolean;
 }
 
 export const ChannelSelector: React.FC<ChannelSelectorProps> = React.memo(
-  ({ descriptionMode = "tooltip", grouped = false }) => {
+  ({ grouped = false }) => {
     const { t } = useTranslation();
     const { getSetting, updateSetting, isUpdating, isLoading } = useSettings();
     const [channelCount, setChannelCount] = useState(1);
@@ -74,7 +73,6 @@ export const ChannelSelector: React.FC<ChannelSelectorProps> = React.memo(
       <SettingContainer
         title={t("settings.sound.channel.title")}
         description={t("settings.sound.channel.description")}
-        descriptionMode={descriptionMode}
         grouped={grouped}
       >
         <Dropdown

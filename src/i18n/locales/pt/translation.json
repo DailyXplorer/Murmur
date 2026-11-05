@@ -366,7 +366,6 @@
       "meetingsAudio": {
         "title": "Apagar o áudio das reuniões",
         "description": "Apaga o áudio das reuniões processadas após o prazo escolhido, para poupar espaço. As transcrições e os resumos são mantidos.",
-        "textKept": "As transcrições e os resumos são mantidos.",
         "used": "O áudio das reuniões ocupa {{size}}.",
         "usedWithSetAside": "O áudio das reuniões ocupa {{size}}, mais {{setAside}} de gravações não listadas, apagadas após 30 dias.",
         "options": {
@@ -622,7 +621,7 @@
       },
       "chatgpt": {
         "title": "ChatGPT",
-        "optional": "Opcional: conecte para a limpeza com IA e mais idiomas.",
+        "description": "Conecte sua conta do ChatGPT para a limpeza com IA, mais idiomas e a transcrição na nuvem.",
         "signedIn": "Sessão iniciada",
         "signIn": "Entrar",
         "signOut": "Sair",

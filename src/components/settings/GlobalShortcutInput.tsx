@@ -36,14 +36,12 @@ const modifiersHeld = (e: KeyboardEvent): string[] =>
   ].filter((modifier): modifier is string => Boolean(modifier));
 
 interface GlobalShortcutInputProps {
-  descriptionMode?: "inline" | "tooltip";
   grouped?: boolean;
   shortcutId: string;
   disabled?: boolean;
 }
 
 export const GlobalShortcutInput: React.FC<GlobalShortcutInputProps> = ({
-  descriptionMode = "tooltip",
   grouped = false,
   shortcutId,
   disabled = false,
@@ -273,7 +271,6 @@ export const GlobalShortcutInput: React.FC<GlobalShortcutInputProps> = ({
       <SettingContainer
         title={t("settings.general.shortcut.title")}
         description={t("settings.general.shortcut.description")}
-        descriptionMode={descriptionMode}
         grouped={grouped}
       >
         <div className="text-sm text-mid-gray">
@@ -288,7 +285,6 @@ export const GlobalShortcutInput: React.FC<GlobalShortcutInputProps> = ({
       <SettingContainer
         title={t("settings.general.shortcut.title")}
         description={t("settings.general.shortcut.description")}
-        descriptionMode={descriptionMode}
         grouped={grouped}
       >
         <div className="text-sm text-mid-gray">
@@ -304,7 +300,6 @@ export const GlobalShortcutInput: React.FC<GlobalShortcutInputProps> = ({
       <SettingContainer
         title={t("settings.general.shortcut.title")}
         description={t("settings.general.shortcut.notFound")}
-        descriptionMode={descriptionMode}
         grouped={grouped}
       >
         <div className="text-sm text-mid-gray">
@@ -327,7 +322,6 @@ export const GlobalShortcutInput: React.FC<GlobalShortcutInputProps> = ({
     <SettingContainer
       title={translatedName}
       description={translatedDescription}
-      descriptionMode={descriptionMode}
       grouped={grouped}
       disabled={disabled}
       layout="horizontal"

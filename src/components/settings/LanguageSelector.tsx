@@ -25,7 +25,6 @@ import {
 } from "../../lib/constants/languages";
 
 interface LanguageSelectorProps {
-  descriptionMode?: "inline" | "tooltip";
   grouped?: boolean;
   supportedLanguages?: string[];
   // Whether the transcription service can auto-detect language.
@@ -49,7 +48,6 @@ const effectiveLanguage = (
 
 /** Settings control for choosing a recognition language from a portaled list. */
 export const LanguageSelector: React.FC<LanguageSelectorProps> = ({
-  descriptionMode = "tooltip",
   grouped = false,
   supportedLanguages,
   supportsLanguageDetection = true,
@@ -171,7 +169,6 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({
     <SettingContainer
       title={t("settings.general.language.title")}
       description={t("settings.general.language.description")}
-      descriptionMode={descriptionMode}
       grouped={grouped}
     >
       <div className="flex min-w-0 items-center space-x-1">

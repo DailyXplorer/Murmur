@@ -4,12 +4,11 @@ import { ToggleSwitch } from "../ui/ToggleSwitch";
 import { useSettings } from "../../hooks/useSettings";
 
 interface WhisperModeProps {
-  descriptionMode?: "inline" | "tooltip";
   grouped?: boolean;
 }
 
 export const WhisperMode: React.FC<WhisperModeProps> = React.memo(
-  ({ descriptionMode = "tooltip", grouped = false }) => {
+  ({ grouped = false }) => {
     const { t } = useTranslation();
     const { getSetting, updateSetting, isUpdating } = useSettings();
 
@@ -20,7 +19,6 @@ export const WhisperMode: React.FC<WhisperModeProps> = React.memo(
         isUpdating={isUpdating("whisper_mode")}
         label={t("settings.transcription.whisperMode.title")}
         description={t("settings.transcription.whisperMode.description")}
-        descriptionMode={descriptionMode}
         grouped={grouped}
       />
     );

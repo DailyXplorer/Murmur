@@ -29,13 +29,11 @@ export const AdvancedSettings: React.FC = () => {
   return (
     <SettingsPage label={t("sidebar.advanced")}>
       <SettingsGroup title={t("settings.advanced.groups.app")}>
-        <StartHidden descriptionMode="tooltip" grouped={true} />
-        <AutostartToggle descriptionMode="tooltip" grouped={true} />
-        <ShowTrayIcon descriptionMode="tooltip" grouped={true} />
-        <ShowOverlay descriptionMode="tooltip" grouped={true} />
-        {!isWindows && (
-          <MeetingsToggle descriptionMode="tooltip" grouped={true} />
-        )}
+        <StartHidden grouped={true} />
+        <AutostartToggle grouped={true} />
+        <ShowTrayIcon grouped={true} />
+        <ShowOverlay grouped={true} />
+        {!isWindows && <MeetingsToggle grouped={true} />}
         {meetingsEnabled && <MeetingCallPrompt />}
         {meetingsEnabled && <MeetingsAudioRetention />}
       </SettingsGroup>
@@ -47,21 +45,19 @@ export const AdvancedSettings: React.FC = () => {
       {/* The Windows beta has no updater and no release notes in the app. */}
       {!isWindows && (
         <SettingsGroup title={t("settings.advanced.groups.updates")}>
-          <UpdateChecksToggle descriptionMode="tooltip" grouped={true} />
-          <ShowWhatsNewOnUpdate descriptionMode="tooltip" grouped={true} />
+          <UpdateChecksToggle grouped={true} />
+          <ShowWhatsNewOnUpdate grouped={true} />
         </SettingsGroup>
       )}
 
       <SettingsGroup title={t("settings.advanced.groups.storage")}>
-        <AppDataDirectory descriptionMode="tooltip" grouped={true} />
-        <LogDirectory descriptionMode="tooltip" grouped={true} />
+        <AppDataDirectory grouped={true} />
+        <LogDirectory grouped={true} />
       </SettingsGroup>
 
       <SettingsGroup title={t("settings.advanced.groups.experimental")}>
-        <ExperimentalToggle descriptionMode="tooltip" grouped={true} />
-        {experimentalEnabled && (
-          <LazyStreamClose descriptionMode="tooltip" grouped={true} />
-        )}
+        <ExperimentalToggle grouped={true} />
+        {experimentalEnabled && <LazyStreamClose grouped={true} />}
       </SettingsGroup>
     </SettingsPage>
   );

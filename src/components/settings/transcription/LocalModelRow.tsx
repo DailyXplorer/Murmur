@@ -10,6 +10,7 @@ import {
 import { downloadPercent } from "@/hooks/useLocalModel";
 import { formatSize } from "@/lib/meetings/format";
 import { Button } from "../../ui/Button";
+import { DescriptionTooltip } from "../../ui/SettingContainer";
 import { DeleteModelDialog } from "./DeleteModelDialog";
 
 type Action = () => Promise<{ status: "ok" } | { status: "error" }>;
@@ -39,39 +40,63 @@ const FAILURE_TITLES: Record<DownloadFailure["kind"], string> = {
   prepare_failed: `${ROW}.loadFailed`,
 };
 
-/** The row's two lines: the model's state, then at most one short note. */
+interface RowLines {
+  label: string;
+  /** What the model's state means, for the info bubble. */
+  info: string | null;
+  /** Why a download failed, the one line that stays under the label: the
+   * user acts on it. */
+  failure: string | null;
+}
+
+/** The row's state line, with its explanation or its failure. */
 const rowLines = (
   t: TFunction,
   status: LocalModelStatus,
   meetingsUseIt: boolean,
   locale: string,
-): [string, string | null] => {
+): RowLines => {
   const meetings = meetingsUseIt ? t(`${ROW}.meetings`) : null;
   const { state } = status;
   switch (state.state) {
     case "unsupported":
-      return [t(`${ROW}.unavailable`), t(`${ROW}.needs.${state.support}`)];
+      return {
+        label: t(`${ROW}.unavailable`),
+        info: t(`${ROW}.needs.${state.support}`),
+        failure: null,
+      };
     case "missing":
-      return [t("settings.transcription.localModel.missing"), meetings];
+      return {
+        label: t("settings.transcription.localModel.missing"),
+        info: meetings,
+        failure: null,
+      };
     case "downloading":
-      return [
-        t(`${ROW}.downloading`, { percent: downloadPercent(status) }),
-        meetings,
-      ];
+      return {
+        label: t(`${ROW}.downloading`, { percent: downloadPercent(status) }),
+        info: meetings,
+        failure: null,
+      };
     case "preparing":
-      return [t(`${ROW}.preparing`), t(`${ROW}.preparingNote`)];
+      return {
+        label: t(`${ROW}.preparing`),
+        info: t(`${ROW}.preparingNote`),
+        failure: null,
+      };
     case "ready":
-      return [
-        t("settings.transcription.localModel.ready", {
+      return {
+        label: t("settings.transcription.localModel.ready", {
           size: formatSize(status.size_bytes, locale),
         }),
-        meetings,
-      ];
+        info: meetings,
+        failure: null,
+      };
     case "failed":
-      return [
-        t(FAILURE_TITLES[state.reason.kind]),
-        failureText(t, state.reason, locale, `${ROW}.reason`),
-      ];
+      return {
+        label: t(FAILURE_TITLES[state.reason.kind]),
+        info: null,
+        failure: failureText(t, state.reason, locale, `${ROW}.reason`),
+      };
     default: {
       const _exhaustive: never = state;
       return _exhaustive;
@@ -112,7 +137,12 @@ export const LocalModelRow: React.FC<{
   const statusId = useId();
   const { state } = status;
   const size = formatSize(status.size_bytes, i18n.language);
-  const [label, note] = rowLines(t, status, meetingsUseIt, i18n.language);
+  const { label, info, failure } = rowLines(
+    t,
+    status,
+    meetingsUseIt,
+    i18n.language,
+  );
 
   const deleteButton = (
     <Button onClick={() => setConfirmDelete(true)}>
@@ -171,9 +201,12 @@ export const LocalModelRow: React.FC<{
     <div data-testid="local-model-row">
       <div className="flex min-h-12 items-center justify-between gap-5 px-4 py-1">
         <div className="min-w-0 flex-1">
-          <p id={statusId} className="text-pretty text-sm font-medium">
-            {label}
-          </p>
+          <div className="flex min-w-0 items-center gap-0.5">
+            <p id={statusId} className="text-pretty text-sm font-medium">
+              {label}
+            </p>
+            {info && <DescriptionTooltip description={info} position="top" />}
+          </div>
           {state.state === "downloading" && (
             <div
               role="progressbar"
@@ -189,7 +222,9 @@ export const LocalModelRow: React.FC<{
               />
             </div>
           )}
-          {note && <p className="text-pretty text-xs text-text/50">{note}</p>}
+          {failure && (
+            <p className="text-pretty text-xs text-text/50">{failure}</p>
+          )}
         </div>
         <div className="relative w-[var(--settings-control-rail-width)] shrink-0 text-end">
           <div className="flex justify-end gap-2">{action}</div>

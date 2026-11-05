@@ -313,7 +313,11 @@ const MeetingsList: React.FC<MeetingsListProps> = ({
         <ShortcutInput shortcutId="meeting_toggle" grouped={true} />
         <SettingContainer
           title={t("meetings.captureMode.title")}
-          description={t("meetings.captureMode.description")}
+          description={
+            systemAudioAvailable
+              ? t("meetings.captureMode.description")
+              : t("meetings.systemAudioUnavailable")
+          }
           grouped={true}
         >
           <Dropdown
@@ -329,7 +333,7 @@ const MeetingsList: React.FC<MeetingsListProps> = ({
             }
           />
         </SettingContainer>
-        {systemAudioAvailable ? (
+        {systemAudioAvailable && (
           <SettingContainer
             title={t("meetings.permission.title")}
             description={t("meetings.permission.description")}
@@ -341,10 +345,6 @@ const MeetingsList: React.FC<MeetingsListProps> = ({
               {t("meetings.permission.open")}
             </Button>
           </SettingContainer>
-        ) : (
-          <p className="px-4 pb-3 text-sm text-text/60">
-            {t("meetings.systemAudioUnavailable")}
-          </p>
         )}
       </SettingsGroup>
 

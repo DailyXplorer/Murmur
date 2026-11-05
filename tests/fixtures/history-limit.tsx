@@ -65,7 +65,7 @@ const renderFixture = async () => {
   ReactDOM.createRoot(rootElement).render(
     <main className="min-h-screen bg-background px-8 py-10 text-text">
       <HistoryLimit />
-      <RecordingRetentionPeriodSelector descriptionMode="inline" />
+      <RecordingRetentionPeriodSelector />
       <button type="button">Elsewhere</button>
     </main>,
   );

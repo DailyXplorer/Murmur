@@ -6,12 +6,11 @@ import { useSettings } from "../../hooks/useSettings";
 import { RecordingRetentionPeriod } from "@/bindings";
 
 interface RecordingRetentionPeriodProps {
-  descriptionMode?: "inline" | "tooltip";
   grouped?: boolean;
 }
 
 export const RecordingRetentionPeriodSelector: React.FC<RecordingRetentionPeriodProps> =
-  React.memo(({ descriptionMode = "tooltip", grouped = false }) => {
+  React.memo(({ grouped = false }) => {
     const { t } = useTranslation();
     const { getSetting, updateSetting, isUpdating } = useSettings();
 
@@ -46,7 +45,6 @@ export const RecordingRetentionPeriodSelector: React.FC<RecordingRetentionPeriod
       <SettingContainer
         title={t("settings.debug.recordingRetention.title")}
         description={t("settings.debug.recordingRetention.description")}
-        descriptionMode={descriptionMode}
         grouped={grouped}
       >
         <Dropdown

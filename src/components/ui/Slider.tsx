@@ -12,7 +12,6 @@ interface SliderProps {
   disabled?: boolean;
   label: string;
   description: string;
-  descriptionMode?: "inline" | "tooltip";
   grouped?: boolean;
   showValue?: boolean;
   formatValue?: (value: number) => string;
@@ -29,7 +28,6 @@ export const Slider: React.FC<SliderProps> = ({
   disabled = false,
   label,
   description,
-  descriptionMode = "tooltip",
   grouped = false,
   showValue = true,
   formatValue = (v) => v.toFixed(2),
@@ -46,7 +44,6 @@ export const Slider: React.FC<SliderProps> = ({
     <SettingContainer
       title={label}
       description={description}
-      descriptionMode={descriptionMode}
       grouped={grouped}
       layout="horizontal"
       disabled={disabled}
