@@ -547,6 +547,7 @@ fn spawn_processing(
                 policy: RetryPolicy::default(),
                 language: Some(language),
                 events: Arc::new(AppEvents(app.clone())),
+                compress_audio: true,
             };
             info!("Meeting {id}: processing");
             let codex = match processor.process(id, operation).await {

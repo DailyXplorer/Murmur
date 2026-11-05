@@ -507,6 +507,7 @@ fn process(data: &Path, codex: Option<(String, PathBuf)>, models: Option<PathBuf
             policy: RetryPolicy::default(),
             language: Some("fr".to_string()),
             events: Arc::new(NoEvents),
+            compress_audio: true,
         };
         let operation = ProcessingOperation::new(OperationId(*id as u64));
         tauri::async_runtime::block_on(processor.process(*id, operation)).unwrap();
@@ -1686,6 +1687,7 @@ fn echoes_without_the_models() {
             policy: RetryPolicy::default(),
             language: Some("fr".to_string()),
             events: Arc::new(NoEvents),
+            compress_audio: true,
         };
         let operation = ProcessingOperation::new(OperationId(id as u64));
         tauri::async_runtime::block_on(processor.process(id, operation)).unwrap();
