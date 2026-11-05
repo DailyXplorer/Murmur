@@ -18,7 +18,7 @@ Status: `Not yet` is not built. `Built, hidden` is built and tested but no scree
 | 4   | Capture mode: both, system only, microphone only                                   | Settings exist                                     | Not yet                                                                          |
 | 5   | Dropped-audio warning, low disk, 3 h cap, crash recovery, sleep notice, keep-awake | Code on `beta`; keep-awake is new                  | Partly: keep-awake built, hidden (`meetings/power_windows.rs`). The rest Not yet |
 | 6   | Transcript through Codex, offline fallback to the local model                      | Code on `beta`                                     | Not yet                                                                          |
-| 7   | Speaker separation, rename speakers                                                | In-process analyzer, at most 4 speakers            | Not yet                                                                          |
+| 7   | Speaker separation, rename speakers                                                | In-process analyzer, at most 4 speakers            | Built, hidden (`meetings/analysis_cpp.rs`)                                       |
 | 8   | Word-aligned merge, echo removal, headphone awareness                              | Neutral code; the output route is new              | Partly: route built, hidden (`loopback_logic::route_facts`). The rest Not yet    |
 | 9   | AI title and summary, retry                                                        | Code on `beta`                                     | Not yet                                                                          |
 | 10  | Compressed audio (`audio.m4a`), re-transcribe, retention, delete audio             | AAC through Media Foundation                       | Not yet                                                                          |
@@ -29,7 +29,7 @@ Status: `Not yet` is not built. `Built, hidden` is built and tested but no scree
 | 15  | "Call ended" prompt                                                                | Port                                               | Built, hidden (`meetings/call_watch.rs`)                                         |
 | 16  | Transcript-ready pill, open from the notice                                        | Port                                               | Not yet                                                                          |
 | 17  | MCP meeting tools                                                                  | Flip the Windows switch                            | Not yet                                                                          |
-| 18  | Models fetched with a meeting unless declined, licences dialog                     | New speaker model source                           | Not yet                                                                          |
+| 18  | Models fetched with a meeting unless declined, licences dialog                     | New speaker model source                           | Partly: speaker model source built, hidden (`pinned::WINDOWS`). The rest Not yet |
 | 19  | Settings: enable, call prompt, live transcript, retention, capture mode            | Port with Windows copy                             | Partly: the call prompt row has its Windows text. The rest Not yet               |
 | 20  | FaceTime calls                                                                     | Not applicable on Windows                          | Not applicable                                                                   |
 | 21  | Windows 10 before build 20348: system audio includes Murmur's own sounds           | Known limit, see below                             | Documented                                                                       |
@@ -56,6 +56,70 @@ Status: `Not yet` is not built. `Built, hidden` is built and tested but no scree
 - **Not detected.** FaceTime (no Windows version), an app that is not in the tables, and a web app that is not one of the pages above.
 - **Prompt and answers** are the macOS ones: "Record this meeting?" with Record and Not now, then "Call ended." with Stop and transcribe and Keep recording, each answer acting only on the prompt it answers. The panel opens beside the orb, takes clicks and never the focus, and its window exists only while a prompt shows. Every call asks, and Murmur never starts or stops a meeting by itself.
 - **Setting.** `meeting_call_prompt` turns it on and off, with the macOS text minus FaceTime. The watcher runs only while `meetings_enabled` is on, which Windows keeps off for now, so nothing of this runs yet.
+
+## Speakers and word times
+
+After a meeting, the transcript shows who spoke (Speaker 1, 2, 3… on the
+remote side, "You" on the microphone) and every word sits at the time it was
+said. The pipeline after the analysis is the Mac one: `Analysis::absorb`,
+`align/`, `speakers.rs` and `bleed.rs` read the same `protocol` messages.
+
+**Where it runs.** In the app, in a background thread, with no helper
+process (`meetings/analysis_cpp.rs`). Two models run on the CPU through
+transcribe.cpp:
+
+- **Parakeet Ultra**, the model dictation already uses, with word timestamps.
+  Each track is cut at pauses into pieces of at most 20 s
+  (`engine::local::MAX_PIECE`), the pieces without speech are skipped, and
+  each word is placed at its time on the track.
+- **Sortformer v2.1** (`diar_streaming_sortformer_4spk-v2.1`, Q8_0, 139 MB),
+  in its offline operating point, on the track `analysis::diarized_track`
+  picks: system audio when the remote side was heard speaking there, else the
+  microphone.
+
+The decisions (pieces, times, which track, turns named `S1`…`S4` in a stable
+order, how a failure ends the run) are in `meetings/analysis_local.rs`, which
+has no model in it and is tested with fakes. `analysis_cpp.rs` holds the
+models, the cancel token, a `catch_unwind` around them and a time limit that
+grows with the audio.
+
+**The speaker model.** It is a second, optional source of the Windows
+manifest (`local_models/pinned.rs`, folder `sortformer`), pinned to a
+Hugging Face commit and a SHA-256 like the others. Dictation never waits for
+it, and a models folder ready before it was added stays ready. It is fetched
+when a meeting starts (unless the user deleted the models or cancelled their
+download) and, for a user who has Meetings on, after a dictation download
+and at launch. Until Meetings are on, nothing fetches it. The analysis of a
+meeting waits for that fetch to end.
+
+**When it degrades.** Without the speaker model, or when the file is missing
+or damaged, the words are still timed and each track keeps one speaker, as on
+an Intel Mac. The analysis is then not kept as final, so it runs again once
+the model is there. A failure in either model, a track that cannot be read or
+a run past its time limit ends the analysis the same way. It never fails the
+meeting.
+
+**Limits.**
+
+- Sortformer tells up to **4 voices** apart on the track it is given. A fifth
+  remote speaker is merged into another. The Mac models have no such limit.
+- It was trained on **English** speech. Other languages are timed by
+  Parakeet as usual, but the voices are told apart less reliably.
+- A track is read whole into memory for the speaker model: about 230 MB of
+  samples per hour of audio, and about as much again for its features. The
+  longest meeting (3 hours) peaks near 1.3 GB while it is analysed (an
+  estimate from the sizes, not a measurement).
+- The models use half of the cores, so a dictation made during the analysis
+  still runs. A slow processor takes longer; the time limit is twice the audio
+  it reads plus 10 minutes.
+
+**Tests.** `analysis_local.rs` runs everywhere. The Windows `cpu model` job
+speaks a three-utterance dialogue with two of the runner's own voices, runs
+the analysis on it and checks that word times are in order and inside the
+clip, that at least 80 % of the words said are timed, and that two speakers
+are found with the change of speaker within 1.5 s of the splice. It cannot
+prove accuracy on real calls (accents, crosstalk, more than four speakers) or
+speed on a weak processor.
 
 ## Known limits
 

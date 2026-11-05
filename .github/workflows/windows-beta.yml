@@ -207,6 +207,62 @@ jobs:
             2>&1 | tee "$RUNNER_TEMP/cpu-model.txt"
           grep -q "2 tests run: 2 passed" "$RUNNER_TEMP/cpu-model.txt"
 
+      # Two of Windows' own voices speak three utterances in turn, 16 kHz
+      # mono as the app records. A voice of each gender when the runner has
+      # both; with one voice the speakers are not checked. ASCII text:
+      # Windows PowerShell reads the script as ANSI.
+      - name: Record the dialogue
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          Add-Type -AssemblyName System.Speech
+          $dialogue = Join-Path $env:RUNNER_TEMP "dialogue"
+          New-Item -ItemType Directory -Force $dialogue | Out-Null
+          $voices = @((New-Object System.Speech.Synthesis.SpeechSynthesizer).GetInstalledVoices() | Where-Object { $_.Enabled -and $_.VoiceInfo.Culture.Name -eq "en-US" })
+          $voices | ForEach-Object { Write-Output "voice: $($_.VoiceInfo.Name) ($($_.VoiceInfo.Gender))" }
+          if ($voices.Count -eq 0) { throw "no en-US voice to record the dialogue with" }
+          $first = $voices[0]
+          $second = $voices | Where-Object { $_.VoiceInfo.Gender -ne $first.VoiceInfo.Gender } | Select-Object -First 1
+          if (-not $second) { $second = $voices | Where-Object { $_.VoiceInfo.Name -ne $first.VoiceInfo.Name } | Select-Object -First 1 }
+          if (-not $second) {
+            $second = $first
+            New-Item -ItemType File -Force (Join-Path $dialogue "one-voice") | Out-Null
+          }
+          $utterances = @(
+            @{ Voice = $first; Text = "Good morning everyone, thank you for joining the planning meeting today."; Words = "morning`neveryone`nthank`njoining`nplanning`nmeeting`ntoday`n" },
+            @{ Voice = $second; Text = "Thanks, I reviewed the budget yesterday and the numbers look quite reasonable."; Words = "thanks`nreviewed`nbudget`nyesterday`nnumbers`nlook`nquite`nreasonable`n" },
+            @{ Voice = $first; Text = "Great, then let us schedule the next review for Thursday afternoon."; Words = "great`nschedule`nnext`nreview`nthursday`nafternoon`n" }
+          )
+          $format = New-Object System.Speech.AudioFormat.SpeechAudioFormatInfo(16000, [System.Speech.AudioFormat.AudioBitsPerSample]::Sixteen, [System.Speech.AudioFormat.AudioChannel]::Mono)
+          $number = 0
+          foreach ($utterance in $utterances) {
+            $number++
+            $synth = New-Object System.Speech.Synthesis.SpeechSynthesizer
+            $synth.SelectVoice($utterance.Voice.VoiceInfo.Name)
+            $synth.SetOutputToWaveFile((Join-Path $dialogue "u$number.wav"), $format)
+            $synth.Speak($utterance.Text)
+            $synth.Dispose()
+            [System.IO.File]::WriteAllText((Join-Path $dialogue "u$number.txt"), $utterance.Words)
+          }
+
+      # The analysis the app runs after a meeting, on that dialogue: word
+      # times in order and inside the clip, most words timed, two speakers
+      # with the change near the splice. The second test opens a folder
+      # with no model, which needs the CPU modules.
+      - name: Time the words and tell the voices apart
+        working-directory: src-tauri
+        shell: bash
+        env:
+          MURMUR_SMOKE_MODELS: ${{ runner.temp }}/models
+          MURMUR_SMOKE_DIALOGUE: ${{ runner.temp }}/dialogue
+        run: |
+          set -euo pipefail
+          cargo nextest run --locked --lib --profile ci --color never \
+            --run-ignored only --no-capture \
+            -E 'test(=meetings::analysis_cpp::tests::two_voices_are_timed_and_told_apart) | test(=meetings::analysis_cpp::tests::a_folder_without_the_speech_model_ends_the_analysis_without_a_panic)' \
+            2>&1 | tee "$RUNNER_TEMP/analysis.txt"
+          grep -q "2 tests run: 2 passed" "$RUNNER_TEMP/analysis.txt"
+
   # Meeting system audio against a real sound output: a tone is played and
   # the WASAPI loopback must hear it, and the process loopback must not hear
   # the test process's own tone. A hosted runner usually has no audio device
