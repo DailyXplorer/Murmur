@@ -36,6 +36,7 @@ pub mod summary;
 pub mod tokens;
 pub mod track_audio;
 pub mod transcribe;
+pub mod trash;
 pub mod wav_recovery;
 
 use std::collections::{HashSet, VecDeque};
@@ -43,7 +44,6 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime};
 
-use chrono::TimeZone;
 use log::{error, info, warn};
 use serde::Serialize;
 use specta::Type;
@@ -641,13 +641,38 @@ fn codex_only(store: &MeetingsStore, id: i64) -> bool {
     })
 }
 
-/// Deletes finished meeting `id`'s audio and the analysis made from it.
+/// Erases finished meeting `id`'s audio and the analysis made from it. The
+/// audio retention uses this: it exists to free space.
 fn delete_audio(store: &MeetingsStore, root: &Path, id: i64) -> Result<(), String> {
+    delete_audio_with(store, id, || {
+        paths::remove_meeting_files(root, id, &paths::AUDIO_FILES)
+            .and_then(|()| paths::remove_meeting_files(root, id, &[analysis::ANALYSIS_FILE]))
+    })
+}
+
+/// A person's "Delete audio": the audio goes to the Trash, the analysis for
+/// good. The Trash comes first, the one step that cannot be undone by a
+/// retry: files already in the Trash are not looked for again.
+fn trash_audio(
+    store: &MeetingsStore,
+    root: &Path,
+    id: i64,
+    notes: &trash::Notes,
+    bin: &dyn trash::Trash,
+) -> Result<(), String> {
+    delete_audio_with(store, id, || {
+        trash::trash_audio(root, id, notes, bin)
+            .and_then(|()| paths::remove_meeting_files(root, id, &[analysis::ANALYSIS_FILE]))
+    })
+}
+
+fn delete_audio_with(
+    store: &MeetingsStore,
+    id: i64,
+    remove_files: impl FnOnce() -> std::io::Result<()>,
+) -> Result<(), String> {
     let deleted = store
-        .delete_audio(id, || {
-            paths::remove_meeting_files(root, id, &paths::AUDIO_FILES)
-                .and_then(|()| paths::remove_meeting_files(root, id, &[analysis::ANALYSIS_FILE]))
-        })
+        .delete_audio(id, remove_files)
         .map_err(|error| format!("Cannot delete the meeting audio: {error}"))?;
     if !deleted {
         return Err(format!("Meeting {id} is not finished"));
@@ -952,10 +977,17 @@ impl MeetingsManager {
             .map_err(|error| crate::search::search_failed("Meeting", &error))
     }
 
+    /// Moves the meeting to the Trash, with its notes, and forgets it.
     pub fn delete(&self, id: i64) -> Result<(), String> {
         self.queue.cancel(id);
+        let Some(meeting) = self.store.get(id).map_err(|error| error.to_string())? else {
+            self.forget_live(id);
+            return Ok(());
+        };
+        let notes = trash::Notes::of(&meeting)
+            .ok_or_else(|| format!("Meeting {id} has an invalid start time"))?;
         self.coordinator()
-            .delete(id)
+            .delete(id, &notes, &trash::SystemTrash)
             .map_err(|error| error.to_string())?;
         self.forget_live(id);
         self.updated(id);
@@ -1054,10 +1086,13 @@ impl MeetingsManager {
         Ok(())
     }
 
-    /// Deletes a finished meeting's audio and the analysis made from it; the
-    /// transcript and the summary stay.
+    /// Moves a finished meeting's audio to the Trash and deletes the analysis
+    /// made from it; the transcript and the summary stay.
     pub fn delete_audio(&self, id: i64) -> Result<(), String> {
-        let result = delete_audio(&self.store, &self.root, id);
+        let meeting = self.detail(id)?;
+        let notes = trash::Notes::of(&meeting)
+            .ok_or_else(|| format!("Meeting {id} has an invalid start time"))?;
+        let result = trash_audio(&self.store, &self.root, id, &notes, &trash::SystemTrash);
         self.updated(id);
         result
     }
@@ -1108,11 +1143,8 @@ impl MeetingsManager {
     /// it under.
     pub fn markdown(&self, id: i64, kind: MeetingMarkdownKind) -> Result<(String, String), String> {
         let meeting = self.detail(id)?;
-        let started_at = chrono::Local
-            .timestamp_millis_opt(meeting.started_at_ms)
-            .single()
-            .ok_or_else(|| format!("Meeting {id} has an invalid start time"))?
-            .fixed_offset();
+        let started_at = export::local_start(meeting.started_at_ms)
+            .ok_or_else(|| format!("Meeting {id} has an invalid start time"))?;
         let transcript = export::Transcript {
             title: meeting.title.as_deref(),
             started_at,
@@ -1361,12 +1393,56 @@ mod tests {
         let files = paths::meeting_dir(&root, old);
         assert!(!files.join(paths::AUDIO_FILE).exists());
         assert!(!files.join(analysis::ANALYSIS_FILE).exists());
+        // Retention erases: nothing is staged for a Trash in the meetings folder.
+        assert!(std::fs::read_dir(&root).unwrap().all(|entry| entry
+            .unwrap()
+            .file_name()
+            .to_str()
+            .unwrap()
+            .parse::<i64>()
+            .is_ok()));
         for kept in [recent, queued] {
             let meeting = store.get(kept).unwrap().unwrap();
             assert_eq!(meeting.audio, store::AudioState::Compressed);
             let files = paths::meeting_dir(&root, kept);
             assert!(files.join(paths::AUDIO_FILE).exists());
         }
+    }
+
+    #[test]
+    fn a_persons_audio_deletion_moves_the_audio_to_the_trash_and_keeps_the_text() {
+        use trash::tests::{notes, FolderTrash};
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().join("meetings");
+        let (store, _) = MeetingsStore::open(dir.path().join("meetings.db"), chrono::Utc::now());
+        let now_ms = chrono::Utc::now().timestamp_millis();
+        let id = processed(&store, &root, now_ms, 8);
+        let meeting_dir = paths::meeting_dir(&root, id);
+        std::fs::write(meeting_dir.join(analysis::ANALYSIS_FILE), b"{}").unwrap();
+        let mut bin = FolderTrash::new(&dir.path().join("trash"));
+
+        bin.fails = true;
+        assert!(trash_audio(&store, &root, id, &notes(), &bin).is_err());
+        assert_eq!(
+            store.get(id).unwrap().unwrap().audio,
+            store::AudioState::Compressed
+        );
+        assert!(meeting_dir.join(paths::AUDIO_FILE).exists());
+
+        bin.fails = false;
+        trash_audio(&store, &root, id, &notes(), &bin).unwrap();
+
+        let meeting = store.get(id).unwrap().unwrap();
+        assert_eq!(meeting.audio, store::AudioState::Deleted);
+        assert_eq!(meeting.summary.as_deref(), Some("Notes."));
+        assert_eq!(meeting.turns.len(), 1);
+        assert!(bin
+            .bin
+            .join("2026-10-17 Q4 plan audio")
+            .join(paths::AUDIO_FILE)
+            .is_file());
+        assert!(!meeting_dir.join(paths::AUDIO_FILE).exists());
+        assert!(!meeting_dir.join(analysis::ANALYSIS_FILE).exists());
     }
 
     #[test]

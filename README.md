@@ -227,7 +227,10 @@ warning 5 minutes before.
   speaker.
 - Once the transcript is complete, Codex writes a title and a summary. The
   two tracks are then kept as one compressed `audio.m4a` (about 30 MB per
-  hour), which you can delete while keeping the text.
+  hour), which you can delete while keeping the text. Deleting a meeting, or
+  its audio, moves it to the macOS Trash with the transcript as a Markdown
+  file, so you can still open it without Murmur. Audio you set to delete
+  after some days is erased for good.
 - Murmur warns at the start of a meeting when less than 1.5 GB is free on
   the disk. Three hours take about 700 MB before compression.
 - On Apple silicon with macOS 14 or later, when a call app (Zoom, Teams,

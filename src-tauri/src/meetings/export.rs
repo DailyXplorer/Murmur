@@ -1,7 +1,7 @@
 //! The Markdown of a meeting's transcript. Copy and Export both use it, so
 //! the copied and the saved text are always the same.
 
-use chrono::{DateTime, FixedOffset};
+use chrono::{DateTime, FixedOffset, TimeZone};
 use std::collections::HashMap;
 use std::fmt::Write;
 
@@ -72,28 +72,61 @@ fn header(transcript: &Transcript) -> String {
     )
 }
 
-/// The summary, with each `[[key]]` marker replaced by the speaker's name.
-pub fn summary_markdown(transcript: &Transcript, summary: &str) -> String {
+/// The summary section, with each `[[key]]` marker replaced by the speaker's
+/// name.
+fn summary_section(transcript: &Transcript, summary: &str) -> String {
     let names: HashMap<&str, String> = transcript
         .speakers
         .iter()
         .map(|speaker| (speaker.key.as_str(), escape(&speaker.name)))
         .collect();
     format!(
-        "{}\n## Summary\n\n{}\n",
-        header(transcript),
+        "## Summary\n\n{}\n",
         resolve_markers(summary.trim(), &names)
     )
 }
 
+pub fn summary_markdown(transcript: &Transcript, summary: &str) -> String {
+    format!(
+        "{}\n{}",
+        header(transcript),
+        summary_section(transcript, summary)
+    )
+}
+
 pub fn transcript_markdown(transcript: &Transcript) -> String {
+    format!("{}\n{}", header(transcript), transcript_section(transcript))
+}
+
+/// The summary, when there is one, then the transcript: the sections Copy and
+/// Export write, under one header, for the file the Trash receives.
+pub fn notes_markdown(transcript: &Transcript, summary: Option<&str>) -> String {
+    let mut out = header(transcript);
+    if let Some(summary) = summary.filter(|summary| !summary.trim().is_empty()) {
+        out.push('\n');
+        out.push_str(&summary_section(transcript, summary));
+    }
+    out.push('\n');
+    out.push_str(&transcript_section(transcript));
+    out
+}
+
+/// When a meeting started, in this Mac's time zone.
+pub fn local_start(started_at_ms: i64) -> Option<DateTime<FixedOffset>> {
+    chrono::Local
+        .timestamp_millis_opt(started_at_ms)
+        .single()
+        .map(|start| start.fixed_offset())
+}
+
+/// The turns, a block per change of speaker, under their heading.
+fn transcript_section(transcript: &Transcript) -> String {
     let names: HashMap<&str, &str> = transcript
         .speakers
         .iter()
         .map(|speaker| (speaker.key.as_str(), speaker.name.as_str()))
         .collect();
-    let mut out = header(transcript);
-    out.push_str("\n## Transcript\n");
+    let mut out = String::from("## Transcript\n");
 
     let mut previous: Option<&str> = None;
     for turn in transcript.turns {
@@ -294,6 +327,29 @@ Suivi entre Me et Camille\\_R.
 - Me — relancer s7 — jeudi
 "
         );
+    }
+
+    #[test]
+    fn the_notes_hold_the_summary_then_the_transcript_as_copy_writes_them() {
+        let (speakers, turns) = french_meeting();
+        let transcript = Transcript {
+            title: Some("Point hebdo"),
+            started_at: at("2026-10-17T14:05:00+02:00"),
+            duration_ms: 3_732_000,
+            speakers: &speakers,
+            turns: &turns,
+        };
+        let summary = summary_markdown(&transcript, "Suivi entre [[me]] et [[s1]].");
+        let only_transcript = transcript_markdown(&transcript);
+        let (header, summary_section) = summary.split_once("\n## Summary").unwrap();
+        let (_, transcript_section) = only_transcript.split_once("\n## Transcript").unwrap();
+
+        assert_eq!(
+            notes_markdown(&transcript, Some("Suivi entre [[me]] et [[s1]].")),
+            format!("{header}\n## Summary{summary_section}\n## Transcript{transcript_section}")
+        );
+        assert_eq!(notes_markdown(&transcript, None), only_transcript);
+        assert_eq!(notes_markdown(&transcript, Some("  \n")), only_transcript);
     }
 
     #[test]

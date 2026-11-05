@@ -184,7 +184,7 @@ test("deleting the meeting or its audio asks with a pink button, never red", asy
   await page.getByRole("button", { name: "Delete audio" }).click();
   const confirm = page
     .getByRole("dialog")
-    .getByRole("button", { name: "Delete audio" });
+    .getByRole("button", { name: "Move to Trash" });
   await expect(confirm).toHaveCSS("background-color", pink);
   const classes = await page.evaluate(() =>
     Array.from(document.querySelectorAll("button")).map((b) => b.className),
@@ -522,9 +522,12 @@ test("deleting the audio asks first and keeps the text", async ({ page }) => {
 
   await page.getByRole("button", { name: "Delete audio" }).click();
   const dialog = page.getByRole("dialog", {
-    name: "Delete this meeting's audio?",
+    name: "Move this meeting's audio to the Trash?",
   });
-  await dialog.getByRole("button", { name: "Delete audio" }).click();
+  await expect(dialog).toContainText(
+    "The recording goes to the Trash, where you can still open it. The transcript and summary stay in Murmur, but the meeting can't be transcribed again.",
+  );
+  await dialog.getByRole("button", { name: "Move to Trash" }).click();
   await expect
     .poll(() => callsTo(page, "delete_meeting_audio"))
     .toEqual([{ id: 3 }]);

@@ -66,7 +66,7 @@ pub fn set_aside_recordings(root: &Path, moved_to: &Path) -> io::Result<()> {
 /// The meeting's folder, when neither it nor the meetings root is a
 /// symlink, so a planted link can never make a deletion reach files outside
 /// the app's data. `None` when either does not exist.
-fn safe_meeting_dir(root: &Path, id: i64) -> io::Result<Option<PathBuf>> {
+pub(super) fn safe_meeting_dir(root: &Path, id: i64) -> io::Result<Option<PathBuf>> {
     let refuse = || io::Error::new(io::ErrorKind::InvalidInput, "unsafe meeting folder");
     let root_metadata = match fs::symlink_metadata(root) {
         Ok(metadata) => metadata,

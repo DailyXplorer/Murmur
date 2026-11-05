@@ -512,7 +512,7 @@ const MeetingsList: React.FC<MeetingsListProps> = ({
             <Button
               onClick={() => pendingDelete && void deleteMeeting(pendingDelete)}
             >
-              {t("common.delete")}
+              {t("meetings.deleteDialog.confirm")}
             </Button>
           </>
         }
