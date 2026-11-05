@@ -77,19 +77,65 @@ const FR_DETERMINERS: &[&str] = &[
     "des", "quel", "quelle", "aucun", "aucune",
 ];
 
-/// A spoken command is never the object of a determiner: "a new line of
-/// products", "la virgule", "a full stop" keep their words. Punctuation
-/// between them ends the phrase: "item one, new line" is a command.
-fn follows_determiner(words: &Words, index: usize, language: PassLanguage) -> bool {
-    let determiners = match language {
-        PassLanguage::En => EN_DETERMINERS,
-        PassLanguage::Fr => FR_DETERMINERS,
+/// Words that make a noun phrase out of the command words after them: "a
+/// whole new line", "a brand new line", "toute nouvelle ligne". Only words
+/// that never end a clause: an adjective like "big" also ends a list item
+/// ("big comma small comma tiny"), and "completely" or "tout" end the clause
+/// before a real command.
+const EN_INTENSIFIERS: &[&str] = &["whole", "brand", "entire"];
+const FR_INTENSIFIERS: &[&str] = &["toute", "véritable"];
+
+/// Prepositions that never begin a line or a sentence: the command words
+/// before them are a noun, "a question mark over the launch".
+const EN_CONTINUATIONS: &[&str] = &["of", "over", "about", "than"];
+const FR_CONTINUATIONS: &[&str] = &["de", "du", "sur"];
+
+/// A spoken command is never part of a noun phrase: "a new line of
+/// products", "a whole new line of shoes", "a big question mark over the
+/// launch", "la virgule", "a full stop" keep their words. Punctuation
+/// between the words ends the phrase: "item one, new line" is a command.
+/// `len` is the number of words of the command at `index`.
+fn inside_noun_phrase(words: &Words, index: usize, len: usize, language: PassLanguage) -> bool {
+    after_opener(words, index, language) || before_continuation(words, index + len, language)
+}
+
+/// The command at `index` follows a determiner or an intensifier.
+fn after_opener(words: &Words, index: usize, language: PassLanguage) -> bool {
+    let (determiners, intensifiers) = match language {
+        PassLanguage::En => (EN_DETERMINERS, EN_INTENSIFIERS),
+        PassLanguage::Fr => (FR_DETERMINERS, FR_INTENSIFIERS),
     };
-    words.items[index].gap.chars().all(|c| c == ' ')
+    only_spaces(words, index)
         && index
             .checked_sub(1)
             .and_then(|previous| words.key(previous))
-            .is_some_and(|word| determiners.contains(&word.as_str()))
+            .is_some_and(|word| {
+                determiners.contains(&word.as_str()) || intensifiers.contains(&word.as_str())
+            })
+}
+
+/// The word at `next`, right after a command, is a lowercase continuation.
+/// The comma does not use it: "yes comma of course" is a comma, and the
+/// determiner rule already protects "the comma of the list".
+fn before_continuation(words: &Words, next: usize, language: PassLanguage) -> bool {
+    let continuations = match language {
+        PassLanguage::En => EN_CONTINUATIONS,
+        PassLanguage::Fr => FR_CONTINUATIONS,
+    };
+    next < words.items.len()
+        && only_spaces(words, next)
+        && !words.items[next]
+            .word
+            .chars()
+            .next()
+            .is_some_and(char::is_uppercase)
+        && words
+            .key(next)
+            .is_some_and(|word| continuations.contains(&word.as_str()))
+}
+
+fn only_spaces(words: &Words, at: usize) -> bool {
+    words.items[at].gap.chars().all(|c| c == ' ')
 }
 
 #[cfg(test)]

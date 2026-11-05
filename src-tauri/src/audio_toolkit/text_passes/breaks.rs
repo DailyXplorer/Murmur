@@ -1,5 +1,5 @@
 use super::words::Words;
-use super::{follows_determiner, PassLanguage};
+use super::{inside_noun_phrase, PassLanguage};
 
 struct Command {
     phrase: &'static [&'static str],
@@ -36,7 +36,7 @@ const FR: &[Command] = &[
 ];
 
 /// Turns spoken line and paragraph breaks into breaks. "a new line of
-/// products" keeps its words: a command never follows a determiner.
+/// products" keeps its words: a command never sits in a noun phrase.
 pub(super) fn apply(words: &mut Words, language: PassLanguage) {
     let commands = match language {
         PassLanguage::En => EN,
@@ -46,7 +46,7 @@ pub(super) fn apply(words: &mut Words, language: PassLanguage) {
     while index < words.items.len() {
         let found = commands.iter().find(|command| {
             words.matches(index, command.phrase)
-                && !follows_determiner(words, index, language)
+                && !inside_noun_phrase(words, index, command.phrase.len(), language)
                 && (!command.at_sentence_end
                     || (ends_a_sentence(words, index + command.phrase.len())
                         && index

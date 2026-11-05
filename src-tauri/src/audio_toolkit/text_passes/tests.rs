@@ -183,6 +183,11 @@ fn breaks_corpus() {
             "A newline character ends it.",
             "Line up the new hires.",
             "The paragraph was new.",
+            "We launched a whole new line of products.",
+            "We launched a brand new line of shoes.",
+            "It is an entire new line of thinking.",
+            "Add a whole new paragraph of notes.",
+            "The brand new line of chairs sold out.",
         ]),
     );
     check(
@@ -195,6 +200,9 @@ fn breaks_corpus() {
             "Cette nouvelle ligne de bus passe ici.",
             "Il marche à la ligne droite près de la gare.",
             "Le point à la ligne reste au texte brut.",
+            "Notre toute nouvelle ligne de produits est prête.",
+            "C'est une toute nouvelle ligne de vêtements.",
+            "Voici un véritable nouveau paragraphe de réflexion.",
         ]),
     );
 }
@@ -219,6 +227,14 @@ fn punctuation_corpus() {
             ("Hi team comma", "Hi team,"),
             ("first, comma, second", "first, second"),
             ("stop full stop", "stop."),
+            ("big comma small comma tiny", "big, small, tiny"),
+            ("did he leave really question mark", "did he leave really?"),
+            ("yes comma of course we will", "yes, of course we will"),
+            (
+                "Hi John comma about the invoice",
+                "Hi John, about the invoice",
+            ),
+            ("better comma than worse", "better, than worse"),
         ],
     );
     check(
@@ -237,6 +253,11 @@ fn punctuation_corpus() {
             ("tu viens point d’interrogation", "tu viens ?"),
             ("Bravo point d'exclamation on a gagné", "Bravo ! On a gagné"),
             ("pain virgule lait virgule œufs", "pain, lait, œufs"),
+            (
+                "Bonjour Marie virgule de la part de l'équipe",
+                "Bonjour Marie, de la part de l'équipe",
+            ),
+            ("Merci virgule sur ce point", "Merci, sur ce point"),
         ],
     );
     check(
@@ -258,6 +279,10 @@ fn punctuation_corpus() {
             "This comma splice is wrong.",
             "My question mark key is broken.",
             "There is no comma here.",
+            "She drew a big question mark over the launch.",
+            "A question mark about the budget stayed on the board.",
+            "We saw a whole question mark of doubt.",
+            "That is a brand exclamation mark of joy.",
         ]),
     );
     check(
@@ -278,6 +303,8 @@ fn punctuation_corpus() {
             "Zéro virgule huit pour cent.",
             "Chaque virgule compte.",
             "Elle a ajouté des virgules.",
+            "Un point d'interrogation sur le budget reste ouvert.",
+            "Un véritable point d'exclamation de joie.",
         ]),
     );
 }
