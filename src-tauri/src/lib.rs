@@ -38,6 +38,7 @@ mod paste_tx;
 mod recently_cancelled;
 mod search;
 mod settings;
+mod settings_window;
 mod shortcut;
 mod signal_handle;
 mod single_instance_actions;
@@ -339,8 +340,93 @@ fn center_settings_window_on_pointer_screen(
     main_window.set_position(position)
 }
 
+/// Builds the settings window, hidden. Closing it can destroy it, so every
+/// open after the first may build it again.
+fn build_main_window(app: &AppHandle) -> tauri::Result<tauri::WebviewWindow> {
+    // A rebuilt window opens at the size the user left it at; its position is
+    // chosen by `center_settings_window_on_pointer_screen` at every show.
+    #[cfg(target_os = "windows")]
+    let size = settings_window::remembered_size(app).unwrap_or(SETTINGS_WINDOW_SIZE);
+    #[cfg(not(target_os = "windows"))]
+    let size = SETTINGS_WINDOW_SIZE;
+    let window = tauri::WebviewWindowBuilder::new(
+        app,
+        settings_window::MAIN_WINDOW,
+        tauri::WebviewUrl::App("/".into()),
+    )
+    .title("Murmur")
+    .inner_size(size.0, size.1)
+    .min_inner_size(SETTINGS_WINDOW_MIN_SIZE.0, SETTINGS_WINDOW_MIN_SIZE.1)
+    .resizable(true)
+    .maximizable(true)
+    .visible(false)
+    .build()?;
+    // Apply the persisted appearance theme to the native title bar before
+    // the window is shown, so it matches the in-app palette without a flash
+    // of the wrong theme.
+    shortcut::apply_window_theme(app, get_settings(app).theme);
+    // The taskbar shows the window's own icon, which a new window lacks.
+    #[cfg(target_os = "windows")]
+    if let Err(error) = accent::apply_native_accent(app, get_settings(app).accent_color) {
+        log::warn!("Failed to apply native accent icon: {error}");
+    }
+    Ok(window)
+}
+
+/// The logical inner size of a settings window that is neither full screen,
+/// maximized nor minimized.
+#[cfg(target_os = "windows")]
+fn settings_window_restorable_size(window: &tauri::Window) -> tauri::Result<Option<(f64, f64)>> {
+    if window.is_fullscreen()? || window.is_maximized()? || window.is_minimized()? {
+        return Ok(None);
+    }
+    let size = window
+        .inner_size()?
+        .to_logical::<f64>(window.scale_factor()?);
+    Ok(Some((size.width, size.height)))
+}
+
+/// Keeps the size of the settings window about to be destroyed.
+#[cfg(target_os = "windows")]
+fn remember_settings_window_size(window: &tauri::Window) {
+    match settings_window_restorable_size(window) {
+        Ok(Some(size)) => settings_window::remember_size(window.app_handle(), size),
+        Ok(None) => {}
+        Err(error) => log::warn!("Failed to keep the settings window size: {error}"),
+    }
+}
+
+/// Brings the settings window forward, building it first when a close
+/// destroyed it.
 fn show_main_window(app: &AppHandle) {
-    if let Some(main_window) = app.get_webview_window("main") {
+    // WebView2 deadlocks a window built inside an event handler on Windows,
+    // such as the tray menu or the second launch's callback: the build waits
+    // on a thread of its own, which the event loop can serve.
+    #[cfg(target_os = "windows")]
+    if app
+        .get_webview_window(settings_window::MAIN_WINDOW)
+        .is_none()
+    {
+        let app = app.clone();
+        std::thread::spawn(move || show_or_build_main_window(&app));
+        return;
+    }
+    show_or_build_main_window(app);
+}
+
+fn show_or_build_main_window(app: &AppHandle) {
+    let main_window = match app.get_webview_window(settings_window::MAIN_WINDOW) {
+        Some(window) => Some(window),
+        // Two opens in a row may build at once: the loser finds the winner's.
+        None => build_main_window(app)
+            .or_else(|error| {
+                app.get_webview_window(settings_window::MAIN_WINDOW)
+                    .ok_or(error)
+            })
+            .inspect_err(|e| log::error!("Failed to build the settings window: {}", e))
+            .ok(),
+    };
+    if let Some(main_window) = main_window {
         #[cfg(target_os = "macos")]
         let app = app.clone();
         let window = main_window.clone();
@@ -476,6 +562,9 @@ fn initialize_core_logic(app_handle: &AppHandle) {
             "check_updates" => {
                 let settings = settings::get_settings(app);
                 if settings.update_checks_enabled {
+                    // A window built here is not listening yet: it takes
+                    // the check once it is.
+                    settings_window::queue(app, settings_window::MainAction::CheckUpdates);
                     show_main_window(app);
                     let _ = app.emit("check-for-updates", ());
                 }
@@ -518,10 +607,6 @@ fn initialize_core_logic(app_handle: &AppHandle) {
     autostart::apply_autostart(app_handle, settings.autostart_enabled);
 
     utils::create_recording_overlay(app_handle);
-    #[cfg(target_os = "macos")]
-    if meetings::call_watch::supported() {
-        utils::create_call_prompt(app_handle);
-    }
 }
 
 #[tauri::command]
@@ -709,6 +794,11 @@ fn specta_builder() -> Builder<tauri::Wry> {
             shortcut::change_whats_new_last_seen_version_setting,
             shortcut::change_show_tray_icon_setting,
             show_main_window_command,
+            settings_window::report_settings_view,
+            settings_window::get_last_settings_section,
+            settings_window::hold_settings_window,
+            settings_window::release_settings_window,
+            settings_window::take_main_action,
             relaunch_after_update,
             updates::get_update_status,
             updates::check_for_updates,
@@ -944,26 +1034,16 @@ pub fn run(cli_args: CliArgs) {
                 return Ok(());
             }
 
+            app.manage(settings_window::SettingsWindow::default());
+            // Built even for a hidden start: its page runs the onboarding
+            // checks and starts the shortcuts, then Rust releases it.
             #[cfg_attr(target_os = "windows", allow(unused_variables))]
-            let main_window =
-                tauri::WebviewWindowBuilder::new(app, "main", tauri::WebviewUrl::App("/".into()))
-                    .title("Murmur")
-                    .inner_size(SETTINGS_WINDOW_SIZE.0, SETTINGS_WINDOW_SIZE.1)
-                    .min_inner_size(SETTINGS_WINDOW_MIN_SIZE.0, SETTINGS_WINDOW_MIN_SIZE.1)
-                    .resizable(true)
-                    .maximizable(true)
-                    .visible(false)
-                    .build()?;
+            let main_window = build_main_window(app.handle())?;
 
             #[cfg(target_os = "macos")]
             prepare_settings_window_for_active_space(&main_window)?;
 
             let mut settings = get_settings(app.handle());
-
-            // Apply the persisted appearance theme to the native title bar before
-            // the window is shown, so it matches the in-app palette without a flash
-            // of the wrong theme.
-            shortcut::apply_window_theme(app.handle(), settings.theme);
 
             if let Err(error) = accent::apply_native_accent(app.handle(), settings.accent_color) {
                 log::warn!("Failed to apply native accent icon: {error}");
@@ -1030,21 +1110,32 @@ pub fn run(cli_args: CliArgs) {
         })
         .on_window_event(|window, event| match event {
             tauri::WindowEvent::CloseRequested { api, .. } => {
-                api.prevent_close();
-                let _res = window.hide();
+                let app = window.app_handle();
+                // A destroyed settings window takes its web process with it.
+                let destroy = window.label() == settings_window::MAIN_WINDOW
+                    && settings_window::current_close_action(app)
+                        == settings_window::CloseAction::Destroy;
+                if !destroy {
+                    api.prevent_close();
+                    let _res = window.hide();
+                }
+                #[cfg(target_os = "windows")]
+                if destroy {
+                    remember_settings_window_size(window);
+                }
 
                 #[cfg(target_os = "macos")]
-                {
-                    let settings = get_settings(window.app_handle());
-                    let tray_visible =
-                        settings.show_tray_icon && !window.app_handle().state::<CliArgs>().no_tray;
-                    if tray_visible {
-                        accent::set_dock_presence(
-                            window.app_handle(),
-                            accent::DockPresence::Hidden,
-                        );
-                    }
+                if settings_window::tray_visible(app) {
+                    accent::set_dock_presence(app, accent::DockPresence::Hidden);
                 }
+            }
+            tauri::WindowEvent::Destroyed if window.label() == settings_window::MAIN_WINDOW => {
+                settings_window::on_destroyed(window.app_handle());
+                // A page closed while a field captured keys cannot resume the
+                // hotkeys it suspended. The registrations wait on the main
+                // thread, which runs this handler.
+                let app = window.app_handle().clone();
+                std::thread::spawn(move || shortcut::resume_bindings_if_suspended(&app));
             }
             tauri::WindowEvent::ThemeChanged(theme) => {
                 log::info!("Theme changed to: {:?}", theme);
@@ -1059,6 +1150,13 @@ pub fn run(cli_args: CliArgs) {
             #[cfg(target_os = "macos")]
             tauri::RunEvent::Reopen { .. } => {
                 show_main_window(app);
+            }
+            // No exit code: the last window went. Murmur lives in the menu
+            // bar, and the settings window is destroyed on close.
+            tauri::RunEvent::ExitRequested {
+                code: None, api, ..
+            } => {
+                api.prevent_exit();
             }
             tauri::RunEvent::ExitRequested { api, .. } => {
                 if let Some(coordinator) = app.try_state::<TranscriptionCoordinator>() {

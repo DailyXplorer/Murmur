@@ -356,6 +356,31 @@ async showMainWindowCommand() : Promise<Result<null, string>> {
     else return { status: "error", error: String(e) };
 }
 },
+async reportSettingsView(view: SettingsView) : Promise<void> {
+    await TAURI_INVOKE("report_settings_view", { view });
+},
+async getLastSettingsSection() : Promise<string | null> {
+    return await TAURI_INVOKE("get_last_settings_section");
+},
+/**
+ * Until the matching release, closing the settings window only hides it:
+ * the page runs work that would die with it.
+ */
+async holdSettingsWindow() : Promise<void> {
+    await TAURI_INVOKE("hold_settings_window");
+},
+/**
+ * Ends one hold. A window closed while held is destroyed once none is left.
+ */
+async releaseSettingsWindow() : Promise<void> {
+    await TAURI_INVOKE("release_settings_window");
+},
+/**
+ * True once per `action` kept for this window.
+ */
+async takeMainAction(action: MainAction) : Promise<boolean> {
+    return await TAURI_INVOKE("take_main_action", { action });
+},
 /**
  * Restarts into the installed update and shows the settings window again.
  */
@@ -1408,6 +1433,11 @@ size_bytes: number;
 kept_bytes: number }
 export type LogLevel = "trace" | "debug" | "info" | "warn" | "error"
 /**
+ * Something that happened while the settings window was gone, for the
+ * next one to act on.
+ */
+export type MainAction = "check_updates" | "switched_to_local"
+/**
  * What an AI app needs to launch the read-only server.
  */
 export type McpSetup = { 
@@ -1613,6 +1643,10 @@ names: Partial<{ [key in string]: string }>;
  */
 unusable: string[] }
 export type RecordingRetentionPeriod = "never" | "preserve_limit" | "days_3" | "weeks_2" | "months_3"
+/**
+ * What the settings page shows, as it reports it.
+ */
+export type SettingsView = "onboarding" | { section: string }
 export type ShortcutBinding = { id: string; name: string; description: string; default_binding: string; current_binding: string }
 /**
  * Why a binding holds no hotkey.

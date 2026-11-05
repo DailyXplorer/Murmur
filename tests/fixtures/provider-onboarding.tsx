@@ -228,7 +228,11 @@ mockIPC(
         return null;
       case "initialize_shortcuts":
       case "show_main_window_command":
+      case "report_settings_view":
+      case "get_last_settings_section":
         return null;
+      case "take_main_action":
+        return false;
       default:
         throw new Error(`Unexpected Tauri command: ${command}`);
     }
