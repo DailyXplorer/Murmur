@@ -1,5 +1,6 @@
 use crate::accent;
 use crate::managers::history::{HistoryEntry, HistoryManager};
+use crate::recently_cancelled::{self, RecentlyCancelled};
 use crate::settings;
 use crate::tray_i18n::get_tray_translations;
 use crate::updates;
@@ -16,6 +17,9 @@ pub enum TrayIconState {
     Recording,
     Transcribing,
 }
+
+/// Shown for `recently_cancelled::KEEP_FOR` after a cancel, while idle.
+pub const RESTORE_CANCELLED_ITEM_ID: &str = "restore_cancelled";
 
 /// Tauri managed state holding the last icon state set via `change_tray_icon`.
 pub struct CurrentTrayIconState(pub Mutex<TrayIconState>);
@@ -151,6 +155,18 @@ fn build_tray_menu(app: &AppHandle, locale: Option<&str>) {
         None::<&str>,
     )
     .expect("failed to create paste last transcript item");
+    let restore_cancelled_i = app
+        .try_state::<Arc<RecentlyCancelled>>()
+        .and_then(|slot| slot.duration())
+        .filter(|_| state == TrayIconState::Idle)
+        .map(|duration| {
+            let label = strings.restore_cancelled.replace(
+                "{{duration}}",
+                &recently_cancelled::format_duration(duration),
+            );
+            MenuItem::with_id(app, RESTORE_CANCELLED_ITEM_ID, label, true, None::<&str>)
+                .expect("failed to create restore cancelled dictation item")
+        });
     let quit_i = MenuItem::with_id(app, "quit", &strings.quit, true, quit_accelerator)
         .expect("failed to create quit item");
     let separator = || PredefinedMenuItem::separator(app).expect("failed to create separator");
@@ -195,6 +211,9 @@ fn build_tray_menu(app: &AppHandle, locale: Option<&str>) {
     }
     if let Some(meeting_i) = &meeting_i {
         items.extend([meeting_i as &dyn IsMenuItem<Wry>, &separators[2]]);
+    }
+    if let Some(restore_cancelled_i) = &restore_cancelled_i {
+        items.push(restore_cancelled_i);
     }
     items.extend([
         &paste_last_transcript_i as &dyn IsMenuItem<Wry>,

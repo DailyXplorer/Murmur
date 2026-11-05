@@ -38,6 +38,7 @@ declare global {
       copyFits(): Array<{ width: number; height: number }>;
       /** The call prompt's answers, "Record" as true, oldest first. */
       callAnswers(): boolean[];
+      restoreCalls(): number;
     };
   }
 }

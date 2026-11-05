@@ -36,6 +36,7 @@ export async function openOverlay(
     let copyCalls = 0;
     const copyFits: Array<{ width: number; height: number }> = [];
     const callAnswers: boolean[] = [];
+    let restoreCalls = 0;
     let nextId = 1;
 
     window.overlayHarness = {
@@ -50,6 +51,7 @@ export async function openOverlay(
       copyCalls: () => copyCalls,
       copyFits: () => copyFits,
       callAnswers: () => callAnswers,
+      restoreCalls: () => restoreCalls,
     };
 
     window.__TAURI_INTERNALS__ = {
@@ -84,6 +86,10 @@ export async function openOverlay(
         }
         if (command === "answer_call_prompt") {
           callAnswers.push(args?.accept ?? false);
+          return Promise.resolve(null);
+        }
+        if (command === "restore_cancelled_dictation") {
+          restoreCalls += 1;
           return Promise.resolve(null);
         }
         if (command === "get_call_prompt") {
