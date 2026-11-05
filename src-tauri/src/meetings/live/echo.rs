@@ -1,7 +1,7 @@
 //! Without headphones the microphone hears the remote side too. A live
 //! microphone sentence that mostly repeats what system audio said at the same
 //! time is that echo, and is not shown. The final transcript filters echo on
-//! its own, with the levels (`bleed.rs`).
+//! its own, with the levels (`bleed/`).
 
 use std::collections::HashSet;
 
