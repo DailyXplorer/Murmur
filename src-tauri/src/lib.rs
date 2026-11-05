@@ -427,7 +427,6 @@ fn show_or_build_main_window(app: &AppHandle) {
             .ok(),
     };
     if let Some(main_window) = main_window {
-        #[cfg(target_os = "macos")]
         let app = app.clone();
         let window = main_window.clone();
         if let Err(e) = main_window.run_on_main_thread(move || {
