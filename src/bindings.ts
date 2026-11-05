@@ -1658,7 +1658,7 @@ export type PromptKind =
  */
 "start" | 
 /**
- * "Call ended.", while the meeting recording it goes on.
+ * "{{app}} left the call", while the meeting recording it goes on.
  */
 "ended"
 /**
