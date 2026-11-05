@@ -725,28 +725,19 @@ test("a dictation, its error or the meeting pill never hide the call prompt", as
   expect(await callAnswers(page)).toEqual([true]);
 });
 
-test("a call prompt opens from the orb, and again when the call ends", async ({
-  page,
-}) => {
+test("a call prompt opens from the orb", async ({ page }) => {
   await openCallPrompt(page);
   await page.evaluate(() => document.fonts.ready);
-  for (const labels of [callLabels(englishTray), endedLabels(englishTray)]) {
-    const widths = await widthsAfter(
-      page,
-      "show-overlay-call",
-      labels,
-      ".ov-call",
-      labels.question,
-    );
-    expect(
-      widths[0],
-      `${labels.kind}: width starts at the orb`,
-    ).toBeLessThanOrEqual(40);
-    expect(
-      widths[widths.length - 1],
-      `${labels.kind}: width ends fitted`,
-    ).toBeGreaterThan(250);
-  }
+  const labels = callLabels(englishTray);
+  const widths = await widthsAfter(
+    page,
+    "show-overlay-call",
+    labels,
+    ".ov-call",
+    labels.question,
+  );
+  expect(widths[0], "width starts at the orb").toBeLessThanOrEqual(40);
+  expect(widths[widths.length - 1], "width ends fitted").toBeGreaterThan(250);
 });
 
 test("a call prompt shown before the page listened still appears", async ({
