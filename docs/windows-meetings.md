@@ -25,12 +25,12 @@ Status: `Not yet` is not built. `Built, hidden` is built and tested but no scree
 | 11  | Export and copy Markdown (save dialog)                                             | `IFileSaveDialog`                                  | Not yet                                                                          |
 | 12  | Meetings list, detail, search, delete                                              | UI and FTS5 search on `beta`                       | Not yet                                                                          |
 | 13  | Live transcript, "Catching up", paste-new-text shortcut                            | Port of the live transcript                        | Not yet                                                                          |
-| 14  | Call detected, prompt to record (Zoom, Teams, Slack, Webex, Discord, browser Meet) | New probes, shared state machine                   | Not yet                                                                          |
-| 15  | "Call ended" prompt                                                                | Port                                               | Not yet                                                                          |
+| 14  | Call detected, prompt to record (Zoom, Teams, Slack, Webex, Discord, browser Meet) | Microphone consent store, shared state machine     | Built, hidden (`meetings/call_probe_windows.rs`)                                 |
+| 15  | "Call ended" prompt                                                                | Port                                               | Built, hidden (`meetings/call_watch.rs`)                                         |
 | 16  | Transcript-ready pill, open from the notice                                        | Port                                               | Not yet                                                                          |
 | 17  | MCP meeting tools                                                                  | Flip the Windows switch                            | Not yet                                                                          |
 | 18  | Models fetched with a meeting unless declined, licences dialog                     | New speaker model source                           | Not yet                                                                          |
-| 19  | Settings: enable, call prompt, live transcript, retention, capture mode            | Port with Windows copy                             | Not yet                                                                          |
+| 19  | Settings: enable, call prompt, live transcript, retention, capture mode            | Port with Windows copy                             | Partly: the call prompt row has its Windows text. The rest Not yet               |
 | 20  | FaceTime calls                                                                     | Not applicable on Windows                          | Not applicable                                                                   |
 | 21  | Windows 10 before build 20348: system audio includes Murmur's own sounds           | Known limit, see below                             | Documented                                                                       |
 
@@ -45,11 +45,26 @@ Status: `Not yet` is not built. `Built, hidden` is built and tested but no scree
 - **Silent system track.** The macOS check for a denied System Audio Recording permission (zeros while another app played) has no Windows cause, so `SystemCapture::finish` reports "no" there and the flag stays off.
 - **Keep awake.** `SetThreadExecutionState(ES_CONTINUOUS | ES_SYSTEM_REQUIRED)` from a thread the guard owns, cleared on drop. A closed lid still sleeps the PC.
 
+## Call detection on Windows
+
+- **Where.** `meetings/call_probe_windows.rs` reads the system (and holds the parsers and decisions, which run on any platform in the tests), `meetings/call_watch.rs` polls it once a second through the `Probe` trait, `meetings/calls.rs` is the state machine and the app tables that macOS shares, `overlay.rs` builds the prompt window.
+- **Signal.** The microphone consent store, `HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\microphone`. A packaged app has a subkey named by its package family name. A desktop app has one under `NonPackaged`, named by its executable's path with `#` for `\`. Each holds `LastUsedTimeStart` and `LastUsedTimeStop`: an app is on the microphone while Start is set and Stop is 0. It works from Windows 10 1903, needs no administrator rights and no COM. While nothing holds the microphone, a poll reads only the registry.
+- **Murmur is skipped**, by its executable's file name: its own dictation holds the microphone too.
+- **Dead apps.** Windows leaves Stop at 0 when an app dies with the microphone open. A desktop app counts only while its executable is in the process list, which is read only when a desktop app is on the microphone. A packaged app has no executable to look for, so a stale entry of one stays until the app opens the microphone again.
+- **Apps.** Zoom (`Zoom.exe`), Teams (`ms-teams.exe`, `Teams.exe` and the packaged `MSTeams`), Slack (`slack.exe`), Webex (`webex.exe`, `CiscoCollabHost.exe`, `webexmta.exe`, `atmgr.exe`) and Discord (`Discord.exe`) are calls as soon as they hold the microphone for 3 s. The browsers are Chrome, Edge, Brave, Firefox, Vivaldi, Opera, Chromium, Arc, Helium and Comet. The tables are `WINDOWS_EXECUTABLES` and `WINDOWS_PACKAGES` in `calls.rs`; Chrome's and Edge's Beta and Canary channels share their executable, so they count as one browser.
+- **Browsers** are a call only on a meeting page. First the titles of the browser's visible windows are read (Google Meet names its tab "Meet - abc-defg-hij"). If none shows a meeting, the address bar is read through UI Automation, the toolbar only and never the page, at most every 5 s per browser and within 750 ms. The address matches a Meet code, Teams on the web, the Zoom web client, Webex and a Discord channel. A call found stays while the browser holds the microphone, so it survives a switch to another tab.
+- **Not detected.** FaceTime (no Windows version), an app that is not in the tables, and a web app that is not one of the pages above.
+- **Prompt and answers** are the macOS ones: "Record this meeting?" with Record and Not now, then "Call ended." with Stop and transcribe and Keep recording, each answer acting only on the prompt it answers. The panel opens beside the orb, takes clicks and never the focus, and its window exists only while a prompt shows. Every call asks, and Murmur never starts or stops a meeting by itself.
+- **Setting.** `meeting_call_prompt` turns it on and off, with the macOS text minus FaceTime. The watcher runs only while `meetings_enabled` is on, which Windows keeps off for now, so nothing of this runs yet.
+
 ## Known limits
 
 - Before Windows 10 build 20348, Murmur's own sounds can reach the system track. The echo filter tolerates it.
 - Windows may play call audio on the default communications device, which is not the default device. The capture follows the default device only.
 - Not proven in CI: real call audio, Bluetooth switching, headsets, an unplugged device mid-meeting. `OWNER_CHECKS.md` of the lane lists them.
+- Not proven in CI: real Teams (new, classic, packaged), Zoom, Slack, Discord and Webex calls, a browser's address bar through UI Automation in each browser, and what an app does with the microphone while muted. `OWNER_CHECKS.md` of the lane lists them.
+- A Windows machine without the consent store (before Windows 10 1903) has no call detection, and the setting is hidden.
+- A call app Windows does not list yet, or one renamed by its maker, is no call until it is added to the tables. The debug log lists the apps on the microphone, by file name or package family, so a missing one can be found.
 
 ## Tests
 

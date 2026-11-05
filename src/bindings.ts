@@ -1096,10 +1096,10 @@ async getMcpSetup() : Promise<Result<McpSetup, string>> {
 }
 },
 /**
- * The call prompt's buttons: "Record" when `accept`, else "Not now".
+ * The call prompt's buttons.
  */
-async answerCallPrompt(accept: boolean) : Promise<void> {
-    await TAURI_INVOKE("answer_call_prompt", { accept });
+async answerCallPrompt(answer: CallAnswer) : Promise<void> {
+    await TAURI_INVOKE("answer_call_prompt", { answer });
 },
 /**
  * Fits the call prompt's window to the capsule the webview measured, as
@@ -1277,9 +1277,17 @@ export type AudioState =
 export type AutoSubmitKey = "enter" | "ctrl_enter" | "cmd_enter"
 export type BindingResponse = { success: boolean; binding: ShortcutBinding | null; error: string | null }
 /**
+ * The call prompt's buttons.
+ */
+export type CallAnswer = "record" | "not_now" | "stop_and_transcribe" | "keep_recording"
+/**
  * Payload of `show-overlay-call`, and what `get_call_prompt` answers.
  */
-export type CallPromptLabels = { question: string; accept: string; decline: string; 
+export type CallPromptLabels = { 
+/**
+ * Which answers the buttons send.
+ */
+kind: PromptKind; question: string; accept: string; decline: string; 
 /**
  * The overlay's side of the screen, which the prompt sits on too.
  */
@@ -1641,6 +1649,18 @@ export type ProcessingError =
  * Processing stopped on an unexpected error.
  */
 "other"
+/**
+ * What the call prompt asks.
+ */
+export type PromptKind = 
+/**
+ * "Record this meeting?", for a call while no meeting records.
+ */
+"start" | 
+/**
+ * "{{app}} left the call", while the meeting recording it goes on.
+ */
+"ended"
 /**
  * What the recorder saves for the physical keys of the active layout.
  */

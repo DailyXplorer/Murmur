@@ -231,6 +231,15 @@ warning 5 minutes before.
   hour), which you can delete while keeping the text.
 - Murmur warns at the start of a meeting when less than 1.5 GB is free on
   the disk. Three hours take about 700 MB before compression.
+- On Apple silicon with macOS 14 or later, when a call app (Zoom, Teams,
+  Slack, FaceTime, Webex, Discord, or a meeting page in a browser) holds the
+  microphone for 3 seconds, a panel asks whether to record the call. During
+  a meeting, once every call app it heard has left the microphone for 3
+  seconds, the panel says the call ended and offers **Stop and transcribe**
+  or **Keep recording**. Murmur never stops a meeting without your answer:
+  unanswered, the panel stays and the meeting goes on. Keep recording asks
+  again only if a call comes back and leaves again. **Offer to record calls**
+  in Settings > Advanced turns both off.
 
 ### Use your meetings from an AI assistant
 

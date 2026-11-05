@@ -1,3 +1,4 @@
+use crate::meetings::calls::PromptKind;
 use crate::settings;
 use crate::settings::{OverlayPosition, OverlayStyle};
 use crate::tray_i18n::get_tray_translations;
@@ -152,6 +153,8 @@ const CALL_PROMPT_OFFSET: f64 = 84.0 + 8.0;
 /// Payload of `show-overlay-call`, and what `get_call_prompt` answers.
 #[derive(Clone, serde::Serialize, specta::Type)]
 pub struct CallPromptLabels {
+    /// Which answers the buttons send.
+    kind: PromptKind,
     question: String,
     accept: String,
     decline: String,
@@ -701,9 +704,39 @@ pub fn show_cancelled_notice(app_handle: &AppHandle, shown: DictationEpoch) {
     dismiss_notice_after(app_handle, generation, CANCELLED_DISPLAY_TIME, true);
 }
 
+/// Creates the call prompt's window, hidden. It takes clicks but never the
+/// focus, so the call keeps it. It only lives while a prompt shows. The build
+/// waits for the event loop, so it runs on the call watcher's thread, never
+/// on the main one: WebView2 deadlocks a window built there.
+#[cfg(target_os = "windows")]
+fn create_call_prompt(app_handle: &AppHandle) {
+    if let Err(e) = tauri::WebviewWindowBuilder::new(
+        app_handle,
+        CALL_PROMPT_WINDOW,
+        WebviewUrl::App("src/overlay/call.html".into()),
+    )
+    .title("Call")
+    .inner_size(COPY_OVERLAY_WIDTH, COPY_OVERLAY_HEIGHT)
+    .resizable(false)
+    .maximizable(false)
+    .minimizable(false)
+    .closable(false)
+    .decorations(false)
+    .transparent(true)
+    .shadow(false)
+    .always_on_top(true)
+    .skip_taskbar(true)
+    .focusable(false)
+    .focused(false)
+    .visible(false)
+    .build()
+    {
+        log::error!("Failed to create the call prompt window: {}", e);
+    }
+}
+
 /// Creates the call prompt's panel, hidden. It takes clicks whenever it
-/// shows. It only lives while a prompt shows. Windows has no call detection,
-/// so no call prompt.
+/// shows. It only lives while a prompt shows.
 #[cfg(target_os = "macos")]
 fn create_call_prompt(app_handle: &AppHandle) {
     if let Err(e) = PanelBuilder::<_, RecordingOverlayPanel>::new(app_handle, CALL_PROMPT_WINDOW)
@@ -738,19 +771,39 @@ fn create_call_prompt(app_handle: &AppHandle) {
 }
 
 /// Asks whether to record the call that started, with "Record" and "Not
-/// now", in a panel of its own: a dictation, an error or the meeting pill
-/// never hides it. It shows even with the overlay off: the call prompt has
-/// a setting of its own. The panel never takes the focus from the call.
-pub fn show_call_prompt(app_handle: &AppHandle) {
+/// now", or, once the call a meeting records ended, whether to stop, with
+/// "Stop and transcribe" and "Keep recording", in a panel of its own: a
+/// dictation, an error or the meeting pill never hides it. It shows even
+/// with the overlay off: the call prompt has a setting of its own. The
+/// panel never takes the focus from the call. Call it from a thread of its
+/// own, as the call watcher does: on Windows it builds the window.
+pub fn show_call_prompt(app_handle: &AppHandle, kind: PromptKind) {
     let settings = settings::get_settings(app_handle);
     let strings = get_tray_translations(Some(settings.app_language));
+    let (question, accept, decline) = match kind {
+        PromptKind::Start => (
+            strings.call_record_question,
+            strings.call_record,
+            strings.call_not_now,
+        ),
+        PromptKind::Ended => (
+            strings.call_ended_question,
+            strings.call_ended_stop,
+            strings.call_ended_keep,
+        ),
+    };
     let labels = CallPromptLabels {
-        question: strings.call_record_question,
-        accept: strings.call_record,
-        decline: strings.call_not_now,
+        kind,
+        question,
+        accept,
+        decline,
         position: settings.overlay_position,
     };
     *call_prompt() = Some(labels.clone());
+    #[cfg(target_os = "windows")]
+    if app_handle.get_webview_window(CALL_PROMPT_WINDOW).is_none() {
+        create_call_prompt(app_handle);
+    }
     let handle = app_handle.clone();
     let _ = app_handle.run_on_main_thread(move || {
         // A page built here asks for the labels once it listens.
@@ -771,11 +824,26 @@ pub fn hide_call_prompt(app_handle: &AppHandle) {
     *call_prompt() = None;
     let handle = app_handle.clone();
     let _ = app_handle.run_on_main_thread(move || {
-        // The panel store holds the panel too: both go, or its web process
-        // stays.
+        // The panel's window must get its own class back before Tauri
+        // destroys it: destroying it as a panel raises an Objective-C
+        // exception, which aborts Murmur. `to_window` also takes the panel
+        // out of the store, or its web process would stay. It marks the
+        // window released when closed, but tao releases its windows itself:
+        // left on, the window would be freed twice.
         #[cfg(target_os = "macos")]
-        drop(handle.remove_webview_panel(CALL_PROMPT_WINDOW));
-        if let Some(window) = handle.get_webview_window(CALL_PROMPT_WINDOW) {
+        let window = match handle.get_webview_panel(CALL_PROMPT_WINDOW) {
+            Ok(panel) => {
+                panel.hide();
+                let window = panel.to_window();
+                panel.set_released_when_closed(false);
+                window
+            }
+            // Already handed back by an earlier hide, its destroy pending.
+            Err(_) => handle.get_webview_window(CALL_PROMPT_WINDOW),
+        };
+        #[cfg(not(target_os = "macos"))]
+        let window = handle.get_webview_window(CALL_PROMPT_WINDOW);
+        if let Some(window) = window {
             let _ = window.hide();
             if let Err(e) = window.destroy() {
                 log::error!("Failed to destroy the call prompt panel: {}", e);
