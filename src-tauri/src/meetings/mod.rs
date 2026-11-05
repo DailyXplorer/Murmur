@@ -7,9 +7,11 @@ pub mod align;
 pub mod analysis;
 pub mod archive;
 pub mod bleed;
+// What Windows tells about calls; its parsers and decisions are tested on
+// every host, only the reads of the system are Windows-only.
+#[cfg(any(target_os = "windows", test))]
+pub mod call_probe_windows;
 pub mod call_watch;
-// Windows detects no calls (see `call_watch`).
-#[cfg_attr(target_os = "windows", allow(dead_code))]
 pub mod calls;
 pub mod cap;
 pub mod capture;

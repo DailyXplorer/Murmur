@@ -704,9 +704,39 @@ pub fn show_cancelled_notice(app_handle: &AppHandle, shown: DictationEpoch) {
     dismiss_notice_after(app_handle, generation, CANCELLED_DISPLAY_TIME, true);
 }
 
+/// Creates the call prompt's window, hidden. It takes clicks but never the
+/// focus, so the call keeps it. It only lives while a prompt shows. The build
+/// waits for the event loop, so it runs on the call watcher's thread, never
+/// on the main one: WebView2 deadlocks a window built there.
+#[cfg(target_os = "windows")]
+fn create_call_prompt(app_handle: &AppHandle) {
+    if let Err(e) = tauri::WebviewWindowBuilder::new(
+        app_handle,
+        CALL_PROMPT_WINDOW,
+        WebviewUrl::App("src/overlay/call.html".into()),
+    )
+    .title("Call")
+    .inner_size(COPY_OVERLAY_WIDTH, COPY_OVERLAY_HEIGHT)
+    .resizable(false)
+    .maximizable(false)
+    .minimizable(false)
+    .closable(false)
+    .decorations(false)
+    .transparent(true)
+    .shadow(false)
+    .always_on_top(true)
+    .skip_taskbar(true)
+    .focusable(false)
+    .focused(false)
+    .visible(false)
+    .build()
+    {
+        log::error!("Failed to create the call prompt window: {}", e);
+    }
+}
+
 /// Creates the call prompt's panel, hidden. It takes clicks whenever it
-/// shows. It only lives while a prompt shows. Windows has no call detection,
-/// so no call prompt.
+/// shows. It only lives while a prompt shows.
 #[cfg(target_os = "macos")]
 fn create_call_prompt(app_handle: &AppHandle) {
     if let Err(e) = PanelBuilder::<_, RecordingOverlayPanel>::new(app_handle, CALL_PROMPT_WINDOW)
@@ -745,7 +775,8 @@ fn create_call_prompt(app_handle: &AppHandle) {
 /// "Stop and transcribe" and "Keep recording", in a panel of its own: a
 /// dictation, an error or the meeting pill never hides it. It shows even
 /// with the overlay off: the call prompt has a setting of its own. The
-/// panel never takes the focus from the call.
+/// panel never takes the focus from the call. Call it from a thread of its
+/// own, as the call watcher does: on Windows it builds the window.
 pub fn show_call_prompt(app_handle: &AppHandle, kind: PromptKind) {
     let settings = settings::get_settings(app_handle);
     let strings = get_tray_translations(Some(settings.app_language));
@@ -769,6 +800,10 @@ pub fn show_call_prompt(app_handle: &AppHandle, kind: PromptKind) {
         position: settings.overlay_position,
     };
     *call_prompt() = Some(labels.clone());
+    #[cfg(target_os = "windows")]
+    if app_handle.get_webview_window(CALL_PROMPT_WINDOW).is_none() {
+        create_call_prompt(app_handle);
+    }
     let handle = app_handle.clone();
     let _ = app_handle.run_on_main_thread(move || {
         // A page built here asks for the labels once it listens.
