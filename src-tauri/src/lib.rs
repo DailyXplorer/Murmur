@@ -33,6 +33,7 @@ mod overlay;
 mod panic_log;
 mod paste_last;
 mod paste_tx;
+mod search;
 mod settings;
 mod shortcut;
 mod signal_handle;
@@ -738,6 +739,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::transcription::switch_to_local_when_ready,
             commands::transcription::change_local_stt_card_dismissed_setting,
             commands::history::get_history_entries,
+            commands::history::search_history,
             commands::history::toggle_history_entry_saved,
             commands::history::get_audio_file_path,
             commands::history::delete_history_entry,
@@ -751,6 +753,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::meetings::stop_meeting,
             commands::meetings::discard_meeting,
             commands::meetings::get_meetings,
+            commands::meetings::search_meetings,
             commands::meetings::delete_meeting,
             commands::meetings::get_meeting,
             commands::meetings::rename_meeting,

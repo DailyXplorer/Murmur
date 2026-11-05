@@ -130,13 +130,17 @@ The Windows source lives on the `beta` branch for now, not on `main`.
 - Meetings: record a call (Control+Option+Command+M or the menu bar), then
   get a transcript with speakers told apart and a summary with a title. See
   [Meetings](#meetings)
+- Search across every meeting (titles, summaries, transcripts) and every
+  dictation, ignoring case and accents; each word matches as a prefix, and
+  quotes match an exact phrase. Opening a meeting from a result jumps to the
+  first passage that matched
 - A minimal waveform overlay at the top or bottom of the screen, which can be
   turned off
 - Audio feedback, tray controls, and automatic updates
 
 The Windows beta has dictation, transcription on the PC or in the cloud, AI
-cleanup with styles, names read from the active window, history, Insights,
-custom words, shortcut keys shown for your keyboard layout, sounds, and launch
+cleanup with styles, names read from the active window, history you can search
+by words, Insights, custom words, shortcut keys shown for your keyboard layout, sounds, and launch
 at login. It does not have Meetings or automatic updates yet.
 
 ## Getting started
