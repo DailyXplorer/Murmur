@@ -1131,6 +1131,11 @@ pub fn run(cli_args: CliArgs) {
             }
             tauri::WindowEvent::Destroyed if window.label() == settings_window::MAIN_WINDOW => {
                 settings_window::on_destroyed(window.app_handle());
+                // A page closed while a field captured keys cannot resume the
+                // hotkeys it suspended. The registrations wait on the main
+                // thread, which runs this handler.
+                let app = window.app_handle().clone();
+                std::thread::spawn(move || shortcut::resume_bindings_if_suspended(&app));
             }
             tauri::WindowEvent::ThemeChanged(theme) => {
                 log::info!("Theme changed to: {:?}", theme);
