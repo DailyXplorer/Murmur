@@ -364,7 +364,8 @@
       },
       "meetingCallPrompt": {
         "label": "Oferecer gravar chamadas",
-        "description": "Quando Zoom, Google Meet, Teams, Slack, FaceTime, Webex ou Discord inicia uma chamada, perguntar se deve gravá-la. A pergunta fica até você responder ou a chamada terminar. O Murmur nunca grava sem um clique. Enquanto uma reunião é gravada, perguntar também se deve pará-la quando a chamada terminar. O Murmur nunca a para sem um clique."
+        "description": "Quando Zoom, Google Meet, Teams, Slack, FaceTime, Webex ou Discord inicia uma chamada, perguntar se deve gravá-la. A pergunta fica até você responder ou a chamada terminar. O Murmur nunca grava sem um clique. Enquanto uma reunião é gravada, perguntar também se deve pará-la quando a chamada terminar. O Murmur nunca a para sem um clique.",
+        "descriptionWindows": "Quando Zoom, Google Meet, Teams, Slack, Webex ou Discord inicia uma chamada, perguntar se deve gravá-la. A pergunta fica até você responder ou a chamada terminar. O Murmur nunca grava sem um clique. Enquanto uma reunião é gravada, perguntar também se deve pará-la quando a chamada terminar. O Murmur nunca a para sem um clique."
       },
       "meetingsAudio": {
         "title": "Apagar o áudio das reuniões",
