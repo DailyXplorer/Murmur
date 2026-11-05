@@ -164,6 +164,7 @@ fn read_char_before_caret(app_handle: &AppHandle, deadline: Instant) -> Option<B
     crate::accessibility::char_before_caret(frontmost, deadline)
 }
 
+#[cfg(target_os = "macos")]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct FrontmostTarget {
     pid: i32,
