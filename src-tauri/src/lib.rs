@@ -396,10 +396,33 @@ fn remember_settings_window_size(window: &tauri::Window) {
     }
 }
 
+/// Brings the settings window forward, building it first when a close
+/// destroyed it.
 fn show_main_window(app: &AppHandle) {
+    // WebView2 deadlocks a window built inside an event handler on Windows,
+    // such as the tray menu or the second launch's callback: the build waits
+    // on a thread of its own, which the event loop can serve.
+    #[cfg(target_os = "windows")]
+    if app
+        .get_webview_window(settings_window::MAIN_WINDOW)
+        .is_none()
+    {
+        let app = app.clone();
+        std::thread::spawn(move || show_or_build_main_window(&app));
+        return;
+    }
+    show_or_build_main_window(app);
+}
+
+fn show_or_build_main_window(app: &AppHandle) {
     let main_window = match app.get_webview_window(settings_window::MAIN_WINDOW) {
         Some(window) => Some(window),
+        // Two opens in a row may build at once: the loser finds the winner's.
         None => build_main_window(app)
+            .or_else(|error| {
+                app.get_webview_window(settings_window::MAIN_WINDOW)
+                    .ok_or(error)
+            })
             .inspect_err(|e| log::error!("Failed to build the settings window: {}", e))
             .ok(),
     };
