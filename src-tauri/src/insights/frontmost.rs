@@ -50,14 +50,22 @@ mod browser {
     /// The host of the tab shown in the browser window `window`: the page's
     /// URL, else the address bar's text.
     pub fn tab_host(automation: &Automation, window: isize) -> Option<String> {
-        host::tab_host(tab_texts(automation, window))
+        tab_host_until(automation, window, Instant::now() + BUDGET)
+    }
+
+    /// `tab_host` with the lookup's deadline given.
+    fn tab_host_until(automation: &Automation, window: isize, deadline: Instant) -> Option<String> {
+        host::tab_host(tab_texts(automation, window, deadline))
     }
 
     /// Walks the window breadth first and yields the value of each page (a
     /// document) and of each edit box met outside the pages. Neither is
     /// entered, so nothing typed in a page is read.
-    fn tab_texts(automation: &Automation, window: isize) -> impl Iterator<Item = TabText> + '_ {
-        let deadline = Instant::now() + BUDGET;
+    fn tab_texts(
+        automation: &Automation,
+        window: isize,
+        deadline: Instant,
+    ) -> impl Iterator<Item = TabText> + '_ {
         let mut queue: VecDeque<Element> = automation.window(window).into_iter().collect();
         let mut visited = 0;
         std::iter::from_fn(move || loop {
@@ -84,10 +92,17 @@ mod browser {
 
     #[cfg(test)]
     mod tests {
-        use super::tab_host;
+        use super::tab_host_until;
         use crate::uia::test_window::{child, TestWindow};
         use crate::uia::Automation;
+        use std::time::{Duration, Instant};
         use windows::Win32::UI::WindowsAndMessaging::WS_BORDER;
+
+        /// A deadline no test reaches: these tests check what the lookup
+        /// reads, and the budget is checked on its own below.
+        fn later() -> Instant {
+            Instant::now() + Duration::from_secs(60)
+        }
 
         /// A window holding one EDIT control, as a browser holds its
         /// address bar.
@@ -103,8 +118,18 @@ mod browser {
             let window = edit_window("github.com/DailyXplorer/Murmur");
             let automation = Automation::new().expect("UI Automation client");
             assert_eq!(
-                tab_host(&automation, window.window).as_deref(),
+                tab_host_until(&automation, window.window, later()).as_deref(),
                 Some("github.com")
+            );
+        }
+
+        #[test]
+        fn a_spent_budget_reads_nothing() {
+            let window = edit_window("github.com/DailyXplorer/Murmur");
+            let automation = Automation::new().expect("UI Automation client");
+            assert_eq!(
+                tab_host_until(&automation, window.window, Instant::now()),
+                None
             );
         }
 
@@ -112,7 +137,7 @@ mod browser {
         fn a_search_in_the_address_bar_gives_no_host() {
             let window = edit_window("best pizza near me");
             let automation = Automation::new().expect("UI Automation client");
-            assert_eq!(tab_host(&automation, window.window), None);
+            assert_eq!(tab_host_until(&automation, window.window, later()), None);
         }
     }
 }
