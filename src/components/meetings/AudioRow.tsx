@@ -80,7 +80,7 @@ export const AudioRow: React.FC<{
             </Button>
             <Button onClick={() => void confirm()}>
               {pending === "delete"
-                ? t("meetings.audio.delete")
+                ? t("meetings.audio.deleteDialog.confirm")
                 : t("meetings.audio.retranscribe")}
             </Button>
           </>

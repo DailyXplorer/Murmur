@@ -844,8 +844,9 @@
       "keep": "Weiter aufnehmen"
     },
     "deleteDialog": {
-      "title": "Dieses Meeting löschen?",
-      "description": "Die Aufnahme wird gelöscht und kann nicht wiederhergestellt werden."
+      "title": "Dieses Meeting in den Papierkorb legen?",
+      "description": "Transkript und Aufnahme kommen in den Papierkorb, wo du sie weiterhin öffnen kannst. Murmur zeigt das Meeting nicht mehr an.",
+      "confirm": "In den Papierkorb legen"
     },
     "captureMode": {
       "title": "Audioquellen",
@@ -911,8 +912,9 @@
       "deleteError": "Das Audio konnte nicht gelöscht werden.",
       "retranscribeError": "Das Meeting konnte nicht erneut transkribiert werden.",
       "deleteDialog": {
-        "title": "Audio dieses Meetings löschen?",
-        "description": "Die Aufnahme wird gelöscht und kann nicht wiederhergestellt werden. Transkript und Zusammenfassung bleiben erhalten, aber das Meeting kann nicht erneut transkribiert werden."
+        "title": "Audio dieses Meetings in den Papierkorb legen?",
+        "description": "Die Aufnahme kommt in den Papierkorb, wo du sie weiterhin öffnen kannst. Transkript und Zusammenfassung bleiben in Murmur erhalten, aber das Meeting kann nicht erneut transkribiert werden.",
+        "confirm": "In den Papierkorb legen"
       },
       "retranscribeDialog": {
         "title": "Dieses Meeting erneut transkribieren?",

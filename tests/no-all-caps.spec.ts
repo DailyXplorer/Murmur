@@ -44,6 +44,7 @@ const PROPER_PHRASES = [
   "French",
   "WeSpeaker",
   "Markdown",
+  "Trash",
   "FaceTime",
   "Core ML",
   "Claude Desktop",
