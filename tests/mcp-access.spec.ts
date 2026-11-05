@@ -133,23 +133,79 @@ test("the setup is copied to the clipboard", async ({ page }) => {
   ).toBe(`[mcp_servers.murmur]\ncommand = "${COMMAND}"\nargs = ["mcp"]`);
 });
 
-for (const theme of ["light", "dark"] as const) {
-  for (const state of ["off", "on"] as const) {
-    test(`screenshot of AI access ${state} (${theme})`, async ({ page }) => {
-      test.skip(!outputDir, "Set MURMUR_SCREENSHOT_DIR to capture screenshots");
-      await page.emulateMedia({ colorScheme: theme });
-      await page.setViewportSize(DEFAULT_WINDOW);
-      await openAdvanced(
-        page,
-        `?theme=${theme}${state === "on" ? "&mcp=1" : ""}`,
-      );
-      await expect(group(page)).toBeVisible();
-      await group(page).scrollIntoViewIfNeeded();
-      // The sidebar's selection slides over to Advanced.
-      await page.waitForTimeout(500);
-      await group(page).screenshot({
-        path: `${outputDir}/mcp-access-${state}-${theme}.png`,
-      });
+test.describe("Windows build", () => {
+  const WINDOWS_COMMAND =
+    "C:\\Users\\Some One\\AppData\\Local\\Murmur\\murmur.exe";
+  const windowsAccess = (page: Page) =>
+    group(page).getByRole("checkbox", { name: "Let AI agents connect (MCP)" });
+
+  test("names no meetings, which Windows does not have", async ({ page }) => {
+    await openAdvanced(page, "?platform=windows&mcp=1");
+
+    await expect(windowsAccess(page)).toBeChecked();
+    await expect(dictations(page)).toBeVisible();
+    await expect(group(page).getByText(/meeting/i)).toHaveCount(0);
+    await expect(
+      group(page).getByText(
+        "Lets them search and read your dictations. They may send what they read to their own servers.",
+      ),
+    ).toBeVisible();
+  });
+
+  test("is off by default and shows nothing to connect", async ({ page }) => {
+    await openAdvanced(page, "?platform=windows");
+
+    await expect(windowsAccess(page)).not.toBeChecked();
+    await expect(dictations(page)).toHaveCount(0);
+    await expect(group(page).getByTestId("mcp-setup")).toHaveCount(0);
+  });
+
+  test("shows each AI app the command for a path with spaces", async ({
+    page,
+  }) => {
+    await openAdvanced(page, "?platform=windows&mcp=1");
+    const setup = group(page).getByTestId("mcp-setup");
+
+    // Double quotes keep the path one argument in PowerShell and cmd.
+    await expect(setup).toHaveText(
+      `claude mcp add murmur -- "${WINDOWS_COMMAND}" mcp`,
+    );
+    // TOML and JSON strings escape each backslash.
+    await group(page).getByRole("tab", { name: "Codex" }).click();
+    await expect(setup).toHaveText(
+      `[mcp_servers.murmur]\ncommand = "C:\\\\Users\\\\Some One\\\\AppData\\\\Local\\\\Murmur\\\\murmur.exe"\nargs = ["mcp"]`,
+    );
+    await group(page).getByRole("tab", { name: "Claude Desktop" }).click();
+    expect(JSON.parse((await setup.textContent()) ?? "")).toEqual({
+      mcpServers: { murmur: { command: WINDOWS_COMMAND, args: ["mcp"] } },
     });
+  });
+});
+
+for (const platform of ["macos", "windows"] as const) {
+  for (const theme of ["light", "dark"] as const) {
+    for (const state of ["off", "on"] as const) {
+      test(`screenshot of AI access ${state} (${platform}, ${theme})`, async ({
+        page,
+      }) => {
+        test.skip(
+          !outputDir,
+          "Set MURMUR_SCREENSHOT_DIR to capture screenshots",
+        );
+        await page.emulateMedia({ colorScheme: theme });
+        await page.setViewportSize(DEFAULT_WINDOW);
+        await openAdvanced(
+          page,
+          `?theme=${theme}&platform=${platform}${state === "on" ? "&mcp=1" : ""}`,
+        );
+        await expect(group(page)).toBeVisible();
+        await group(page).scrollIntoViewIfNeeded();
+        // The sidebar's selection slides over to Advanced.
+        await page.waitForTimeout(500);
+        await group(page).screenshot({
+          path: `${outputDir}/mcp-access-${platform}-${state}-${theme}.png`,
+        });
+      });
+    }
   }
 }
