@@ -84,6 +84,10 @@ pub struct Processor {
     pub policy: RetryPolicy,
     pub language: Option<String>,
     pub events: Arc<dyn ProcessEvents>,
+    /// Whether the tracks are compressed once the summary is written. Always
+    /// on in the app; a test with a long recording turns it off, as encoding
+    /// 25 minutes in a debug build takes minutes.
+    pub compress_audio: bool,
 }
 
 fn track_file(track: Track) -> &'static str {
@@ -351,6 +355,9 @@ impl Processor {
         stages.push(("summary", started.elapsed()));
         self.events.updated(id);
         if !summarized.settled {
+            return Ok(summarized.codex);
+        }
+        if !self.compress_audio {
             return Ok(summarized.codex);
         }
         let started = Instant::now();
@@ -1074,6 +1081,8 @@ mod tests {
         language: Option<&'static str>,
         /// This Mac's model, when it is ready.
         local: Option<Arc<dyn Transcriber>>,
+        /// Off for the tests that record 25 minutes.
+        compress_audio: bool,
         _dir: tempfile::TempDir,
     }
 
@@ -1086,6 +1095,7 @@ mod tests {
             events: Arc::default(),
             language: None,
             local: None,
+            compress_audio: true,
             _dir: dir,
         }
     }
@@ -1146,6 +1156,7 @@ mod tests {
                 },
                 language: self.language.map(str::to_string),
                 events: Arc::clone(&self.events) as Arc<dyn ProcessEvents>,
+                compress_audio: self.compress_audio,
             };
             tauri::async_runtime::block_on(processor.process(id, operation)).unwrap()
         }
@@ -1208,7 +1219,10 @@ mod tests {
 
     #[test]
     fn a_failed_part_leaves_a_placeholder_and_a_retry_sends_only_that_part() {
-        let h = harness();
+        let h = Harness {
+            compress_audio: false,
+            ..harness()
+        };
         // 25 minutes of speech on one track: three pieces.
         let id = h.meeting(MeetingTracks::Mic, 25 * 60);
         let dir = paths::meeting_dir(&h.root, id);
@@ -1251,7 +1265,10 @@ mod tests {
 
     #[test]
     fn pieces_already_transcribed_are_not_sent_again_after_a_crash() {
-        let h = harness();
+        let h = Harness {
+            compress_audio: false,
+            ..harness()
+        };
         let id = h.meeting(MeetingTracks::Mic, 25 * 60);
         let dir = paths::meeting_dir(&h.root, id);
         track(&dir.join(paths::MIC_TRACK), 25 * 60, &[(0, 25 * 60)]);
@@ -1278,7 +1295,10 @@ mod tests {
 
     #[test]
     fn a_lost_connection_waits_offline_and_the_next_run_sends_only_what_is_left() {
-        let h = harness();
+        let h = Harness {
+            compress_audio: false,
+            ..harness()
+        };
         // 25 minutes of speech on one track: three pieces.
         let id = h.meeting(MeetingTracks::Mic, 25 * 60);
         let dir = paths::meeting_dir(&h.root, id);
@@ -1626,7 +1646,10 @@ mod tests {
 
     #[test]
     fn a_renamed_voice_keeps_its_name_when_a_retry_fills_an_earlier_part() {
-        let h = harness();
+        let h = Harness {
+            compress_audio: false,
+            ..harness()
+        };
         // 25 minutes of remote speech: three pieces.
         let id = h.meeting(MeetingTracks::System, 25 * 60);
         let path = paths::meeting_dir(&h.root, id).join(paths::SYSTEM_TRACK);
@@ -1769,9 +1792,7 @@ mod tests {
             assert!(!dir.join(paths::MIC_TRACK).exists());
             assert!(!dir.join(paths::SYSTEM_TRACK).exists());
         }
-        // Windows has no archive bridge: the tracks still wait to be
-        // compressed.
-        if cfg!(target_os = "macos") {
+        if cfg!(any(target_os = "macos", target_os = "windows")) {
             assert!(h.store.waiting_for_processing().unwrap().is_empty());
         }
     }
@@ -1974,8 +1995,7 @@ mod tests {
         assert_eq!(local.calls.lock().unwrap().len(), local_calls);
         let meeting = h.store.get(id).unwrap().unwrap();
         assert_eq!(meeting.summary_status, SummaryStatus::Ready);
-        // Windows has no archive bridge to compress it.
-        if cfg!(target_os = "macos") {
+        if cfg!(any(target_os = "macos", target_os = "windows")) {
             assert_eq!(meeting.audio, AudioState::Compressed);
         }
     }
