@@ -120,6 +120,10 @@ The Windows source lives on the `beta` branch for now, not on `main`.
   when AI cleanup did not run
 - Dictation styles for cleanup: Formal, Normal (the default) or Casual
 - A dictionary of custom words, spelled your way in each dictation
+- A space added when you dictate right after a word, so the text does not stick
+  to it. It never reads password fields or a selection, and adds nothing in an
+  app that does not show where the cursor is. Settings → Transcription → Add
+  leading space
 - Names from the frontmost window as spelling hints for AI cleanup, read
   through Accessibility and never stored
 - Automatic level boost for quiet speech, and a Whisper mode for very quiet speech
@@ -140,8 +144,9 @@ The Windows source lives on the `beta` branch for now, not on `main`.
 
 The Windows beta has dictation, transcription on the PC or in the cloud, AI
 cleanup with styles, names read from the active window, history you can search
-by words, Insights, custom words, shortcut keys shown for your keyboard layout, sounds, and launch
-at login. It does not have Meetings or automatic updates yet.
+by words, Insights, custom words, a space added after a word, shortcut keys
+shown for your keyboard layout, sounds, and launch at login. It does not have
+Meetings or automatic updates yet.
 
 ## Getting started
 

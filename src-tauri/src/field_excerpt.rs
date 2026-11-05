@@ -123,15 +123,24 @@ pub fn char_before(focused: &impl FocusedText, deadline: Instant) -> Option<Befo
         start,
         len: selection.start - start,
     })?;
-    let mut graphemes = text.graphemes(true);
-    if start != 0 {
+    before_from_window(&text, start != 0)
+}
+
+/// The grapheme context at the end of `window`, the text just before a
+/// caret. `cut_at_left` says the window may start inside a grapheme or an
+/// elision's word, so the first grapheme is dropped and a missing
+/// `previous` is no reason to guess.
+#[cfg(any(target_os = "macos", target_os = "windows", test))]
+fn before_from_window(window: &str, cut_at_left: bool) -> Option<Before> {
+    let mut graphemes = window.graphemes(true);
+    if cut_at_left {
         // The first grapheme may have lost its base at the window's left edge.
         let _ = graphemes.next();
     }
     let last = graphemes.next_back()?;
     let previous = graphemes.next_back();
     // A cut elision letter must not turn its apostrophe into a field-start quote.
-    if start != 0 && previous.is_none() {
+    if cut_at_left && previous.is_none() {
         return None;
     }
     Before::from_graphemes(last, previous)
@@ -202,10 +211,31 @@ pub trait SelectionText {
     fn is_secure(&self) -> bool;
     /// The selection, or the insertion point as an empty selection.
     fn selection(&self) -> Option<Self::Selection>;
+    /// Whether the selection is an insertion point, with no text selected.
+    fn is_caret(&self, selection: &Self::Selection) -> Option<bool>;
     /// At most `max` chars just before the selection.
     fn before(&self, selection: &Self::Selection, max: usize) -> Option<String>;
     /// At most `max` chars just after the selection.
     fn after(&self, selection: &Self::Selection, max: usize) -> Option<String>;
+}
+
+/// Grapheme context before a caret, as `char_before` gives it, for a field
+/// that gives the text next to its selection. Never reads secure text, a
+/// non-empty selection or a guessed caret, and starts no read after
+/// `deadline`. A read that fills the window may have been cut at its left
+/// edge, as `char_before`'s does when it starts inside the field.
+#[cfg(any(target_os = "windows", test))]
+pub fn char_before_selection(focused: &impl SelectionText, deadline: Instant) -> Option<Before> {
+    let in_time = || Instant::now() < deadline;
+    if !in_time() || focused.is_secure() || !in_time() {
+        return None;
+    }
+    let selection = focused.selection()?;
+    if !in_time() || !focused.is_caret(&selection)? || !in_time() {
+        return None;
+    }
+    let window = focused.before(&selection, CARET_WINDOW_UNITS)?;
+    before_from_window(&window, window.encode_utf16().count() >= CARET_WINDOW_UNITS)
 }
 
 /// The excerpt around the focused element's selection, as `read_field`
@@ -727,6 +757,10 @@ mod tests {
         fn selection(&self) -> Option<Utf16Range> {
             FocusedText::selection(self)
         }
+        fn is_caret(&self, selection: &Utf16Range) -> Option<bool> {
+            self.reads.borrow_mut().push("is_caret");
+            Some(selection.len == 0)
+        }
         fn before(&self, selection: &Utf16Range, max: usize) -> Option<String> {
             self.reads.borrow_mut().push("before");
             std::thread::sleep(self.delay);
@@ -739,6 +773,85 @@ mod tests {
             let end = byte_offset(&self.text, selection.start + selection.len);
             Some(self.text[end..].chars().take(max).collect())
         }
+    }
+
+    fn caret_chars(fake: &Fake) -> Option<(char, Option<char>)> {
+        char_before_selection(fake, later()).map(|before| (before.last, before.previous))
+    }
+
+    #[test]
+    fn a_caret_reads_the_graphemes_before_it_from_the_text_next_to_it() {
+        let fake = Fake::new("already written", at(10));
+        assert_eq!(caret_chars(&fake), Some(('r', Some('w'))));
+        assert_eq!(*fake.reads.borrow(), ["selection", "is_caret", "before"]);
+        for (text, expected) in [
+            ("déjà", Some(('à', Some('j')))),
+            ("de\u{301}ja\u{300}", Some(('a', Some('j')))),
+            ("1\u{FE0F}\u{20E3}", Some(('1', None))),
+            ("👨‍👩‍👧", Some(('👨', None))),
+            ("qu’", Some(('’', Some('u')))),
+            ("", None),
+        ] {
+            let fake = Fake::new(text, at(text.encode_utf16().count()));
+            assert_eq!(caret_chars(&fake), expected, "after {text:?}");
+        }
+    }
+
+    #[test]
+    fn a_caret_at_the_start_of_the_field_reads_nothing_to_space_after() {
+        let fake = Fake::new("Hello", at(0));
+        assert_eq!(caret_chars(&fake), None);
+    }
+
+    #[test]
+    fn a_selection_is_never_read_for_its_text() {
+        let fake = Fake::new("Hello world", Utf16Range { start: 2, len: 3 });
+        assert_eq!(caret_chars(&fake), None);
+        assert_eq!(*fake.reads.borrow(), ["selection", "is_caret"]);
+
+        let no_selection = Fake {
+            selection: None,
+            ..Fake::new("Hello", at(2))
+        };
+        assert_eq!(caret_chars(&no_selection), None);
+        assert_eq!(*no_selection.reads.borrow(), ["selection"]);
+    }
+
+    #[test]
+    fn a_secure_field_gives_no_caret_context() {
+        let fake = Fake {
+            secure: true,
+            ..Fake::new("private", at(3))
+        };
+        assert_eq!(caret_chars(&fake), None);
+        assert!(fake.reads.borrow().is_empty());
+    }
+
+    #[test]
+    fn a_full_window_does_not_guess_a_letter_cut_at_its_left_edge() {
+        for text in [
+            format!("xl{}’", "\u{301}".repeat(40)),
+            format!("😀{}’", "\u{301}".repeat(40)),
+        ] {
+            let fake = Fake::new(&text, at(text.encode_utf16().count()));
+            assert_eq!(caret_chars(&fake), None, "after {text:?}");
+        }
+        let text = format!("{}l\u{301}’", "x".repeat(40));
+        let fake = Fake::new(&text, at(text.encode_utf16().count()));
+        assert_eq!(caret_chars(&fake), Some(('’', Some('l'))));
+    }
+
+    #[test]
+    fn a_short_field_is_not_taken_for_a_cut_window() {
+        let fake = Fake::new("l’", at(2));
+        assert_eq!(caret_chars(&fake), Some(('’', Some('l'))));
+    }
+
+    #[test]
+    fn caret_context_starts_no_read_after_its_deadline() {
+        let late = Fake::new("Hello", at(5));
+        assert!(char_before_selection(&late, Instant::now()).is_none());
+        assert!(late.reads.borrow().is_empty());
     }
 
     #[test]

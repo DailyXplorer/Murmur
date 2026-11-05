@@ -530,8 +530,9 @@ pub(crate) async fn paste(
     let app_for_caret = app_handle.clone();
     #[cfg(target_os = "macos")]
     let read_caret = move |deadline| read_char_before_caret(&app_for_caret, deadline);
-    let text = with_leading_space(text, settings.leading_space, paste_method, read_caret)
-    .await;
+    #[cfg(target_os = "windows")]
+    let read_caret = crate::uia::char_before_caret;
+    let text = with_leading_space(text, settings.leading_space, paste_method, read_caret).await;
     let text = if settings.append_trailing_space {
         format!("{text} ")
     } else {
