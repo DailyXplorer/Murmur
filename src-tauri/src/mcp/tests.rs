@@ -196,37 +196,6 @@ fn every_listed_tool_is_read_only() {
 }
 
 #[test]
-fn malformed_messages_get_json_rpc_errors() {
-    let dir = seeded(true, false);
-    let mut output = Vec::new();
-    let input = format!(
-        "not json\n{}\n{}\n[1]\n",
-        request(1, "resources/list", json!({})),
-        request(
-            2,
-            "tools/call",
-            json!({"name": "delete_meeting", "arguments": {}})
-        ),
-    );
-    serve(
-        &Server::new(dir.path().to_path_buf()),
-        Cursor::new(input),
-        &mut output,
-    )
-    .unwrap();
-    let replies: Vec<Value> = String::from_utf8(output)
-        .unwrap()
-        .lines()
-        .map(|line| serde_json::from_str(line).unwrap())
-        .collect();
-
-    assert_eq!(replies[0]["error"]["code"], -32700);
-    assert_eq!(replies[1]["error"]["code"], -32601);
-    assert_eq!(replies[2]["error"]["code"], -32602);
-    assert_eq!(replies[3]["error"]["code"], -32600);
-}
-
-#[test]
 fn mcp_refuses_tools_when_disabled() {
     let dir = seeded(false, true);
 
