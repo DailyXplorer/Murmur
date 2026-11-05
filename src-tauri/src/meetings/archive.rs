@@ -1,9 +1,12 @@
 //! A processed meeting keeps its audio as one small AAC file, `audio.m4a`
 //! (about 29 MB an hour), instead of its WAV tracks (about 115 MB an hour
 //! each): the microphone on the first channel and system audio on the
-//! second. Transcribing the meeting again decodes the tracks back. The work
-//! happens in `swift/meeting_archive.swift`, built for Apple silicon and
-//! Intel alike.
+//! second. Transcribing the meeting again decodes the tracks back. On macOS
+//! the work happens in `swift/meeting_archive.swift`, built for Apple silicon
+//! and Intel alike. On Windows (about 43 MB an hour, the lowest bit rate of
+//! its AAC encoder) `media_foundation.rs` encodes with Media Foundation and
+//! `aac.rs` decodes with `symphonia`; `resample.rs` converts between the
+//! tracks' 16 kHz and the encoder's 48 kHz.
 
 #[cfg(target_os = "macos")]
 use anyhow::anyhow;
@@ -13,13 +16,21 @@ use std::path::{Path, PathBuf};
 use super::paths::{self, AUDIO_FILE, MIC_TRACK, SYSTEM_TRACK};
 use super::store::{AudioState, MeetingTracks, MeetingsStore};
 
+#[cfg(target_os = "windows")]
+mod aac;
+#[cfg(target_os = "windows")]
+mod media_foundation;
+#[cfg(target_os = "windows")]
+mod resample;
+
+#[cfg(target_os = "windows")]
+pub use self::aac::{decode, duration_ms};
+#[cfg(target_os = "windows")]
+pub use self::media_foundation::encode;
+
 /// AAC frames and the encoder's padding can make the compressed audio a
 /// little longer or shorter than the tracks.
 const DURATION_TOLERANCE_MS: u64 = 1_000;
-
-/// Windows offers no meetings and has no Swift bridge.
-#[cfg(target_os = "windows")]
-const NO_BRIDGE: &str = "Compressed meeting audio needs macOS";
 
 #[cfg(target_os = "macos")]
 mod bridge {
@@ -69,24 +80,6 @@ pub fn track_files(tracks: MeetingTracks) -> Vec<&'static str> {
     .into_iter()
     .filter_map(|(recorded, file)| recorded.then_some(file))
     .collect()
-}
-
-/// The length of an audio file in milliseconds.
-#[cfg(target_os = "windows")]
-pub fn duration_ms(_path: &Path) -> Result<u64> {
-    bail!(NO_BRIDGE)
-}
-
-/// Encodes `inputs` (one or two WAV tracks) into the AAC file `output`.
-#[cfg(target_os = "windows")]
-pub fn encode(_inputs: &[PathBuf], _output: &Path) -> Result<()> {
-    bail!(NO_BRIDGE)
-}
-
-/// Decodes the AAC file `input` into one WAV per channel.
-#[cfg(target_os = "windows")]
-pub fn decode(_input: &Path, _outputs: &[PathBuf]) -> Result<()> {
-    bail!(NO_BRIDGE)
 }
 
 /// The length of an audio file in milliseconds.
@@ -275,13 +268,28 @@ mod tests {
     }
 
     /// Intel Macs run these under Rosetta with
-    /// `cargo test --target x86_64-apple-darwin`.
-    #[cfg(target_os = "macos")]
+    /// `cargo test --target x86_64-apple-darwin`. On Windows they need the
+    /// AAC encoder of Media Foundation: the CI installs it on Server images,
+    /// which lack it.
+    #[cfg(any(target_os = "macos", target_os = "windows"))]
     mod on_device {
         use super::*;
         use crate::meetings::store::{MeetingStatus, MeetingTracks};
 
         const RATE: u32 = 16_000;
+        /// The size of two channels an hour: 64 kbps with Core Audio, and
+        /// the 96 kbps floor of the Windows encoder.
+        const MAX_BYTES_PER_HOUR: u64 = if cfg!(windows) {
+            48_000_000
+        } else {
+            35_000_000
+        };
+        /// Seconds of the long tracks: the Windows debug build decodes
+        /// slowly.
+        const LONG: u32 = if cfg!(windows) { 24 } else { 60 };
+        /// How far the decoded length may stray from the tracks': Windows
+        /// keeps the encoder's priming and padding frames.
+        const LENGTH_SLACK_MS: u64 = if cfg!(windows) { 300 } else { 200 };
 
         /// A tone at `hz` for `seconds`.
         fn tone(path: &Path, seconds: u32, hz: f32) {
@@ -323,21 +331,27 @@ mod tests {
         fn two_tracks_round_trip_through_a_small_file() {
             let dir = tempfile::tempdir().unwrap();
             // The system track is a second shorter: it is padded.
-            tone(&dir.path().join(MIC_TRACK), 60, 440.0);
-            tone(&dir.path().join(SYSTEM_TRACK), 59, 1_000.0);
+            tone(&dir.path().join(MIC_TRACK), LONG, 440.0);
+            tone(&dir.path().join(SYSTEM_TRACK), LONG - 1, 1_000.0);
 
             let bytes = compress(dir.path(), MeetingTracks::Both).unwrap();
-            // At most 35 MB an hour.
-            assert!(bytes <= 35_000_000 / 60, "{bytes} bytes for one minute");
+            assert!(
+                bytes <= MAX_BYTES_PER_HOUR * u64::from(LONG) / 3_600,
+                "{bytes} bytes for {LONG} s"
+            );
             let duration = duration_ms(&dir.path().join(AUDIO_FILE)).unwrap();
-            assert!(duration.abs_diff(60_000) <= 200, "{duration} ms");
+            assert!(
+                duration.abs_diff(u64::from(LONG) * 1000) <= LENGTH_SLACK_MS,
+                "{duration} ms"
+            );
 
             std::fs::remove_file(dir.path().join(MIC_TRACK)).unwrap();
             std::fs::remove_file(dir.path().join(SYSTEM_TRACK)).unwrap();
             restore(dir.path(), MeetingTracks::Both).unwrap();
             let mic = samples(&dir.path().join(MIC_TRACK));
             let system = samples(&dir.path().join(SYSTEM_TRACK));
-            assert!((mic.len() as i64 - 60 * RATE as i64).abs() < RATE as i64 / 10);
+            let slack = (LENGTH_SLACK_MS * u64::from(RATE) / 1000) as i64;
+            assert!((mic.len() as i64 - i64::from(LONG) * i64::from(RATE)).abs() < slack);
             assert_eq!(mic.len(), system.len());
             // Each channel came back to its own track.
             let middle = |track: &[i16]| track[RATE as usize * 10..RATE as usize * 20].to_vec();
@@ -360,7 +374,8 @@ mod tests {
             std::fs::remove_file(dir.path().join(SYSTEM_TRACK)).unwrap();
             restore(dir.path(), MeetingTracks::System).unwrap();
             let length = samples(&dir.path().join(SYSTEM_TRACK)).len() as i64;
-            assert!((length - 5 * RATE as i64).abs() < RATE as i64 / 10);
+            let slack = (LENGTH_SLACK_MS * u64::from(RATE) / 1000) as i64;
+            assert!((length - 5 * RATE as i64).abs() < slack);
             // A file of one channel cannot fill two tracks.
             std::fs::remove_file(dir.path().join(SYSTEM_TRACK)).unwrap();
             assert!(restore(dir.path(), MeetingTracks::Both).is_err());
@@ -392,6 +407,9 @@ mod tests {
             assert!(meeting_dir.join(AUDIO_FILE).exists());
         }
 
+        /// Windows keeps the part file open while the encoder writes, so a
+        /// deletion then fails and the user tries again.
+        #[cfg(target_os = "macos")]
         #[test]
         fn deleting_the_audio_while_it_is_compressed_leaves_none() {
             let dir = tempfile::tempdir().unwrap();

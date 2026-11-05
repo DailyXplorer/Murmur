@@ -1769,9 +1769,7 @@ mod tests {
             assert!(!dir.join(paths::MIC_TRACK).exists());
             assert!(!dir.join(paths::SYSTEM_TRACK).exists());
         }
-        // Windows has no archive bridge: the tracks still wait to be
-        // compressed.
-        if cfg!(target_os = "macos") {
+        if cfg!(any(target_os = "macos", target_os = "windows")) {
             assert!(h.store.waiting_for_processing().unwrap().is_empty());
         }
     }
@@ -1974,8 +1972,7 @@ mod tests {
         assert_eq!(local.calls.lock().unwrap().len(), local_calls);
         let meeting = h.store.get(id).unwrap().unwrap();
         assert_eq!(meeting.summary_status, SummaryStatus::Ready);
-        // Windows has no archive bridge to compress it.
-        if cfg!(target_os = "macos") {
+        if cfg!(any(target_os = "macos", target_os = "windows")) {
             assert_eq!(meeting.audio, AudioState::Compressed);
         }
     }

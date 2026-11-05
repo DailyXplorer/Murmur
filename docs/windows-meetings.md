@@ -21,8 +21,8 @@ Status: `Not yet` is not built. `Built, hidden` is built and tested but no scree
 | 7   | Speaker separation, rename speakers                                                | In-process analyzer, at most 4 speakers            | Built, hidden (`meetings/analysis_cpp.rs`)                                       |
 | 8   | Word-aligned merge, echo removal, headphone awareness                              | Neutral code; the output route is new              | Partly: route built, hidden (`loopback_logic::route_facts`). The rest Not yet    |
 | 9   | AI title and summary, retry                                                        | Code on `beta`                                     | Not yet                                                                          |
-| 10  | Compressed audio (`audio.m4a`), re-transcribe, retention, delete audio             | AAC through Media Foundation                       | Not yet                                                                          |
-| 11  | Export and copy Markdown (save dialog)                                             | `IFileSaveDialog`                                  | Not yet                                                                          |
+| 10  | Compressed audio (`audio.m4a`), re-transcribe, retention, delete audio             | AAC through Media Foundation                       | Built, hidden (`meetings/archive/`)                                              |
+| 11  | Export and copy Markdown (save dialog)                                             | `IFileSaveDialog`                                  | Built, hidden (`meetings/save_panel.rs`); copy Not yet                           |
 | 12  | Meetings list, detail, search, delete                                              | UI and FTS5 search on `beta`                       | Not yet                                                                          |
 | 13  | Live transcript, "Catching up", paste-new-text shortcut                            | Port of the live transcript                        | Not yet                                                                          |
 | 14  | Call detected, prompt to record (Zoom, Teams, Slack, Webex, Discord, browser Meet) | Microphone consent store, shared state machine     | Built, hidden (`meetings/call_probe_windows.rs`)                                 |
@@ -121,6 +121,17 @@ are found with the change of speaker within 1.5 s of the splice. It cannot
 prove accuracy on real calls (accents, crosstalk, more than four speakers) or
 speed on a weak processor.
 
+## Audio file and export on Windows
+
+- **Where.** `meetings/archive.rs` (the shared flow, as on macOS), `meetings/archive/media_foundation.rs` (encoding), `meetings/archive/aac.rs` (length, full decode, restoring the tracks), `meetings/archive/resample.rs` (16 kHz to 48 kHz and back), `meetings/save_panel.rs` (export).
+- **Same file as macOS.** One AAC-LC stream in an MP4 container, `audio.m4a`: channel 1 the microphone, channel 2 system audio, one channel when only one track was recorded. A shorter track is padded with silence. Restoring writes the same 16 kHz mono WAVs, so re-transcription, retention and "delete audio" run the shared code unchanged.
+- **Size.** About 43 MB an hour with two tracks, against about 29 MB on macOS: the AAC encoder of Windows takes 44.1 or 48 kHz only and goes no lower than 96 kbps. Two WAVs are about 230 MB an hour. The 16 kHz tracks are brought to 48 kHz by a windowed-sinc filter and back by another; both keep the exact length, with no delay.
+- **No edit list.** The Windows MP4 sink writes none, so the encoder's priming and padding frames stay: a restored track starts and ends with a few tens of milliseconds of silence more. Both tracks shift together.
+- **Never linked.** `mfplat.dll` and `mfreadwrite.dll` are loaded when the first archive runs, from the system folder. A link-time import would stop the whole app from starting on N and KN editions without the Media Feature Pack, and on Server without Media Foundation. There, or with no AAC encoder, `encode` fails with a fixed message and the WAV tracks stay.
+- **Safe order.** The encoder writes `audio.m4a.part`. Before it counts as done, the whole file is decoded and its length compared with the longest track (within 1 s), and `compress` reads the container's length too. Only then is the part file renamed, and only then does `archive` delete the WAVs. After 3 failed attempts the WAVs stay for good and are no longer requeued.
+- **Export.** `IFileSaveDialog` owned by the active window, suggesting the file name and its extension, asking before it replaces a file, remembering the folder like any Windows app. Cancelling returns no path.
+- **Delete while compressing.** Windows keeps the part file open while the encoder writes, so deleting the audio in that window fails and the user tries again. On macOS the same click wins the race.
+
 ## Known limits
 
 - Before Windows 10 build 20348, Murmur's own sounds can reach the system track. The echo filter tolerates it.
@@ -129,8 +140,11 @@ speed on a weak processor.
 - Not proven in CI: real Teams (new, classic, packaged), Zoom, Slack, Discord and Webex calls, a browser's address bar through UI Automation in each browser, and what an app does with the microphone while muted. `OWNER_CHECKS.md` of the lane lists them.
 - A Windows machine without the consent store (before Windows 10 1903) has no call detection, and the setting is hidden.
 - A call app Windows does not list yet, or one renamed by its maker, is no call until it is added to the tables. The debug log lists the apps on the microphone, by file name or package family, so a missing one can be found.
+- The compressed audio is larger than on macOS (about 43 MB an hour), and N or KN editions without the Media Feature Pack keep WAV tracks (about 230 MB an hour) because there is no encoder.
+- Not proven in CI: playing `audio.m4a` in the Meeting detail and in other Windows apps, the save dialog's look and remembered folder, long paths and OneDrive-redirected folders, an N edition.
 
 ## Tests
 
 - The pure logic runs in the normal Windows `rust` job and on macOS: downmix, packet clock, pause-to-silence on the real `TrackWriter`, default-output follow state machine, route table, keep-awake guard (Windows only).
+- The archive tests encode two tones with the real encoder and decode them: length, size an hour, channels kept apart (each tone ten times louder than the other on its own track), a single track, a missing channel, a track that cannot be read, the pipeline in `processor.rs`. They need the AAC encoder: the `rust` job runs `.github/scripts/windows-media-foundation.ps1`, which installs `Server-Media-Foundation` on Server images that lack it. The sample-rate filter, the PCM packing and the clock run without it. The save dialog is compile-checked only.
 - `wasapi_loopback_hears_a_tone` and `wasapi_process_loopback_leaves_out_the_own_process` need a sound output. They are `#[ignore]`d, and the `meetings-audio` job of `windows-beta.yml` runs them with `--ignored`. They skip with a logged reason when the machine has no output. Run them by hand with `cargo test --lib wasapi_ -- --ignored --nocapture`.

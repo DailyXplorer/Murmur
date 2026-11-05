@@ -107,6 +107,7 @@ windows = { version = "0.62.2", features = [
   "Win32_Graphics_Gdi",
   "Win32_Media_Audio",
   "Win32_Media_Audio_Endpoints",
+  "Win32_Media_MediaFoundation",
   "Win32_Security",
   "Win32_Storage_FileSystem",
   "Win32_System_Com",
@@ -122,9 +123,14 @@ windows = { version = "0.62.2", features = [
   "Win32_System_Variant",
   "Win32_UI_Accessibility",
   "Win32_UI_Input_KeyboardAndMouse",
+  "Win32_UI_Shell",
+  "Win32_UI_Shell_Common",
   "Win32_UI_Shell_PropertiesSystem",
   "Win32_UI_WindowsAndMessaging",
 ] }
+# Reads a meeting's compressed audio back (AAC in MP4). rodio already compiles
+# these two features for playback.
+symphonia = { version = "0.5.5", default-features = false, features = ["aac", "isomp4"] }
 # `#[implement]` names this crate in the code it generates: the callback that
 # ends the activation of the system audio capture, and a UI Automation
 # provider in the tests. The version `windows` already pulls in.
