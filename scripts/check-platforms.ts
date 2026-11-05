@@ -364,6 +364,7 @@ if (
 const tauriConfig = JSON.parse(read("src-tauri/tauri.conf.json")) as {
   app: { security: { csp: unknown; devCsp: unknown } };
   bundle: { icon: string[]; targets: string[]; externalBin?: string[] };
+  plugins: { updater: { pubkey: string; endpoints: string[] } };
 };
 // The only bundled executable besides the app: the meetings helper, built
 // by src-tauri/build.rs for each target.
@@ -387,7 +388,8 @@ if (tauriConfig.bundle.icon.join("\n") !== expectedIcons.join("\n")) {
 }
 
 // The Windows beta installs per user without administrator rights, is
-// built without updater artifacts, and never reads the macOS updater feed.
+// built without updater artifacts (only the release workflow turns them on),
+// and reads only its own update feed, never the macOS one.
 const windowsConfig = JSON.parse(read("src-tauri/tauri.windows.conf.json")) as {
   bundle: {
     targets: string[];
@@ -396,7 +398,13 @@ const windowsConfig = JSON.parse(read("src-tauri/tauri.windows.conf.json")) as {
     icon: string[];
     windows: { nsis: { installMode: string } };
   };
-  plugins: { updater: { endpoints: string[] } };
+  plugins: {
+    updater: {
+      pubkey?: string;
+      endpoints: string[];
+      windows?: { installMode?: string };
+    };
+  };
 };
 if (
   windowsConfig.bundle.targets.join("\n") !== "nsis" ||
@@ -404,11 +412,70 @@ if (
 ) {
   failures.push("the Windows bundle is not a per-user NSIS installer");
 }
+const windowsFeed =
+  "https://github.com/DailyXplorer/Murmur/releases/download/windows-beta/latest.json";
+const macosFeed =
+  "https://github.com/DailyXplorer/Murmur/releases/latest/download/latest.json";
+if (windowsConfig.bundle.createUpdaterArtifacts !== false) {
+  failures.push(
+    "the Windows config builds updater artifacts: only the release workflow turns them on",
+  );
+}
 if (
-  windowsConfig.bundle.createUpdaterArtifacts !== false ||
-  windowsConfig.plugins.updater.endpoints.length !== 0
+  windowsConfig.plugins.updater.endpoints.join("\n") !== windowsFeed ||
+  windowsConfig.plugins.updater.endpoints.some((endpoint) =>
+    endpoint.includes("/releases/latest/"),
+  )
 ) {
-  failures.push("the Windows build reaches the updater");
+  failures.push(
+    "the Windows updater does not read exactly the windows-beta feed",
+  );
+}
+if (windowsConfig.plugins.updater.windows?.installMode !== "passive") {
+  failures.push("the Windows updater does not install in passive mode");
+}
+if (tauriConfig.plugins.updater.endpoints.join("\n") !== macosFeed) {
+  failures.push("the macOS updater feed is not the Latest release feed");
+}
+if (windowsConfig.plugins.updater.pubkey !== undefined) {
+  failures.push(
+    "the Windows config sets its own updater pubkey: it shares the base one",
+  );
+}
+const mainCapability = JSON.parse(read("src-tauri/capabilities/main.json")) as {
+  permissions: string[];
+};
+for (const permission of [
+  "updater:allow-check",
+  "updater:allow-download-and-install",
+]) {
+  if (!mainCapability.permissions.includes(permission)) {
+    failures.push(`the main window lost ${permission}`);
+  }
+}
+const updaterArtifactsConfig = JSON.parse(
+  read("src-tauri/updater-artifacts.conf.json"),
+) as { bundle?: { createUpdaterArtifacts?: boolean } };
+if (updaterArtifactsConfig.bundle?.createUpdaterArtifacts !== true) {
+  failures.push("updater-artifacts.conf.json does not turn the artifacts on");
+}
+// The macOS feed stays darwin-only because its publisher refuses any other
+// key, and the macOS release still goes through that publisher.
+if (
+  !read(".github/scripts/publish-updater-manifest.mjs").includes(
+    '!key.startsWith("darwin-")',
+  )
+) {
+  failures.push("the macOS updater manifest no longer refuses non-darwin keys");
+}
+if (
+  !read(".github/workflows/release.yml").includes(
+    "publish-updater-manifest.mjs",
+  )
+) {
+  failures.push(
+    "the macOS release no longer publishes through the darwin-only manifest script",
+  );
 }
 if (windowsConfig.bundle.externalBin.length !== 0) {
   failures.push("the Windows bundle includes the macOS meetings helper");

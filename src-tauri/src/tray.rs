@@ -221,11 +221,11 @@ fn build_tray_menu(app: &AppHandle, locale: Option<&str>) {
         &separators[3],
         &settings_i,
     ]);
-    // The Windows beta ships without an updater.
-    if cfg!(target_os = "macos") {
-        items.push(&check_updates_i);
-    }
-    items.extend([&separators[4] as &dyn IsMenuItem<Wry>, &quit_i]);
+    items.extend([
+        &check_updates_i as &dyn IsMenuItem<Wry>,
+        &separators[4],
+        &quit_i,
+    ]);
     let menu = Menu::with_items(app, &items).expect("failed to create menu");
 
     let tray = app.state::<TrayIcon>();

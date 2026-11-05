@@ -21,7 +21,7 @@ Run the app with `bun run tauri dev`. If CMake rejects an old policy: `CMAKE_POL
 `bun run check` runs the same checks as the CI `code quality` job, in the same order:
 
 - `bun audit`
-- translation consistency, the macOS-only guard, the updater manifest test, and the release-version check
+- translation consistency, the macOS-only guard, the updater manifest tests (macOS and the Windows beta feed), and the release-version check
 - ESLint, Prettier, and `cargo fmt --check`
 - the frontend build and the Playwright typecheck
 
@@ -61,7 +61,7 @@ Issues labeled [good first issue](https://github.com/DailyXplorer/Murmur/issues?
 The template asks for why (Summary, with the issue link), what (Changes), how you tested it (Testing, including `bun run check`), and screenshots or recordings for a visible UI change.
 
 - User-facing JSX text goes through i18next. Add the English key and update the other locales. See [CONTRIBUTING_TRANSLATIONS.md](CONTRIBUTING_TRANSLATIONS.md).
-- A version bump updates `package.json`, `src-tauri/Cargo.toml`, `src-tauri/Cargo.lock`, `src-tauri/tauri.conf.json`, and `src/content/release-notes/<version>.md` together.
+- A version bump updates `package.json`, `src-tauri/Cargo.toml`, `src-tauri/Cargo.lock`, `src-tauri/tauri.conf.json`, and `src/content/release-notes/<version>.md` together. On `beta`, a Windows beta is `1.9.0-beta.N` in the four version files (so the updater orders it above the previous beta and below `1.9.0`); it uses the release notes of `1.9.0`, and a beta has no notes file of its own.
 - Leave generated `src/bindings.ts` and unrelated lockfile churn alone.
 - Comments should say why (an invariant, a platform quirk, FFI ownership). Update them in the same change so they do not drift.
 

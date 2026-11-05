@@ -392,6 +392,14 @@ async relaunchAfterUpdate() : Promise<Result<null, string>> {
     else return { status: "error", error: String(e) };
 }
 },
+/**
+ * Run before an update installs: on Windows the updater plugin ends the
+ * process once the installer starts, so the exit sequence never runs.
+ * Leaves the relaunch marker and writes the settings kept in memory.
+ */
+async prepareUpdateInstall() : Promise<void> {
+    await TAURI_INVOKE("prepare_update_install");
+},
 async getUpdateStatus() : Promise<UpdateStatus> {
     return await TAURI_INVOKE("get_update_status");
 },
@@ -1168,7 +1176,13 @@ export type AppSettings = {
  * Defaults to empty on partial stores; the load path merges in the
  * default bindings for any missing keys before the settings are used.
  */
-bindings?: Partial<{ [key in string]: ShortcutBinding }>; audio_feedback?: boolean; audio_feedback_volume?: number; sound_theme?: SoundTheme; start_hidden?: boolean; autostart_enabled?: boolean; update_checks_enabled?: boolean; show_whats_new_on_update?: boolean; 
+bindings?: Partial<{ [key in string]: ShortcutBinding }>; audio_feedback?: boolean; audio_feedback_volume?: number; sound_theme?: SoundTheme; start_hidden?: boolean; autostart_enabled?: boolean; update_checks_enabled?: boolean; 
+/**
+ * Windows only: `update_checks_enabled` was turned on once for a store
+ * from the betas that had no updater and kept it off. New Windows
+ * stores start with it set.
+ */
+update_checks_turned_on_once?: boolean; show_whats_new_on_update?: boolean; 
 /**
  * The app version whose What's New the user has already seen.
  */

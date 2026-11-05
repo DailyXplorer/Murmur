@@ -120,6 +120,9 @@ const UpdateChecker: React.FC<UpdateCheckerProps> = ({ className = "" }) => {
         return;
       }
 
+      // Windows ends the process once the installer starts, past the exit
+      // sequence that saves settings: do that first.
+      await commands.prepareUpdateInstall();
       await update.downloadAndInstall((event) => {
         switch (event.event) {
           case "Started":
