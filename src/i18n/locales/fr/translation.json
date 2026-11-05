@@ -854,8 +854,9 @@
       "keep": "Continuer l’enregistrement"
     },
     "deleteDialog": {
-      "title": "Supprimer cette réunion ?",
-      "description": "Son enregistrement est supprimé et ne pourra pas être récupéré."
+      "title": "Placer cette réunion dans la Corbeille ?",
+      "description": "Sa transcription et son enregistrement vont dans la Corbeille, où vous pouvez encore les ouvrir. Murmur ne la liste plus.",
+      "confirm": "Placer dans la Corbeille"
     },
     "captureMode": {
       "title": "Sources audio",
@@ -921,8 +922,9 @@
       "deleteError": "Impossible de supprimer l'audio.",
       "retranscribeError": "Impossible de transcrire à nouveau la réunion.",
       "deleteDialog": {
-        "title": "Supprimer l'audio de cette réunion ?",
-        "description": "L'enregistrement est supprimé définitivement. La transcription et le résumé sont conservés, mais la réunion ne pourra plus être transcrite à nouveau."
+        "title": "Placer l'audio de cette réunion dans la Corbeille ?",
+        "description": "L'enregistrement va dans la Corbeille, où vous pouvez encore l'ouvrir. La transcription et le résumé restent dans Murmur, mais la réunion ne pourra plus être transcrite à nouveau.",
+        "confirm": "Placer dans la Corbeille"
       },
       "retranscribeDialog": {
         "title": "Transcrire à nouveau cette réunion ?",

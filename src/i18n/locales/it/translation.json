@@ -854,8 +854,9 @@
       "keep": "Continua a registrare"
     },
     "deleteDialog": {
-      "title": "Eliminare questa riunione?",
-      "description": "La sua registrazione viene eliminata e non può essere recuperata."
+      "title": "Spostare questa riunione nel Cestino?",
+      "description": "La trascrizione e la registrazione vanno nel Cestino, dove puoi ancora aprirle. Murmur non la mostra più.",
+      "confirm": "Sposta nel Cestino"
     },
     "captureMode": {
       "title": "Sorgenti audio",
@@ -921,8 +922,9 @@
       "deleteError": "Impossibile eliminare l'audio.",
       "retranscribeError": "Impossibile trascrivere di nuovo la riunione.",
       "deleteDialog": {
-        "title": "Eliminare l'audio di questa riunione?",
-        "description": "La registrazione viene eliminata e non può essere recuperata. Trascrizione e riepilogo restano, ma la riunione non potrà più essere trascritta di nuovo."
+        "title": "Spostare nel Cestino l'audio di questa riunione?",
+        "description": "La registrazione va nel Cestino, dove puoi ancora aprirla. Trascrizione e riepilogo restano in Murmur, ma la riunione non potrà più essere trascritta di nuovo.",
+        "confirm": "Sposta nel Cestino"
       },
       "retranscribeDialog": {
         "title": "Trascrivere di nuovo questa riunione?",

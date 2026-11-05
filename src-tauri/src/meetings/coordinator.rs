@@ -17,6 +17,7 @@ use super::live::{LiveMeeting, LiveTap};
 use super::merge::Track as Source;
 use super::paths;
 use super::store::{MeetingTracks, MeetingsStore};
+use super::trash;
 use crate::settings::MeetingCaptureMode;
 
 /// One source being recorded to its WAV.
@@ -550,13 +551,20 @@ impl<B: CaptureBackend, N: Notifier, C: Clock> Coordinator<B, N, C> {
         }
     }
 
-    pub fn delete(&mut self, id: i64) -> Result<(), MeetingError> {
+    /// A person's Delete: the folder and `notes` go to the Trash, then the
+    /// rows go.
+    pub fn delete(
+        &mut self,
+        id: i64,
+        notes: &trash::Notes,
+        bin: &dyn trash::Trash,
+    ) -> Result<(), MeetingError> {
         if self.active.as_ref().is_some_and(|active| active.id == id) {
             return Err(MeetingError::InUse);
         }
         // The folder first: a meeting whose audio stays on disk stays listed,
         // so the user can delete it again.
-        paths::remove_meeting_dir(&self.root, id).map_err(storage)?;
+        trash::trash_meeting(&self.root, id, notes, bin).map_err(storage)?;
         self.store.delete(id).map_err(storage)?;
         self.unclosed.retain(|unclosed| unclosed.id != id);
         Ok(())
@@ -578,6 +586,7 @@ impl<B: CaptureBackend, N: Notifier, C: Clock> Coordinator<B, N, C> {
 mod tests {
     use super::*;
     use crate::meetings::store::MeetingStatus;
+    use crate::meetings::trash::tests::{notes, FolderTrash};
     use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::Mutex;
 
@@ -757,6 +766,14 @@ mod tests {
         awake: Log,
         root: PathBuf,
         _dir: tempfile::TempDir,
+    }
+
+    impl Harness {
+        /// Where a test's Trash is: next to the meetings folder, never the
+        /// real one.
+        fn trash_folder(&self) -> PathBuf {
+            self._dir.path().join("trash")
+        }
     }
 
     fn harness(support: SystemAudioSupport, mic_works: bool, system_works: bool) -> Harness {
@@ -1066,6 +1083,8 @@ mod tests {
         assert_eq!(h.coordinator.runtime(), MeetingRuntime::Idle);
         assert!(h.store.list(None, 10).unwrap().meetings.is_empty());
         assert!(!paths::meeting_dir(&h.root, id).exists());
+        assert_eq!(std::fs::read_dir(&h.root).unwrap().count(), 0);
+        assert!(!h.trash_folder().exists());
         assert_eq!(h.coordinator.discard(id), Err(MeetingError::NotRecording));
     }
 
@@ -1415,14 +1434,76 @@ mod tests {
         let outside = tempfile::tempdir().unwrap();
         std::os::unix::fs::symlink(outside.path(), &dir).unwrap();
 
-        assert!(h.coordinator.delete(id).is_err());
+        let bin = FolderTrash::new(&h.trash_folder());
+        assert!(h.coordinator.delete(id, &notes(), &bin).is_err());
         assert!(h.store.get(id).unwrap().is_some());
 
         std::fs::remove_file(&dir).unwrap();
         std::fs::create_dir(&dir).unwrap();
-        h.coordinator.delete(id).unwrap();
+        h.coordinator.delete(id, &notes(), &bin).unwrap();
         assert!(h.store.get(id).unwrap().is_none());
         assert!(!dir.exists());
+    }
+
+    #[test]
+    fn deleting_a_meeting_moves_its_folder_to_the_trash_and_removes_its_rows() {
+        let mut h = working();
+        let id = h.coordinator.start(MeetingCaptureMode::Both).unwrap();
+        h.coordinator.stop().unwrap();
+        let dir = paths::meeting_dir(&h.root, id);
+        std::fs::write(dir.join(paths::AUDIO_FILE), b"audio").unwrap();
+        let bin = FolderTrash::new(&h.trash_folder());
+
+        h.coordinator.delete(id, &notes(), &bin).unwrap();
+
+        let folder = bin.bin.join("2026-10-17 Q4 plan");
+        assert!(folder.join("2026-10-17 Q4 plan.md").is_file());
+        assert_eq!(
+            std::fs::read(folder.join(paths::AUDIO_FILE)).unwrap(),
+            b"audio"
+        );
+        assert!(h.store.get(id).unwrap().is_none());
+        assert!(!dir.exists());
+        assert_eq!(std::fs::read_dir(&h.root).unwrap().count(), 0);
+    }
+
+    #[test]
+    fn a_meeting_whose_audio_retention_removed_still_trashes_its_notes() {
+        let mut h = working();
+        let id = h.coordinator.start(MeetingCaptureMode::Both).unwrap();
+        h.coordinator.stop().unwrap();
+        paths::remove_meeting_files(&h.root, id, &paths::AUDIO_FILES).unwrap();
+        let bin = FolderTrash::new(&h.trash_folder());
+
+        h.coordinator.delete(id, &notes(), &bin).unwrap();
+
+        let folder = bin.bin.join("2026-10-17 Q4 plan");
+        assert_eq!(std::fs::read_dir(&folder).unwrap().count(), 1);
+        assert!(folder.join("2026-10-17 Q4 plan.md").is_file());
+        assert!(h.store.get(id).unwrap().is_none());
+    }
+
+    #[test]
+    fn a_failing_trash_leaves_the_meeting_listed_with_its_folder_and_rows() {
+        let mut h = working();
+        let id = h.coordinator.start(MeetingCaptureMode::Both).unwrap();
+        h.coordinator.stop().unwrap();
+        let dir = paths::meeting_dir(&h.root, id);
+        std::fs::write(dir.join(paths::AUDIO_FILE), b"audio").unwrap();
+        let before = h.store.get(id).unwrap().unwrap();
+        let mut bin = FolderTrash::new(&h.trash_folder());
+        bin.fails = true;
+
+        assert!(h.coordinator.delete(id, &notes(), &bin).is_err());
+
+        assert_eq!(h.store.get(id).unwrap().unwrap(), before);
+        assert_eq!(
+            std::fs::read(dir.join(paths::AUDIO_FILE)).unwrap(),
+            b"audio"
+        );
+        assert!(!dir.join("2026-10-17 Q4 plan.md").exists());
+        assert_eq!(std::fs::read_dir(&h.root).unwrap().count(), 1);
+        assert_eq!(std::fs::read_dir(&bin.bin).unwrap().count(), 0);
     }
 
     #[test]
@@ -1442,8 +1523,13 @@ mod tests {
         h.coordinator.stop().unwrap();
         let current = h.coordinator.start(MeetingCaptureMode::Both).unwrap();
 
-        assert_eq!(h.coordinator.delete(current), Err(MeetingError::InUse));
-        h.coordinator.delete(old).unwrap();
+        let bin = FolderTrash::new(&h.trash_folder());
+        assert_eq!(
+            h.coordinator.delete(current, &notes(), &bin),
+            Err(MeetingError::InUse)
+        );
+        assert_eq!(std::fs::read_dir(&bin.bin).unwrap().count(), 0);
+        h.coordinator.delete(old, &notes(), &bin).unwrap();
 
         let ids: Vec<_> = h
             .store

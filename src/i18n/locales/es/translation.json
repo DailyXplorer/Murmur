@@ -854,8 +854,9 @@
       "keep": "Seguir grabando"
     },
     "deleteDialog": {
-      "title": "¿Eliminar esta reunión?",
-      "description": "Su grabación se elimina y no se puede recuperar."
+      "title": "¿Mover esta reunión a la Papelera?",
+      "description": "Su transcripción y su grabación van a la Papelera, donde aún puedes abrirlas. Murmur ya no la muestra.",
+      "confirm": "Mover a la Papelera"
     },
     "captureMode": {
       "title": "Fuentes de audio",
@@ -921,8 +922,9 @@
       "deleteError": "No se pudo eliminar el audio.",
       "retranscribeError": "No se pudo volver a transcribir la reunión.",
       "deleteDialog": {
-        "title": "¿Eliminar el audio de esta reunión?",
-        "description": "La grabación se elimina y no se puede recuperar. La transcripción y el resumen se conservan, pero la reunión no se podrá volver a transcribir."
+        "title": "¿Mover el audio de esta reunión a la Papelera?",
+        "description": "La grabación va a la Papelera, donde aún puedes abrirla. La transcripción y el resumen se quedan en Murmur, pero la reunión no se podrá volver a transcribir.",
+        "confirm": "Mover a la Papelera"
       },
       "retranscribeDialog": {
         "title": "¿Volver a transcribir esta reunión?",

@@ -854,8 +854,9 @@
       "keep": "Continuar gravando"
     },
     "deleteDialog": {
-      "title": "Excluir esta reunião?",
-      "description": "A gravação é excluída e não pode ser recuperada."
+      "title": "Mover esta reunião para a Lixeira?",
+      "description": "A transcrição e a gravação vão para a Lixeira, onde você ainda pode abri-las. O Murmur não a lista mais.",
+      "confirm": "Mover para a Lixeira"
     },
     "captureMode": {
       "title": "Fontes de áudio",
@@ -921,8 +922,9 @@
       "deleteError": "Não foi possível apagar o áudio.",
       "retranscribeError": "Não foi possível transcrever a reunião de novo.",
       "deleteDialog": {
-        "title": "Apagar o áudio desta reunião?",
-        "description": "A gravação é apagada e não pode ser recuperada. A transcrição e o resumo continuam, mas a reunião não poderá ser transcrita de novo."
+        "title": "Mover o áudio desta reunião para a Lixeira?",
+        "description": "A gravação vai para a Lixeira, onde você ainda pode abri-la. A transcrição e o resumo continuam no Murmur, mas a reunião não poderá ser transcrita de novo.",
+        "confirm": "Mover para a Lixeira"
       },
       "retranscribeDialog": {
         "title": "Transcrever esta reunião de novo?",

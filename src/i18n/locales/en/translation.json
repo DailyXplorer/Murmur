@@ -854,8 +854,9 @@
       "keep": "Keep recording"
     },
     "deleteDialog": {
-      "title": "Delete this meeting?",
-      "description": "Its recording is deleted and can't be recovered."
+      "title": "Move this meeting to the Trash?",
+      "description": "Its transcript and recording go to the Trash, where you can still open them. Murmur no longer lists it.",
+      "confirm": "Move to Trash"
     },
     "captureMode": {
       "title": "Audio sources",
@@ -921,8 +922,9 @@
       "deleteError": "Couldn't delete the audio.",
       "retranscribeError": "Couldn't transcribe the meeting again.",
       "deleteDialog": {
-        "title": "Delete this meeting's audio?",
-        "description": "The recording is deleted and can't be recovered. The transcript and summary stay, but the meeting can't be transcribed again."
+        "title": "Move this meeting's audio to the Trash?",
+        "description": "The recording goes to the Trash, where you can still open it. The transcript and summary stay in Murmur, but the meeting can't be transcribed again.",
+        "confirm": "Move to Trash"
       },
       "retranscribeDialog": {
         "title": "Transcribe this meeting again?",
