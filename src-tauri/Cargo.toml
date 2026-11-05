@@ -64,8 +64,6 @@ chrono = "0.4"
 rusqlite = { version = "0.37", features = ["bundled"] }
 ferrous-opencc = "0.4.0"
 clap = { version = "4", features = ["derive"] }
-# Grapheme clusters (UAX #29) before the caret for the leading space.
-unicode-segmentation = "1.12"
 specta = "=2.0.0-rc.22"
 specta-typescript = "0.0.9"
 tauri-specta = { version = "=2.0.0-rc.21", features = ["derive", "typescript"] }
