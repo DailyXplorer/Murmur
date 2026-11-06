@@ -195,7 +195,7 @@ fn ended_by(failure: Failure, stage: &str, analysis: &mut Analysis) -> Ended {
 pub fn run(
     job: &Run,
     recognizer: &mut dyn Recognizer,
-    speakers: Option<&mut dyn Diarizer>,
+    speakers: Option<&mut (dyn Diarizer + '_)>,
     analysis: &mut Analysis,
     progress: &mut dyn FnMut(Phase, Track, f64),
 ) -> Ended {
@@ -798,7 +798,7 @@ mod tests {
             Some(&mut speakers),
         );
         assert_eq!(ended, Ended::Done);
-        let turns = analysis.turns.expect("no turns");
+        let turns = analysis.turns.as_ref().expect("no turns");
         let names: std::collections::BTreeSet<&str> =
             turns.iter().map(|turn| turn.spk.as_str()).collect();
         assert_eq!(names.len(), 8);
