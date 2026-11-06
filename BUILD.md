@@ -56,6 +56,15 @@ bun run tauri build
 This compiles a release binary and generates a macOS app bundle and DMG under
 `src-tauri/target/release/bundle/`.
 
+### Compare the macOS crate of two commits
+
+`scripts/macos-expanded-diff.sh <base> <head>` expands the `murmur` library of
+two commits (`cargo rustc --lib -- -Zunpretty=expanded`, a debug build, no
+bundle) and prints the `diff -u` of the result. It runs on macOS only, takes a
+full build the first time (the Swift meetings helper included), and exits 0 when
+the two are identical. The manual `mac expanded diff` workflow runs it on a
+runner. See "How to prove a change is a no-op on macOS" in `AGENTS.md`.
+
 ## Code signing and notarization
 
 Local development builds use the ad-hoc `signingIdentity: "-"` in

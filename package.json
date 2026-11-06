@@ -27,6 +27,7 @@
     "check:types": "tsc -p tsconfig.tests.json --noEmit",
     "check:versions": "bun scripts/check-versions.ts",
     "test:versions": "bun scripts/check-versions.test.ts",
+    "test:macos-expanded": "bun scripts/macos-expanded.test.ts",
     "prepare": "git config core.hooksPath .githooks || true"
   },
   "dependencies": {
