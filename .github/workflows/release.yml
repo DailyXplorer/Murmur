@@ -103,7 +103,7 @@ jobs:
               target_commitish: '${{ needs.validate-release-source.outputs.sha }}',
               name: `v${{ steps.get-version.outputs.version }}`,
               draft: true,
-              prerelease: ${{ inputs.channel == 'test' }},
+              prerelease: false,
               generate_release_notes: true
             })
             return data.id
@@ -280,16 +280,19 @@ jobs:
             })
 
       # A test release is a prerelease and never Latest: the stable feed
-      # (releases/latest/download/latest.json) is not touched.
+      # (releases/latest/download/latest.json) is not touched. The draft is
+      # created like a stable one; it becomes a prerelease here, at publication.
       - name: Publish test prerelease
         if: inputs.channel == 'test'
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
+        env:
+          RELEASE_ID: ${{ needs.create-release.outputs.release-id }}
         with:
           script: |
             await github.rest.repos.updateRelease({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              release_id: Number('${{ needs.create-release.outputs.release-id }}'),
+              release_id: Number(process.env.RELEASE_ID),
               draft: false,
               prerelease: true,
               make_latest: 'false'

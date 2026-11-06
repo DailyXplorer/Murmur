@@ -22,8 +22,6 @@ export interface Golden {
 
 /** The only edits the stable path accepts, each undone before comparing. */
 export const channelEdits: ReadonlyArray<readonly [string, string]> = [
-  // Create Draft Release: a test release is a prerelease.
-  ["prerelease: ${{ inputs.channel == 'test' }}", "prerelease: false"],
   // publish-tauri: the test channel appends the test updater config.
   [
     "${{ matrix.args }}${{ inputs.channel == 'test' && ' --config src-tauri/updater-test.conf.json' || '' }}",
