@@ -46,6 +46,7 @@ const PROPER_PHRASES = [
   "Community-1",
   "Speech@FIT",
   "Bluetooth",
+  "Intel or AMD", // the processors the Windows speaker and live models need
   "Intel Macs",
   "European",
   "Parakeet",
@@ -55,6 +56,7 @@ const PROPER_PHRASES = [
   "WeSpeaker",
   "Markdown",
   "Trash",
+  "Recycle Bin",
   "FaceTime",
   "Core ML",
   "Claude Desktop",
