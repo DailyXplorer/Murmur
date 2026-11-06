@@ -423,6 +423,7 @@ mod tests {
             Reply::Text {
                 id: 3,
                 text: "Le mot civis signifie citoyen.".into(),
+                words: None,
             }
         );
         assert_eq!(

@@ -12,8 +12,6 @@ use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader, Lines};
 use tokio::process::{Child, ChildStdin, ChildStdout, Command};
 
 use super::session::{BoxFuture, Loaded, Runtime};
-use super::SAMPLES_PER_SECOND;
-use crate::local_models::LocalModelState;
 use crate::meetings::protocol::{parse_reply, Reply, Request, Word};
 
 /// A load from compiled models takes about 2 s; a first one after a macOS
