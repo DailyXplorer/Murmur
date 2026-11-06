@@ -1,0 +1,18 @@
+{
+  "release": {
+    "tag_name": "v1.12.1",
+    "body": "Synthetic release notes for the macOS-only golden test.\n\n- One line\n- Another line"
+  },
+  "assets": [
+    { "id": 101, "name": "Murmur_1.12.1_aarch64.dmg" },
+    { "id": 102, "name": "Murmur_1.12.1_x64.dmg" },
+    { "id": 103, "name": "Murmur_aarch64.app.tar.gz" },
+    { "id": 104, "name": "Murmur_aarch64.app.tar.gz.sig" },
+    { "id": 105, "name": "Murmur_x64.app.tar.gz" },
+    { "id": 106, "name": "Murmur_x64.app.tar.gz.sig" }
+  ],
+  "signatures": {
+    "104": "c2lnbmF0dXJlLWFhcmNoNjQK\n",
+    "106": "c2lnbmF0dXJlLXg2NAo=\n"
+  }
+}

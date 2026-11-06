@@ -137,6 +137,38 @@ codesign -dr - /Applications/Murmur.app 2>&1
 
 Install official builds from [GitHub Releases](https://github.com/DailyXplorer/Murmur/releases).
 
+### Update manifest (`latest.json`)
+
+One `latest.json` on the latest release serves every client
+(`.github/scripts/publish-updater-manifest.mjs`, key rules in
+`updater-targets.mjs`, signature check in `updater-signature.mjs`).
+
+| Key                                     | Built from                           | Points at     |
+| --------------------------------------- | ------------------------------------ | ------------- |
+| `darwin-aarch64-app`, `darwin-aarch64`  | `Murmur_aarch64.app.tar.gz.sig`      | `.app.tar.gz` |
+| `darwin-x86_64-app`, `darwin-x86_64`    | `Murmur_x64.app.tar.gz.sig`          | `.app.tar.gz` |
+| `windows-x86_64-nsis`, `windows-x86_64` | `Murmur_<version>_x64-setup.exe.sig` | `-setup.exe`  |
+
+- The four `darwin-*` keys are always required. The two `windows-*` keys are
+  required when `INCLUDE_WINDOWS` is `true` (the default); with `false` the
+  manifest is the macOS-only one, byte for byte, and Windows assets are ignored.
+- Any other key is an error, and so is a `darwin-*` key that does not end in
+  `.app.tar.gz`, a `windows-*` key that does not end in `-setup.exe`, or a URL
+  outside `https://github.com/<repo>/releases/download/<tag>/`. The updater
+  plugin looks up `<os>-<arch>-<bundle>`, then `<os>-<arch>`, so a Mac never
+  reads a `windows-*` key and is never offered an installer.
+- `--verify-public` checks the downloaded feed (`VERSION`, `MANIFEST`,
+  optionally `GITHUB_REPOSITORY` and `RELEASE_TAG`). `--verify-signatures <dir>`
+  checks every entry against the asset of the same name in `<dir>`, offline,
+  with the `pubkey` of `src-tauri/tauri.conf.json`: key id, signature, the
+  signed comment, its `version:` equal to the release and its `file:` equal to
+  the asset (the Mac archive is signed as `Murmur.app.tar.gz` before the
+  upload adds the architecture).
+- `--emit-legacy-feed <path>` writes the Windows-only manifest for the old
+  `windows-beta` feed (same installer and signature as the release), and
+  `--verify-public-legacy` checks a downloaded copy.
+- Tests: `bun run test:updater-manifest`.
+
 ## Troubleshooting
 
 ### macOS Accessibility remains enabled after a local rebuild

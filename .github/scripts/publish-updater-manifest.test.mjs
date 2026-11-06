@@ -36,7 +36,11 @@ assert.equal(updaterTarget("Murmur_1.0.3_arm64.deb.sig"), null);
 assert.equal(updaterTarget("Murmur-1.0.3-1.aarch64.rpm.sig"), null);
 assert.equal(updaterTarget("Murmur-1.0.3-1.x86_64.rpm.sig"), null);
 assert.equal(updaterTarget("Murmur_1.0.3_arm64-setup.exe.sig"), null);
-assert.equal(updaterTarget("Murmur_1.0.3_x64-setup.exe.sig"), null);
+assert.deepEqual(updaterTarget("Murmur_1.0.3_x64-setup.exe.sig"), {
+  os: "windows",
+  arch: "x86_64",
+  bundle: "nsis",
+});
 assert.equal(updaterTarget("Murmur_1.0.3_arm64_en-US.msi.sig"), null);
 assert.equal(updaterTarget("Murmur_1.0.3_x64_en-US.msi.sig"), null);
 assert.equal(updaterTarget("Murmur_aarch64.app.tar.gz"), null);
@@ -54,7 +58,7 @@ const leftoverSigs = [
 const mapped = leftoverSigs.map((name) => updaterTarget(name)).filter(Boolean);
 assert.deepEqual(
   mapped.map((target) => `${target.os}-${target.arch}-${target.bundle}`).sort(),
-  ["darwin-aarch64-app", "darwin-x86_64-app"],
+  ["darwin-aarch64-app", "darwin-x86_64-app", "windows-x86_64-nsis"],
 );
 
 const arm = {
@@ -173,7 +177,7 @@ const v103Assets = [
 const fromRelease = {};
 for (const name of v103Assets) {
   const target = updaterTarget(name);
-  if (!target) continue;
+  if (!target || target.os !== "darwin") continue;
   fromRelease[`${target.os}-${target.arch}-${target.bundle}`] = {
     signature: `${name}-signature`,
     url: `https://github.com/DailyXplorer/Murmur/releases/download/v1.0.3/${name.slice(0, -4)}`,
@@ -203,7 +207,8 @@ assert.match(fromRelease["darwin-x86_64"].url, /Murmur_x64\.app\.tar\.gz$/);
  * @returns {{status: number | null, stderr: string}}
  */
 function runVerifyPublic(version, manifest) {
-  const env = { ...process.env };
+  const env = { ...process.env, INCLUDE_WINDOWS: "false" };
+  delete env.GITHUB_REPOSITORY;
   if (version === undefined) delete env.VERSION;
   else env.VERSION = version;
   if (manifest === undefined) delete env.MANIFEST;
