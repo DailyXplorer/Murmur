@@ -1,7 +1,7 @@
 import { ArrowCounterClockwiseIcon } from "@phosphor-icons/react/dist/csr/ArrowCounterClockwise";
 import { CheckIcon } from "@phosphor-icons/react/dist/csr/Check";
 import { CopyIcon } from "@phosphor-icons/react/dist/csr/Copy";
-import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { emitTo, listen, type UnlistenFn } from "@tauri-apps/api/event";
 import React, {
   useEffect,
   useId,
@@ -11,7 +11,11 @@ import React, {
 } from "react";
 import "./RecordingOverlay.css";
 import { commands } from "@/bindings";
-import { CAP_WARNING_MS, formatDuration } from "@/lib/meetings/format";
+import {
+  CAP_WARNING_MS,
+  formatDuration,
+  formatMeetingDate,
+} from "@/lib/meetings/format";
 import { openFromOrb, useReducedMotion } from "./openFromOrb";
 import {
   approach,
@@ -30,7 +34,33 @@ type View =
   | { kind: "copy"; labels: CopyLabels; copied: boolean }
   | { kind: "warning"; message: string }
   | { kind: "cancelled"; labels: CancelledLabels }
+  | {
+      kind: "meetingNotice";
+      labels: MeetingNoticeLabels;
+      copiedUntil: number | null;
+    }
   | { kind: "meeting"; startedAtMs: number; stopsAtMs: number };
+
+export interface MeetingNoticeLabels {
+  tone: "ready" | "failed";
+  headline: string;
+  detail: string | null;
+  open: string;
+  copy: string | null;
+  copied: string;
+  default_name: { started_at_ms: number; locale: string } | null;
+  meeting_id: number | null;
+}
+
+const sameMeetingNotice = (
+  current: MeetingNoticeLabels,
+  shown: MeetingNoticeLabels,
+) => current.meeting_id !== null && current.meeting_id === shown.meeting_id;
+
+interface PageEpochReply {
+  nonce: string;
+  epoch: string;
+}
 
 /** Payload of `show-overlay-meeting`, from `overlay::MeetingPill`. */
 interface MeetingPill {
@@ -121,6 +151,7 @@ const RecordingOverlay: React.FC = () => {
 
   useEffect(() => {
     let isUnmounted = false;
+    const pageNonce = crypto.getRandomValues(new Uint32Array(4)).join("-");
     const unlisteners: UnlistenFn[] = [];
     const storeUnlistener = (unlisten: UnlistenFn) => {
       if (isUnmounted) {
@@ -164,6 +195,35 @@ const RecordingOverlay: React.FC = () => {
       refreshPosition();
     }).then(storeUnlistener, () => undefined);
 
+    const noticeListener = listen<MeetingNoticeLabels>(
+      "show-overlay-meeting-notice",
+      (event) => {
+        let labels = event.payload;
+        if (labels.default_name) {
+          const date = formatMeetingDate(
+            labels.default_name.started_at_ms,
+            labels.default_name.locale,
+          );
+          labels = {
+            ...labels,
+            headline: labels.headline.replace("{{date}}", date),
+            detail: labels.detail?.replace("{{date}}", date) ?? null,
+          };
+        }
+        setView((current) => ({
+          kind: "meetingNotice",
+          labels,
+          copiedUntil:
+            current.kind === "meetingNotice" &&
+            labels.copy !== null &&
+            sameMeetingNotice(current.labels, labels)
+              ? current.copiedUntil
+              : null,
+        }));
+        refreshPosition();
+      },
+    ).then(storeUnlistener);
+
     // The backend localizes the message, so it matches the notification
     // shown when the overlay is off.
     void listen<string>("show-overlay-error", (event) => {
@@ -190,9 +250,9 @@ const RecordingOverlay: React.FC = () => {
       refreshPosition();
     }).then(storeUnlistener, () => undefined);
 
-    void listen("hide-overlay", () => {
+    const hideListener = listen("hide-overlay", () => {
       setView({ kind: "hidden" });
-    }).then(storeUnlistener, () => undefined);
+    }).then(storeUnlistener);
 
     void listen("recording-ready", () => {
       setView((current) =>
@@ -203,6 +263,31 @@ const RecordingOverlay: React.FC = () => {
     void listen<number[]>("mic-level", (event) => {
       levelsRef.current = event.payload;
     }).then(storeUnlistener, () => undefined);
+
+    // A retired page's delayed request can receive the replacement page's epoch.
+    const epochListener = listen<PageEpochReply>(
+      "meeting-notice-page-epoch",
+      (event) => {
+        if (isUnmounted || event.payload.nonce !== pageNonce) return;
+        void emitTo(
+          { kind: "App" },
+          "meeting-notice-listener-ready",
+          event.payload.epoch,
+        ).catch(() => undefined);
+      },
+    ).then(storeUnlistener);
+
+    void Promise.all([noticeListener, hideListener, epochListener])
+      .then(() => {
+        if (!isUnmounted) {
+          return emitTo(
+            { kind: "App" },
+            "meeting-notice-page-request",
+            pageNonce,
+          );
+        }
+      })
+      .catch(() => undefined);
 
     return () => {
       isUnmounted = true;
@@ -234,13 +319,13 @@ const RecordingOverlay: React.FC = () => {
     };
   }, [animating]);
 
-  // The copy pill's body, and the warning pill's, sizes itself from its
-  // text, whatever font renders it, and the window is fitted to it: only the
-  // webview can measure it. The backend opens each notice at a default size,
-  // so every such view, even one replacing a showing one, observes and
-  // reports again.
+  // Only the webview can measure the body. Native notices start at a default
+  // size, so even a notice replacing a showing one must report its fit again.
   const fittedView =
-    view.kind === "copy" || view.kind === "warning" || view.kind === "cancelled"
+    view.kind === "copy" ||
+    view.kind === "warning" ||
+    view.kind === "cancelled" ||
+    view.kind === "meetingNotice"
       ? view
       : null;
   useLayoutEffect(() => {
@@ -252,7 +337,7 @@ const RecordingOverlay: React.FC = () => {
       commands
         .fitCopyNotice(box.inlineSize, box.blockSize)
         .catch((error: unknown) => {
-          console.warn("Fitting the copy pill's window failed:", error);
+          console.warn("Fitting the notice pill's window failed:", error);
         });
     });
     observer.observe(body);
@@ -270,6 +355,23 @@ const RecordingOverlay: React.FC = () => {
     return () => growth.cancel();
   }, [pillKind, reducedMotion]);
 
+  const copiedUntil = view.kind === "meetingNotice" ? view.copiedUntil : null;
+  useEffect(() => {
+    if (copiedUntil === null) return;
+    const timer = window.setTimeout(
+      () => {
+        setView((current) =>
+          current.kind === "meetingNotice" &&
+          current.copiedUntil === copiedUntil
+            ? { ...current, copiedUntil: null }
+            : current,
+        );
+      },
+      Math.max(0, copiedUntil - Date.now()),
+    );
+    return () => window.clearTimeout(timer);
+  }, [copiedUntil]);
+
   if (view.kind === "hidden") return null;
 
   if (view.kind === "meeting") {
@@ -279,6 +381,89 @@ const RecordingOverlay: React.FC = () => {
           startedAtMs={view.startedAtMs}
           stopsAtMs={view.stopsAtMs}
         />
+      </div>
+    );
+  }
+
+  if (view.kind === "meetingNotice") {
+    const copyMeeting = () => {
+      void commands
+        .copyMeetingNotice()
+        .then((result) => {
+          if (result.status === "error") throw new Error(result.error);
+          setView((current) =>
+            current.kind === "meetingNotice" &&
+            current.labels.copy !== null &&
+            sameMeetingNotice(current.labels, view.labels)
+              ? { ...current, copiedUntil: Date.now() + 1500 }
+              : current,
+          );
+        })
+        .catch((error: unknown) => {
+          console.warn("Copying the meeting notice failed:", error);
+        });
+    };
+    const openMeeting = () => {
+      void commands.openMeetingNotice().catch((error: unknown) => {
+        console.warn("Opening the meeting notice failed:", error);
+      });
+    };
+    const copied = view.copiedUntil !== null;
+    const Icon = copied ? CheckIcon : CopyIcon;
+    return (
+      <div className={`ov-stage ${position}`}>
+        <div
+          ref={setPill}
+          className={`ov-capsule ov-meeting-notice${view.labels.tone === "failed" ? " ov-warning" : ""}`}
+          role="status"
+          dir="auto"
+        >
+          <span ref={noticeBodyRef} className="ov-meeting-notice-body">
+            <Glyph kind={view.labels.tone === "ready" ? "done" : "off"} />
+            <span className="ov-meeting-notice-text">
+              <span className="ov-meeting-notice-headline">
+                {view.labels.headline}
+              </span>
+              {view.labels.detail !== null && (
+                <span className="ov-meeting-notice-detail">
+                  {view.labels.detail}
+                </span>
+              )}
+            </span>
+            <span className="ov-meeting-notice-actions">
+              <button
+                type="button"
+                className="ov-call-button"
+                onClick={openMeeting}
+              >
+                {view.labels.open}
+              </button>
+              {view.labels.copy !== null && (
+                <button
+                  type="button"
+                  className="ov-call-button ov-copy-action"
+                  aria-labelledby={`${noticeId}-action`}
+                  onClick={copyMeeting}
+                >
+                  <Icon
+                    size={14}
+                    weight="bold"
+                    aria-hidden="true"
+                    data-icon={copied ? "check" : "copy"}
+                  />
+                  <span className="ov-copy-label">
+                    <span id={`${noticeId}-action`} aria-live="polite">
+                      {copied ? view.labels.copied : view.labels.copy}
+                    </span>
+                    <span className="ov-copy-label-spare" aria-hidden="true">
+                      {copied ? view.labels.copy : view.labels.copied}
+                    </span>
+                  </span>
+                </button>
+              )}
+            </span>
+          </span>
+        </div>
       </div>
     );
   }

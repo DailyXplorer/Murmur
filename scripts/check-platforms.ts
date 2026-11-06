@@ -312,10 +312,13 @@ checkCapability(
   [
     "core:event:allow-listen",
     "core:event:allow-unlisten",
+    "core:event:allow-emit-to",
     "os:allow-locale",
     "allow-get-app-settings",
     "allow-cancel-operation",
     "allow-copy-notice-again",
+    "allow-copy-meeting-notice",
+    "allow-open-meeting-notice",
     "allow-fit-copy-notice",
     "allow-restore-cancelled-dictation",
   ],

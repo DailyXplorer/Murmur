@@ -460,6 +460,7 @@ struct NoEvents;
 impl ProcessEvents for NoEvents {
     fn progress(&self, _: MeetingProgress) {}
     fn updated(&self, _: i64) {}
+    fn finished(&self, _: super::announce::Finished) {}
 }
 
 fn process(data: &Path, codex: Option<(String, PathBuf)>, models: Option<PathBuf>) {

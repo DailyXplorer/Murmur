@@ -12,10 +12,11 @@ import {
   type MeetingStatus,
   type AnalysisSupport,
   type SystemAudioSupport,
+  type OpenTarget,
 } from "@/bindings";
-import { formatDuration } from "@/lib/meetings/format";
+import { formatDuration, formatMeetingDate } from "@/lib/meetings/format";
 import { findMatches } from "@/lib/meetings/search";
-import { formatMeetingDate, MeetingView } from "./MeetingView";
+import { MeetingView } from "./MeetingView";
 import { SpeakerModels } from "./SpeakerModels";
 import type { InitialTextSearch } from "./TabHeaderBar";
 import { useLocalModel } from "../../hooks/useLocalModel";
@@ -78,10 +79,37 @@ interface Opened {
   initialSearch?: InitialTextSearch;
 }
 
-export const MeetingsPage: React.FC = () => {
-  const [opened, setOpened] = useState<Opened | null>(null);
+export interface MeetingOpenRequest {
+  target: OpenTarget;
+}
+
+const openedFromTarget = (target: OpenTarget): Opened | null =>
+  target === "meetings" ? null : { id: target.meeting };
+
+const reportOpened = (id: number | null) => {
+  void commands.reportOpenedMeeting(id).catch((error: unknown) => {
+    console.warn("Failed to report the opened meeting:", error);
+  });
+};
+
+export const MeetingsPage: React.FC<{
+  openRequest?: MeetingOpenRequest | null;
+}> = ({ openRequest }) => {
+  const [opened, setOpened] = useState<Opened | null>(() =>
+    openRequest ? openedFromTarget(openRequest.target) : null,
+  );
   // Here rather than in the list, so Back returns to the same results.
   const [query, setQuery] = useState("");
+  useEffect(() => {
+    if (!openRequest) return;
+    setOpened(openedFromTarget(openRequest.target));
+    setQuery("");
+  }, [openRequest]);
+  const openedId = opened?.id ?? null;
+  useEffect(() => {
+    reportOpened(openedId);
+    return () => reportOpened(null);
+  }, [openedId]);
   const search = useSearch(query, commands.searchMeetings);
   const { refresh } = search;
   useEffect(() => {
@@ -106,6 +134,7 @@ export const MeetingsPage: React.FC = () => {
     />
   ) : (
     <MeetingView
+      key={opened.id}
       id={opened.id}
       initialSearch={opened.initialSearch}
       onBack={() => {

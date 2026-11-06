@@ -1420,18 +1420,34 @@ impl MeetingsStore {
     }
 
     /// Ends a processing run: ready, or failed with what went wrong.
-    pub fn finish_processing(&self, id: i64, error: Option<ProcessingError>) -> Result<()> {
+    pub fn finish_processing(&self, id: i64, error: Option<ProcessingError>) -> Result<bool> {
         let status = if error.is_some() {
             MeetingStatus::Failed
         } else {
             MeetingStatus::Ready
         };
-        self.connection()?.execute(
+        let changed = self.connection()?.execute(
             "UPDATE meetings SET status = ?2, stage = NULL, error_kind = ?3
              WHERE id = ?1 AND status = 'processing'",
             params![id, status.as_db(), error.map(ProcessingError::as_db)],
         )?;
-        Ok(())
+        Ok(changed > 0)
+    }
+
+    pub fn announcement_name(&self, id: i64) -> Result<Option<super::announce::MeetingName>> {
+        Ok(self
+            .connection()?
+            .query_row(
+                "SELECT title, started_at_ms FROM meetings WHERE id = ?1",
+                [id],
+                |row| {
+                    Ok(super::announce::MeetingName {
+                        title: row.get(0)?,
+                        started_at_ms: row.get(1)?,
+                    })
+                },
+            )
+            .optional()?)
     }
 
     /// Records how a track is split, once: a plan already stored is kept, so

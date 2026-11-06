@@ -30,6 +30,8 @@ declare global {
     };
     unmountRecordingOverlay(): void;
     overlayHarness: {
+      pageRequests(): string[];
+      readyEpochs(): unknown[];
       dispatch(event: string, payload?: unknown): number;
       releaseSettings(): void;
       copyCalls(): number;
@@ -39,6 +41,8 @@ declare global {
       /** The call prompt's answers, oldest first. */
       callAnswers(): string[];
       restoreCalls(): number;
+      meetingNoticeCalls(): string[];
+      releaseMeetingCopy(): void;
     };
   }
 }

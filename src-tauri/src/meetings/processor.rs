@@ -29,6 +29,7 @@ use std::time::{Duration, Instant};
 use super::align::timing::{sentence_times, time_chunk, words_in};
 use super::align::{TimedToken, TimedWord};
 use super::analysis::{diarized_track, Analysis, AnalysisRequest, Analyzer, AnalyzerOutcome};
+use super::announce::{Finished, Outcome as FinishedOutcome};
 use super::archive;
 use super::bleed::{remove_echoes, WordTimes};
 use super::capture::route::OutputRoute;
@@ -71,6 +72,7 @@ pub trait ProcessEvents: Send + Sync + 'static {
     fn progress(&self, progress: MeetingProgress);
     /// The meeting's row or transcript changed.
     fn updated(&self, id: i64);
+    fn finished(&self, finished: Finished);
 }
 
 pub struct Processor {
@@ -297,6 +299,25 @@ fn read_tracks(dir: &Path, recorded: MeetingTracks) -> HashMap<Track, Audio> {
 }
 
 impl Processor {
+    pub(super) fn finish_processing(
+        &self,
+        id: i64,
+        error: Option<ProcessingError>,
+    ) -> anyhow::Result<()> {
+        if self.store.finish_processing(id, error)? {
+            self.events.updated(id);
+            self.events.finished(Finished {
+                id,
+                outcome: if error.is_some() {
+                    FinishedOutcome::Failed
+                } else {
+                    FinishedOutcome::Ready
+                },
+            });
+        }
+        Ok(())
+    }
+
     /// Processes meeting `id` as far as it can: its transcript, then once
     /// that is complete its summary and compressed audio. Each step is
     /// skipped when already done, so this does nothing for a meeting that is
@@ -397,9 +418,7 @@ impl Processor {
             return Ok((stages, CodexVerdict::Unknown));
         }
         if audio.is_empty() {
-            self.store
-                .finish_processing(id, Some(ProcessingError::NoAudio))?;
-            self.events.updated(id);
+            self.finish_processing(id, Some(ProcessingError::NoAudio))?;
             return Ok((stages, CodexVerdict::Unknown));
         }
         for (track, audio) in &audio {
@@ -539,8 +558,7 @@ impl Processor {
         } else {
             Some(ProcessingError::PartsFailed)
         };
-        self.store.finish_processing(id, error)?;
-        self.events.updated(id);
+        self.finish_processing(id, error)?;
         log::info!(
             "Meeting {id} processed: {} bubbles, speakers {outcome:?}, alignment {:?}, outcome {error:?}",
             built.turns.len(),
@@ -1001,13 +1019,16 @@ mod tests {
     }
 
     #[derive(Default)]
-    struct Events(Mutex<Vec<MeetingProgress>>);
+    struct Events(Mutex<Vec<MeetingProgress>>, Mutex<Vec<Finished>>);
 
     impl ProcessEvents for Events {
         fn progress(&self, progress: MeetingProgress) {
             self.0.lock().unwrap().push(progress);
         }
         fn updated(&self, _: i64) {}
+        fn finished(&self, finished: Finished) {
+            self.1.lock().unwrap().push(finished);
+        }
     }
 
     /// Writes a track with speech (a loud tone) in the given seconds.
@@ -1472,6 +1493,86 @@ mod tests {
         let meeting = h.store.get(id).unwrap().unwrap();
         assert_eq!(meeting.status, MeetingStatus::Failed);
         assert_eq!(meeting.error, Some(ProcessingError::SignedOut));
+        assert_eq!(
+            *h.events.1.lock().unwrap(),
+            [Finished {
+                id,
+                outcome: FinishedOutcome::Failed
+            }]
+        );
+    }
+
+    #[test]
+    fn ready_is_announced_before_the_summary_and_only_once() {
+        let h = harness();
+        let id = spoken_meeting(&h);
+        let summarizer = FakeSummarizer::answering(vec![]);
+        let events = Arc::clone(&h.events);
+        let store = Arc::clone(&h.store);
+        *summarizer.meanwhile.lock().unwrap() = Some(Box::new(move || {
+            assert_eq!(
+                *events.1.lock().unwrap(),
+                [Finished {
+                    id,
+                    outcome: FinishedOutcome::Ready
+                }]
+            );
+            assert_eq!(store.get(id).unwrap().unwrap().status, MeetingStatus::Ready);
+        }));
+        h.process_all(
+            id,
+            codex(|_| Ok("Bonjour.".into())),
+            Arc::new(FakeAnalyzer::without_models()),
+            summarizer,
+        );
+        h.process(
+            id,
+            codex(|_| panic!("A ready meeting must not be transcribed again")),
+        );
+        assert_eq!(
+            *h.events.1.lock().unwrap(),
+            [Finished {
+                id,
+                outcome: FinishedOutcome::Ready
+            }]
+        );
+    }
+
+    #[test]
+    fn every_terminal_processing_error_announces_a_failure_once() {
+        let h = harness();
+        let processor = Processor {
+            store: Arc::clone(&h.store),
+            root: h.root.clone(),
+            transcriber: codex(|_| Ok(String::new())),
+            local: None,
+            analyzer: Arc::new(FakeAnalyzer::without_models()),
+            summarizer: FakeSummarizer::answering(vec![]),
+            policy: RetryPolicy::default(),
+            language: None,
+            events: Arc::clone(&h.events) as Arc<dyn ProcessEvents>,
+            compress_audio: false,
+        };
+        let mut expected = Vec::new();
+        for error in [
+            ProcessingError::SignedOut,
+            ProcessingError::NoAudio,
+            ProcessingError::RateLimited,
+            ProcessingError::Offline,
+            ProcessingError::PartsFailed,
+            ProcessingError::Other,
+        ] {
+            let id = h.meeting(MeetingTracks::Mic, 20);
+            h.store.begin_processing(id).unwrap();
+            processor.finish_processing(id, Some(error)).unwrap();
+            processor.finish_processing(id, Some(error)).unwrap();
+            expected.push(Finished {
+                id,
+                outcome: FinishedOutcome::Failed,
+            });
+            assert_eq!(h.store.get(id).unwrap().unwrap().error, Some(error));
+            assert_eq!(*h.events.1.lock().unwrap(), expected);
+        }
     }
 
     #[test]
@@ -1488,6 +1589,13 @@ mod tests {
         h.store.finish_processing(ready, None).unwrap();
         h.process(ready, Arc::clone(&codex));
         assert!(codex.calls.lock().unwrap().is_empty());
+        assert_eq!(
+            *h.events.1.lock().unwrap(),
+            [Finished {
+                id,
+                outcome: FinishedOutcome::Failed
+            }]
+        );
     }
 
     #[test]
@@ -2617,6 +2725,7 @@ mod tests {
         );
         assert!(h.store.chunks(id).unwrap().is_empty());
         assert!(codex.calls.lock().unwrap().is_empty());
+        assert!(h.events.1.lock().unwrap().is_empty());
     }
 
     /// "Transcribe again" on audio that can no longer be read leaves the

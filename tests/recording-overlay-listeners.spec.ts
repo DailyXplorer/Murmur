@@ -3,6 +3,8 @@ import { expect, test } from "@playwright/test";
 const expectedListenerCounts = {
   "show-overlay": 2,
   "show-overlay-meeting": 2,
+  "show-overlay-meeting-notice": 2,
+  "meeting-notice-page-epoch": 2,
   "show-overlay-error": 2,
   "show-overlay-copy": 2,
   "show-overlay-warning": 2,
@@ -124,6 +126,13 @@ test("cleans every settled overlay listener exactly once", async ({ page }) => {
         if (command === "get_app_settings") return Promise.resolve({});
 
         if (command === "plugin:event|unlisten") return Promise.resolve();
+        if (
+          command === "plugin:event|emit_to" &&
+          (args?.event === "meeting-notice-listener-ready" ||
+            args?.event === "meeting-notice-page-request")
+        ) {
+          return Promise.resolve();
+        }
 
         throw new Error(`Unexpected Tauri command: ${command}`);
       },
@@ -152,7 +161,12 @@ test("cleans every settled overlay listener exactly once", async ({ page }) => {
         window.recordingOverlayListenerHarness.pendingCount(),
       ),
     )
-    .toBe(18);
+    .toBe(
+      Object.values(expectedListenerCounts).reduce(
+        (sum, count) => sum + count,
+        0,
+      ),
+    );
 
   const initialSummary = await page.evaluate(() =>
     window.recordingOverlayListenerHarness.summary(),
@@ -239,6 +253,10 @@ test("cleans every settled overlay listener exactly once", async ({ page }) => {
         "show-overlay-meeting",
         { started_at_ms: 0, stops_at_ms: 10_800_000 },
       ),
+      meetingNotice: window.recordingOverlayListenerHarness.dispatch(
+        "show-overlay-meeting-notice",
+        { tone: "ready", headline: "Meeting ready" },
+      ),
       copy: window.recordingOverlayListenerHarness.dispatch(
         "show-overlay-copy",
         { copy: "Copy", copied: "Copied" },
@@ -268,6 +286,7 @@ test("cleans every settled overlay listener exactly once", async ({ page }) => {
     hide: 0,
     error: 0,
     meeting: 0,
+    meetingNotice: 0,
     copy: 0,
     warning: 0,
     ready: 0,
