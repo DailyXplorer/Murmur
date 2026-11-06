@@ -256,6 +256,8 @@ mod tests {
     #[test]
     fn calls_are_watched_only_while_call_prompts_and_meetings_are_on() {
         let mut settings = get_default_settings();
+        settings.meetings_enabled = true;
+        settings.meeting_call_prompt = true;
         assert!(watching(&settings));
 
         settings.meeting_call_prompt = false;
