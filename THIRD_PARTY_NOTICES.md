@@ -12,16 +12,18 @@ place of characters its tokenizer cannot spell.
 
 - Apple silicon: `FluidInference/parakeet-ultra-coreml`, converted to Core ML
   by Fluid Inference, run by FluidAudio in the meetings helper (see below).
-- Intel Macs: `handy-computer/parakeet-ultra-gguf`, converted to GGUF and
-  quantised to 8 bits by handy-computer, run on the CPU by transcribe.cpp.
+- Intel Macs and Windows: `handy-computer/parakeet-ultra-gguf`, converted to
+  GGUF and quantised to 8 bits by handy-computer, run on the CPU by
+  transcribe.cpp.
 
 ### transcribe.cpp
 
 transcribe.cpp 0.4.1 (Rust crates `transcribe-cpp` and `transcribe-cpp-sys`),
 <https://github.com/handy-computer/transcribe.cpp>, built into the Intel Mac
-app. Licensed under the MIT License; copyright (c) 2026 The transcribe.cpp
-authors. It includes ggml (MIT, copyright (c) 2023-2026 The ggml authors),
-Silero VAD (MIT) and miniz (MIT), whose licence texts ship with its source.
+and Windows apps. Licensed under the MIT License; copyright (c) 2026 The
+transcribe.cpp authors. It includes ggml (MIT, copyright (c) 2023-2026 The
+ggml authors), Silero VAD (MIT) and miniz (MIT), whose licence texts ship
+with its source.
 
 ## Meetings: on-device speaker detection
 

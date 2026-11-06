@@ -2060,10 +2060,10 @@ mod tests {
 
     /// A field this version cannot read (say, written by a newer build) is
     /// dropped, but the file as it was stays next to it, once per content.
-    #[cfg(unix)]
     #[test]
     fn salvage_preserves_original_bytes_once() {
         use sha2::{Digest, Sha256};
+        #[cfg(unix)]
         use std::os::unix::fs::PermissionsExt;
 
         let dir = tempfile::tempdir().unwrap();
@@ -2096,12 +2096,66 @@ mod tests {
             assert_eq!(std::fs::read(&copy).unwrap(), original);
             assert_eq!(copies(), 1);
         }
-        let mode = std::fs::metadata(&copy).unwrap().permissions().mode() & 0o777;
-        assert_eq!(mode, 0o600);
+        #[cfg(unix)]
+        {
+            let mode = std::fs::metadata(&copy).unwrap().permissions().mode() & 0o777;
+            assert_eq!(mode, 0o600);
+        }
         assert!(settings_in(&path).overlay_position == default_overlay_position());
 
         // The repaired file reads cleanly: nothing more to keep.
         read_from(&file::SettingsFile::open(path.clone()));
         assert_eq!(copies(), 1);
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn persisted_windows_settings_keep_restrictions_and_migrate_context_only_once() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join(SETTINGS_STORE_PATH);
+        let mut stored = default_settings_json();
+        stored["meetings_enabled"] = serde_json::json!(true);
+        stored["update_checks_enabled"] = serde_json::json!(true);
+        stored["clamshell_microphone"] = serde_json::json!("Built-in Microphone");
+        stored["window_names_enabled"] = serde_json::json!(false);
+        stored["overlay_position"] = serde_json::json!("from-a-newer-build");
+        stored
+            .as_object_mut()
+            .unwrap()
+            .remove("window_names_turned_on_once");
+        fs::write(
+            &path,
+            serde_json::to_vec_pretty(&serde_json::json!({ "settings": stored })).unwrap(),
+        )
+        .unwrap();
+
+        let file = file::SettingsFile::open(path.clone());
+        let mut settings = read_from(&file);
+        assert!(!settings.meetings_enabled);
+        assert!(!settings.update_checks_enabled);
+        assert!(settings.clamshell_microphone.is_none());
+        assert!(settings.window_names_enabled);
+        assert!(settings.window_names_turned_on_once);
+        file.flush();
+        let persisted: serde_json::Value =
+            serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
+        let persisted: AppSettings = serde_json::from_value(persisted["settings"].clone()).unwrap();
+        assert!(!persisted.meetings_enabled);
+        assert!(!persisted.update_checks_enabled);
+        assert!(persisted.clamshell_microphone.is_none());
+        assert!(persisted.window_names_turned_on_once);
+        assert!(persisted.window_names_enabled);
+
+        settings.window_names_enabled = false;
+        file.store_checked(serde_json::to_value(settings).unwrap())
+            .unwrap();
+        drop(file);
+
+        let reloaded = read_from(&file::SettingsFile::open(path));
+        assert!(!reloaded.window_names_enabled);
+        assert!(reloaded.window_names_turned_on_once);
+        assert!(!reloaded.meetings_enabled);
+        assert!(!reloaded.update_checks_enabled);
+        assert!(reloaded.clamshell_microphone.is_none());
     }
 }

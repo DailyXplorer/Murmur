@@ -1,7 +1,6 @@
 #[cfg(target_os = "macos")]
 use crate::accessibility::{Element, FocusedField};
 use crate::input::{self, TargetedModifier};
-#[cfg(target_os = "macos")]
 use crate::leading_space::{needs_leading_space, Before};
 use crate::operation::ProcessingOperation;
 #[cfg(target_os = "macos")]
@@ -12,7 +11,6 @@ use log::{info, warn};
 use objc2_app_kit::{NSRunningApplication, NSWorkspace};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
-#[cfg(target_os = "macos")]
 use std::time::Instant;
 use tauri::AppHandle;
 use tauri_plugin_clipboard_manager::ClipboardExt;
@@ -22,7 +20,6 @@ use tokio::sync::oneshot;
 // is scheduled separately so the macOS main thread never waits for this hold.
 pub(crate) const PASTE_CHORD_HOLD: Duration = Duration::from_millis(100);
 const AUTO_SUBMIT_DELAY: Duration = Duration::from_millis(50);
-#[cfg(target_os = "macos")]
 const LEADING_SPACE_BUDGET: Duration = Duration::from_millis(150);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -116,7 +113,6 @@ async fn keyboard_focus() -> FocusedField {
         .unwrap_or(FocusedField::Unknown)
 }
 
-#[cfg(target_os = "macos")]
 async fn with_leading_space(
     text: String,
     enabled: bool,
@@ -541,6 +537,14 @@ pub(crate) async fn paste(
         move |deadline| read_char_before_caret(&app_for_caret, deadline),
     )
     .await;
+    #[cfg(target_os = "windows")]
+    let text = with_leading_space(
+        text,
+        settings.leading_space,
+        paste_method,
+        crate::uia::char_before_caret,
+    )
+    .await;
     let text = if settings.append_trailing_space {
         format!("{text} ")
     } else {
@@ -646,10 +650,8 @@ pub(crate) async fn paste(
 mod tests {
     use super::*;
     use crate::operation::OperationId;
-    #[cfg(target_os = "macos")]
     use std::sync::atomic::{AtomicUsize, Ordering};
 
-    #[cfg(target_os = "macos")]
     fn after_word(_: Instant) -> Option<Before> {
         Some(Before {
             last: 'd',
@@ -658,7 +660,6 @@ mod tests {
         })
     }
 
-    #[cfg(target_os = "macos")]
     #[tokio::test]
     async fn leading_space_formats_only_enabled_paste_methods() {
         let reads = Arc::new(AtomicUsize::new(0));
@@ -686,7 +687,6 @@ mod tests {
         assert_eq!(reads.load(Ordering::SeqCst), 2);
     }
 
-    #[cfg(target_os = "macos")]
     #[tokio::test]
     async fn unavailable_or_failed_caret_reads_leave_the_text_unchanged() {
         assert_eq!(
@@ -702,7 +702,6 @@ mod tests {
         );
     }
 
-    #[cfg(target_os = "macos")]
     #[tokio::test]
     async fn a_hung_caret_read_does_not_hold_the_paste() {
         let (release, blocked) = std::sync::mpsc::channel();

@@ -9,13 +9,16 @@ use std::path::Path;
 use crate::managers::history;
 use crate::meetings::store::MeetingsStore;
 
+use super::MEETINGS_EXIST;
+
 const ROADMAP_STARTED_MS: i64 = 1_772_445_600_000;
 const BUDGET_STARTED_MS: i64 = 1_773_070_200_000;
 const UNTITLED_STARTED_MS: i64 = 1_773_133_200_000;
 
-/// Writes the settings file, `meetings.db` (three meetings) and `history.db`
-/// (two dictations) of an app whose user turned the server `mcp_enabled`
-/// and, with `include_dictations`, dictations too.
+/// Writes the settings file, `meetings.db` (three meetings, only where
+/// meetings exist) and `history.db` (two dictations) of an app whose user
+/// turned the server `mcp_enabled` and, with `include_dictations`, dictations
+/// too.
 ///
 /// Meeting 1 is "Roadmap review" with a renamed speaker, meeting 2 is a
 /// French "Réunion budget", meeting 3 is still processing and has no title.
@@ -23,7 +26,13 @@ const UNTITLED_STARTED_MS: i64 = 1_773_133_200_000;
 /// never return.
 pub fn seed_sample_data_dir(dir: &Path, mcp_enabled: bool, include_dictations: bool) -> Result<()> {
     write_settings(dir, mcp_enabled, include_dictations)?;
+    if MEETINGS_EXIST {
+        seed_meetings(dir)?;
+    }
+    seed_dictations(dir)
+}
 
+fn seed_meetings(dir: &Path) -> Result<()> {
     let meetings = dir.join("meetings.db");
     MeetingsStore::open(meetings.clone(), chrono::Utc::now());
     let conn = Connection::open(&meetings)?;
@@ -45,7 +54,10 @@ pub fn seed_sample_data_dir(dir: &Path, mcp_enabled: bool, include_dictations: b
                 (1, 2, 'me', 12000, 15000, 'The budget is approved.', 0),
                 (2, 0, 'me', 0, 8000, 'Nous avons parlé du budget et des recrutements.', 0);"
     ))?;
+    Ok(())
+}
 
+fn seed_dictations(dir: &Path) -> Result<()> {
     let history_path = dir.join("history.db");
     history::init_database(&history_path)?;
     let conn = Connection::open(&history_path)?;

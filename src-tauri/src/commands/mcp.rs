@@ -28,9 +28,8 @@ pub fn change_mcp_include_dictations_setting(app: AppHandle, enabled: bool) -> R
 #[tauri::command]
 #[specta::specta]
 pub fn get_mcp_setup() -> Result<McpSetup, String> {
-    let command = std::env::current_exe()
-        .map_err(|error| format!("Cannot locate Murmur: {error}"))?
-        .to_string_lossy()
-        .into_owned();
-    Ok(McpSetup { command })
+    let exe = std::env::current_exe().map_err(|error| format!("Cannot locate Murmur: {error}"))?;
+    Ok(McpSetup {
+        command: crate::mcp::command_path(&exe),
+    })
 }

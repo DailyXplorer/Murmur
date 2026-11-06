@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { commands } from "@/bindings";
 import { MCP_CLIENTS, mcpSetup, type McpClient } from "@/lib/mcp";
+import { isWindows } from "@/lib/platform";
 import { useSettings } from "../../hooks/useSettings";
 import { Button } from "../ui/Button";
 import { SettingContainer } from "../ui/SettingContainer";
@@ -11,8 +12,9 @@ import { ToggleSwitch } from "../ui/ToggleSwitch";
 const COPIED_MS = 2000;
 const ID_PREFIX = "mcp-client";
 
-/** Lets AI apps read meetings through `murmur mcp`, off until turned on, and
- * shows what to paste into the app. */
+/** Lets AI apps read meetings (macOS) and dictations through `murmur mcp`,
+ * off until turned on, and shows what to paste into the app. The first switch
+ * alone shares nothing on Windows, which has no meetings. */
 export const McpAccess: React.FC = () => {
   const { t } = useTranslation();
   const { getSetting, updateSetting, isUpdating } = useSettings();
@@ -40,7 +42,7 @@ export const McpAccess: React.FC = () => {
     [],
   );
 
-  const setup = command === null ? "" : mcpSetup(client, command);
+  const setup = command === null ? "" : mcpSetup(client, command, isWindows);
 
   const copy = async () => {
     try {
@@ -60,8 +62,16 @@ export const McpAccess: React.FC = () => {
         checked={enabled}
         onChange={(value) => updateSetting("mcp_enabled", value)}
         isUpdating={isUpdating("mcp_enabled")}
-        label={t("settings.advanced.mcp.label")}
-        description={t("settings.advanced.mcp.description")}
+        label={t(
+          isWindows
+            ? "settings.advanced.mcp.labelWindows"
+            : "settings.advanced.mcp.label",
+        )}
+        description={t(
+          isWindows
+            ? "settings.advanced.mcp.descriptionWindows"
+            : "settings.advanced.mcp.description",
+        )}
         grouped={true}
       />
       {enabled && (
@@ -70,7 +80,11 @@ export const McpAccess: React.FC = () => {
           onChange={(value) => updateSetting("mcp_include_dictations", value)}
           isUpdating={isUpdating("mcp_include_dictations")}
           label={t("settings.advanced.mcp.dictations")}
-          description={t("settings.advanced.mcp.dictationsDescription")}
+          description={t(
+            isWindows
+              ? "settings.advanced.mcp.dictationsDescriptionWindows"
+              : "settings.advanced.mcp.dictationsDescription",
+          )}
           grouped={true}
         />
       )}
