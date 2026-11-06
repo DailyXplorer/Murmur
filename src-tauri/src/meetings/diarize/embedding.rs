@@ -578,7 +578,7 @@ mod tests {
     fn npy_bytes(descr: &str, fortran: &str, shape: &str, data: &[f32]) -> Vec<u8> {
         let mut header =
             format!("{{'descr': '{descr}', 'fortran_order': {fortran}, 'shape': {shape}, }}");
-        while (10 + header.len() + 1) % 64 != 0 {
+        while !(10 + header.len() + 1).is_multiple_of(64) {
             header.push(' ');
         }
         header.push('\n');

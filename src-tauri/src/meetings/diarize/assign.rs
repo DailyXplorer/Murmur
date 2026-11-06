@@ -911,7 +911,7 @@ mod tests {
                 "case {case}: a column used twice"
             );
 
-            fn best(scores: &[Vec<f64>], row: usize, used: &mut Vec<bool>, skipped: usize) -> f64 {
+            fn best(scores: &[Vec<f64>], row: usize, used: &mut [bool], skipped: usize) -> f64 {
                 if row == scores.len() {
                     return 0.0;
                 }

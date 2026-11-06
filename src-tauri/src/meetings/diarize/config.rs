@@ -9,11 +9,10 @@
 pub const WINDOW_SECONDS: f64 = 10.0;
 /// `Segmentation.community`, line 46: the sample rate of the whole pipeline.
 pub const SAMPLE_RATE: usize = 16_000;
-/// `Segmentation.community`, line 52: a window starts every 20 % of its length.
-pub const STEP_RATIO: f64 = 0.2;
 /// Samples in one window (`samplesPerWindow`, line 348).
 pub const WINDOW_SAMPLES: usize = 160_000;
-/// Samples between two windows (`samplesPerStep`, line 352): 2 s.
+/// Samples between two windows (`samplesPerStep`, line 352): 2 s, a window
+/// every 20 % of its length (`stepRatio`, line 52).
 pub const STEP_SAMPLES: usize = 32_000;
 /// Frames the segmentation model gives for one window (Core ML and ONNX).
 pub const SEGMENTATION_FRAMES: usize = 589;
