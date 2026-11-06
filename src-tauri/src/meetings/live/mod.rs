@@ -336,6 +336,7 @@ pub fn start(
         Err(reason) => LiveState::Unavailable { reason },
     };
     live.begin(id, state);
+    draft::reopen(&dir);
     if matches!(
         state,
         LiveState::Unavailable {
