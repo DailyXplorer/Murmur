@@ -1,0 +1,23 @@
+{
+  "version": "1.12.1",
+  "notes": "Synthetic release notes for the macOS-only golden test.\n\n- One line\n- Another line",
+  "pub_date": "2026-11-06T12:00:00.000Z",
+  "platforms": {
+    "darwin-aarch64": {
+      "signature": "c2lnbmF0dXJlLWFhcmNoNjQK",
+      "url": "https://github.com/DailyXplorer/Murmur/releases/download/v1.12.1/Murmur_aarch64.app.tar.gz"
+    },
+    "darwin-aarch64-app": {
+      "signature": "c2lnbmF0dXJlLWFhcmNoNjQK",
+      "url": "https://github.com/DailyXplorer/Murmur/releases/download/v1.12.1/Murmur_aarch64.app.tar.gz"
+    },
+    "darwin-x86_64": {
+      "signature": "c2lnbmF0dXJlLXg2NAo=",
+      "url": "https://github.com/DailyXplorer/Murmur/releases/download/v1.12.1/Murmur_x64.app.tar.gz"
+    },
+    "darwin-x86_64-app": {
+      "signature": "c2lnbmF0dXJlLXg2NAo=",
+      "url": "https://github.com/DailyXplorer/Murmur/releases/download/v1.12.1/Murmur_x64.app.tar.gz"
+    }
+  }
+}

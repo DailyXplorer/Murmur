@@ -1,88 +1,50 @@
-import { writeFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
+import {
+  assertLegacyWindowsFeed,
+  assertPublicManifest,
+  buildLegacyWindowsFeed,
+  finalizePlatforms,
+  targetKey,
+  updaterTarget,
+} from "./updater-targets.mjs";
+import { verifyManifestSignatures } from "./updater-signature.mjs";
 
-/**
- * Canonical darwin updater platform keys that must exist in `latest.json`.
- * @type {readonly string[]}
- */
-export const REQUIRED_TARGETS = ["darwin-aarch64-app", "darwin-x86_64-app"];
-
-/**
- * Darwin architectures that also receive alias keys without the `-app` suffix.
- * @type {readonly string[]}
- */
-export const DARWIN_ALIAS_ARCHES = ["aarch64", "x86_64"];
-
-/**
- * Maps a GitHub release asset name to a darwin updater target, or `null` if ignored.
- * @param {string} assetName Release asset filename.
- * @returns {{os: "darwin", arch: string, bundle: "app"} | null}
- */
-export function updaterTarget(assetName) {
-  const name = assetName.toLowerCase();
-  if (!name.endsWith(".app.tar.gz.sig")) {
-    return null;
-  }
-
-  let arch;
-  if (/(?:aarch64|arm64)/.test(name)) arch = "aarch64";
-  else if (/(?:x86_64|amd64|x64)/.test(name)) arch = "x86_64";
-  else return null;
-
-  return { os: "darwin", arch, bundle: "app" };
-}
-
-/**
- * Copies `darwin-{arch}-app` entries onto alias keys and asserts required targets.
- * @param {Record<string, {url: string, signature: string}>} platforms
- * @returns {Record<string, {url: string, signature: string}>}
- */
-export function finalizeDarwinPlatforms(platforms) {
-  for (const arch of DARWIN_ALIAS_ARCHES) {
-    const entry = platforms[`darwin-${arch}-app`];
-    if (!entry) throw new Error(`Missing updater for darwin-${arch}`);
-    platforms[`darwin-${arch}`] = entry;
-  }
-
-  for (const target of REQUIRED_TARGETS) {
-    if (!platforms[target]) throw new Error(`Missing updater target ${target}`);
-  }
-
-  return platforms;
-}
+export {
+  DARWIN_ALIAS_ARCHES,
+  REQUIRED_TARGETS,
+  assertLegacyWindowsFeed,
+  assertPublicManifest,
+  buildLegacyWindowsFeed,
+  finalizeDarwinPlatforms,
+  finalizePlatforms,
+  resolveLikeUpdater,
+  updaterTarget,
+} from "./updater-targets.mjs";
+export { verifyManifestSignatures } from "./updater-signature.mjs";
 
 /**
  * Asserts a public updater manifest is darwin-only and has signed ARM and Intel entries.
- * @param {{version?: string, platforms?: Record<string, {url?: string, signature?: string}>}} manifest
+ * Kept for macOS-only callers; `assertPublicManifest` is the general check.
+ * @param {Parameters<typeof assertPublicManifest>[0]} manifest
  * @param {string} version Expected `latest.json` version.
  * @returns {void}
  */
 export function assertPublicDarwinManifest(manifest, version) {
-  if (!manifest || manifest.version !== version) {
-    throw new Error("Updater manifest version mismatch");
-  }
+  assertPublicManifest(manifest, version, { windows: false });
+}
 
-  const platforms = manifest.platforms ?? {};
-  for (const key of [
-    "darwin-aarch64",
-    "darwin-aarch64-app",
-    "darwin-x86_64",
-    "darwin-x86_64-app",
-  ]) {
-    const entry = platforms[key];
-    if (!entry?.url || !entry?.signature) {
-      throw new Error(`Missing updater platform ${key}`);
-    }
-  }
-
-  const extra = Object.keys(platforms).filter(
-    (key) => !key.startsWith("darwin-"),
-  );
-  if (extra.length > 0) {
-    throw new Error(
-      `Non-darwin updater platforms present: ${extra.join(", ")}`,
-    );
-  }
+/**
+ * Reads `INCLUDE_WINDOWS`: whether the release carries a Windows installer.
+ * @param {Record<string, string | undefined>} env
+ * @returns {boolean} `true` when unset.
+ */
+export function includeWindows(env) {
+  const raw = env.INCLUDE_WINDOWS;
+  if (raw === undefined || raw === "") return true;
+  if (raw === "true") return true;
+  if (raw === "false") return false;
+  throw new Error(`INCLUDE_WINDOWS must be true or false, not ${raw}`);
 }
 
 /**
@@ -151,7 +113,8 @@ async function signatureFor(asset, owner, repo, token) {
 }
 
 /**
- * Builds `latest.json` from darwin `.app.tar.gz.sig` assets and uploads it to the release.
+ * Builds `latest.json` from the `.app.tar.gz.sig` assets (and, with `INCLUDE_WINDOWS`,
+ * the NSIS `.exe.sig`) and uploads it to the release.
  * @returns {Promise<void>}
  */
 async function publishUpdaterManifest() {
@@ -159,6 +122,7 @@ async function publishUpdaterManifest() {
   const repository = process.env.GITHUB_REPOSITORY;
   const releaseId = Number(process.env.RELEASE_ID);
   const version = process.env.VERSION;
+  const windows = includeWindows(process.env);
 
   if (!token || !repository || !Number.isInteger(releaseId) || !version) {
     throw new Error(
@@ -181,7 +145,7 @@ async function publishUpdaterManifest() {
     asset.name.endsWith(".sig"),
   )) {
     const target = updaterTarget(signatureAsset.name);
-    if (!target) continue;
+    if (!target || (target.os === "windows" && !windows)) continue;
 
     const installerName = signatureAsset.name.slice(0, -4);
     if (!assetsByName.has(installerName)) {
@@ -198,10 +162,10 @@ async function publishUpdaterManifest() {
       signature,
       url: `https://github.com/${repository}/releases/download/${encodedTag}/${encodedName}`,
     };
-    platforms[`${target.os}-${target.arch}-${target.bundle}`] = entry;
+    platforms[targetKey(target)] = entry;
   }
 
-  finalizeDarwinPlatforms(platforms);
+  finalizePlatforms(platforms, { windows });
 
   const manifest = {
     version,
@@ -213,7 +177,11 @@ async function publishUpdaterManifest() {
       ),
     ),
   };
-  assertPublicDarwinManifest(manifest, version);
+  assertPublicManifest(manifest, version, {
+    windows,
+    repository,
+    tag: release.tag_name,
+  });
   const manifestJson = `${JSON.stringify(manifest, null, 2)}\n`;
   await writeFile("latest.json", manifestJson);
 
@@ -257,21 +225,129 @@ const isMain =
   import.meta.url === pathToFileURL(process.argv[1]).href;
 
 /**
- * CLI `--verify-public` path: assert VERSION and MANIFEST form a darwin-only `latest.json`.
+ * @param {string} flag
+ * @returns {string | undefined} The argument after `flag`, if the flag is present.
+ */
+function flagValue(flag) {
+  const index = process.argv.indexOf(flag);
+  if (index === -1) return undefined;
+  const value = process.argv[index + 1];
+  if (!value || value.startsWith("--"))
+    throw new Error(`${flag} needs a value`);
+  return value;
+}
+
+/**
+ * @returns {string} The `VERSION` env.
+ */
+function requireVersion() {
+  const version = process.env.VERSION;
+  if (!version) throw new Error("VERSION is required");
+  return version;
+}
+
+/**
+ * @returns {{repository?: string, tag?: string}} Download prefix pins from the environment.
+ */
+function releasePins() {
+  return {
+    repository: process.env.GITHUB_REPOSITORY || undefined,
+    tag: process.env.RELEASE_TAG || undefined,
+  };
+}
+
+/**
+ * Parses the `MANIFEST` env, the body of a freshly downloaded feed.
+ * @returns {any}
+ */
+function manifestFromEnv() {
+  const raw = process.env.MANIFEST;
+  if (!raw) throw new Error("VERSION and MANIFEST are required");
+  return JSON.parse(raw);
+}
+
+/**
+ * CLI `--verify-public` path: assert VERSION and MANIFEST form the public `latest.json`.
  * @returns {void}
  */
 function verifyPublicManifest() {
-  const version = process.env.VERSION;
-  const raw = process.env.MANIFEST;
-  if (!version || !raw) {
-    throw new Error("VERSION and MANIFEST are required");
-  }
-  assertPublicDarwinManifest(JSON.parse(raw), version);
+  const version = requireVersion();
+  assertPublicManifest(manifestFromEnv(), version, {
+    windows: includeWindows(process.env),
+    ...releasePins(),
+  });
+}
+
+/**
+ * CLI `--verify-public-legacy` path: assert VERSION and MANIFEST form the Windows-only legacy feed.
+ * @returns {void}
+ */
+function verifyPublicLegacyFeed() {
+  assertLegacyWindowsFeed(manifestFromEnv(), requireVersion());
+}
+
+/**
+ * Reads the unified manifest from `--manifest` (default `latest.json`).
+ * @returns {Promise<any>}
+ */
+async function manifestFromFile() {
+  return JSON.parse(
+    await readFile(flagValue("--manifest") ?? "latest.json", "utf8"),
+  );
+}
+
+/**
+ * CLI `--emit-legacy-feed <path>`: write the Windows-only feed of the unified manifest.
+ * @param {string} outPath
+ * @returns {Promise<void>}
+ */
+async function emitLegacyFeed(outPath) {
+  const version = requireVersion();
+  const manifest = await manifestFromFile();
+  assertPublicManifest(manifest, version, { windows: true, ...releasePins() });
+  const feed = buildLegacyWindowsFeed(manifest);
+  assertLegacyWindowsFeed(feed, version);
+  await writeFile(outPath, `${JSON.stringify(feed, null, 2)}\n`);
+}
+
+/**
+ * CLI `--verify-signatures <dir>`: check every manifest entry against the downloaded
+ * asset in `<dir>` with the updater `pubkey` of `--config` (default `src-tauri/tauri.conf.json`).
+ * @param {string} directory
+ * @returns {Promise<void>}
+ */
+async function verifySignatures(directory) {
+  const version = requireVersion();
+  const manifest = await manifestFromFile();
+  assertPublicManifest(manifest, version, {
+    windows: includeWindows(process.env),
+    ...releasePins(),
+  });
+  const config = JSON.parse(
+    await readFile(
+      flagValue("--config") ?? "src-tauri/tauri.conf.json",
+      "utf8",
+    ),
+  );
+  const pubkey = config?.plugins?.updater?.pubkey;
+  if (!pubkey) throw new Error("No updater pubkey in the Tauri config");
+  const keys = await verifyManifestSignatures(manifest, {
+    directory,
+    pubkey,
+    version,
+  });
+  console.log(`Verified ${keys.length} updater signatures for ${version}`);
 }
 
 if (isMain) {
   if (process.argv.includes("--verify-public")) {
     verifyPublicManifest();
+  } else if (process.argv.includes("--verify-public-legacy")) {
+    verifyPublicLegacyFeed();
+  } else if (process.argv.includes("--emit-legacy-feed")) {
+    await emitLegacyFeed(flagValue("--emit-legacy-feed"));
+  } else if (process.argv.includes("--verify-signatures")) {
+    await verifySignatures(flagValue("--verify-signatures"));
   } else {
     await publishUpdaterManifest();
   }
