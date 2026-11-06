@@ -7,6 +7,7 @@ permissions = [
   "allow-reset-binding",
   "allow-get-shortcut-registration-errors",
   "allow-get-key-labels",
+  "allow-get-recorded-key-names",
   "allow-change-audio-feedback-setting",
   "allow-change-audio-feedback-volume-setting",
   "allow-change-sound-theme-setting",

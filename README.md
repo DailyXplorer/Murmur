@@ -93,7 +93,7 @@ does not store anything in the keychain.
 3. Open Murmur, download the speech model or sign in with ChatGPT. Hold
    Ctrl+Win to dictate, or double-tap it to record hands-free.
 
-The Windows source lives on the `beta` branch for now, not on `main`.
+Windows is a beta: it shares this repository and its version number with the Mac app.
 
 ## Features
 

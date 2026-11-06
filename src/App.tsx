@@ -37,6 +37,7 @@ import {
   type Engine,
   type LocalModelStatus,
 } from "@/bindings";
+import { isWindows } from "@/lib/platform";
 import { LocalSttCard } from "./components/LocalSttCard";
 import { LocalModelPill } from "./components/LocalModelPill";
 import type { MeetingOpenRequest } from "./components/meetings/MeetingsPage";
@@ -118,6 +119,20 @@ const initializeKeyboardAutomation = async () => {
   if (shortcutsResult.status === "error") {
     throw new Error(shortcutsResult.error);
   }
+};
+
+/** Windows asks for no Accessibility permission, only the microphone. */
+const hasRequiredPermissions = async (): Promise<boolean> => {
+  if (isWindows) {
+    const result = await commands.getMicrophoneAuthorizationStatus();
+    if (result.status === "error") throw new Error(result.error);
+    return result.data === 3;
+  }
+  const [hasAccessibility, hasMicrophone] = await Promise.all([
+    checkAccessibilityPermission(),
+    checkMicrophonePermission(),
+  ]);
+  return hasAccessibility && hasMicrophone;
 };
 
 const revealMainWindowForPermissions = async () => {
@@ -235,7 +250,11 @@ function App() {
 
       if (error_type === "microphone_permission_denied") {
         toast.error(t("errors.micPermissionDeniedTitle"), {
-          description: t("errors.micPermissionDenied.macos"),
+          description: t(
+            isWindows
+              ? "errors.micPermissionDenied.windows"
+              : "errors.micPermissionDenied.macos",
+          ),
         });
       } else if (error_type === "no_input_device") {
         toast.error(t("errors.noInputDeviceTitle"), {
@@ -350,11 +369,7 @@ function App() {
         settingsResult.data.onboarding_completed === true;
       if (hasCompletedOnboarding) {
         try {
-          const [hasAccessibility, hasMicrophone] = await Promise.all([
-            checkAccessibilityPermission(),
-            checkMicrophonePermission(),
-          ]);
-          if (!hasAccessibility || !hasMicrophone) {
+          if (!(await hasRequiredPermissions())) {
             await revealMainWindowForPermissions();
             setOnboardingState({ kind: "permissions", returning: true });
             return;
@@ -591,9 +606,12 @@ function App() {
   } else {
     content = (
       <div className="h-screen flex flex-col select-none cursor-default">
-        <ErrorBoundary context="What's New">
-          <WhatsNewGate />
-        </ErrorBoundary>
+        {/* The Windows beta's notes live on its GitHub pre-release. */}
+        {!isWindows && (
+          <ErrorBoundary context="What's New">
+            <WhatsNewGate />
+          </ErrorBoundary>
+        )}
         <div className="flex-1 flex overflow-hidden">
           <Sidebar
             activeSection={currentSection}
@@ -611,7 +629,7 @@ function App() {
                     className="flex w-full max-w-3xl justify-end"
                   />
                 )}
-                <AccessibilityPermissions />
+                {!isWindows && <AccessibilityPermissions />}
                 {(currentSection === "general" ||
                   currentSection === "transcription") && <LocalSttCard />}
                 {renderSettingsContent(currentSection, meetingOpenRequest)}

@@ -50,8 +50,6 @@ hound = "3.5.1"
 log = "0.4.25"
 env_filter = "2.0.0"
 tokio = { version = "1.43.0", features = ["sync", "time", "process", "rt", "macros", "io-util", "net"] }
-enigo = "0.6.1"
-core-graphics = { version = "0.25.0", features = ["elcapitan"] }
 rodio = "0.21.1"
 reqwest = { version = "0.13", features = ["json", "query", "stream", "gzip", "brotli", "deflate", "multipart", "blocking"] }
 rustfft = "6.4.0"
@@ -67,11 +65,27 @@ chrono = "0.4"
 rusqlite = { version = "0.37", features = ["bundled"] }
 ferrous-opencc = "0.4.0"
 clap = { version = "4", features = ["derive"] }
-signal-hook = "0.4"
 specta = "=2.0.0-rc.22"
 specta-typescript = "0.0.9"
 tauri-specta = { version = "=2.0.0-rc.21", features = ["derive", "typescript"] }
+# Checks each downloaded model file against the manifest, and the ChatGPT
+# sign-in's PKCE challenge.
+sha2 = "0.10"
+# The ChatGPT sign-in: PKCE verifier and state, and the callback's query.
+getrandom = "0.4"
+url = "2"
+
+[target.'cfg(unix)'.dependencies]
+signal-hook = "0.4"
+# Free disk space before a meeting records (statvfs).
+libc = "0.2"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+# The pointer location, for the overlay's screen.
+enigo = "0.6.1"
+core-graphics = { version = "0.25.0", features = ["elcapitan"] }
 tauri-nspanel = { git = "https://github.com/ahkohd/tauri-nspanel", rev = "da9c9a8d4eb7f0524a2508988df1a7d9585b4904" }
+# PNG encoding for the recolored Dock icon.
 image = { version = "0.25.9", default-features = false, features = ["png"] }
 # Used by the guarded paste path for lazy NSPasteboard promises. Versions
 # track what Tauri already pulls in.
@@ -84,24 +98,53 @@ block2 = "0.6"
 # Accessibility attribute values: window names, the correction watcher and
 # the Insights browser-domain lookup.
 core-foundation = "0.10"
-# Free disk space before a meeting records (statvfs).
-libc = "0.2"
-# Checks each downloaded model file against the manifest, and the ChatGPT
-# sign-in's PKCE challenge.
-sha2 = "0.10"
-# The ChatGPT sign-in: PKCE verifier and state, and the callback's query.
-getrandom = "0.4"
-url = "2"
 
-# Parakeet on the CPU of Intel Macs; Apple silicon runs it in the meetings
-# helper. Pinned: the crate is young, and upgrades are deliberate.
+[target.'cfg(target_os = "windows")'.dependencies]
+# The version Tauri already pulls in: a window handle Tauri returns is passed
+# straight to these APIs.
+windows = { version = "0.62.2", features = [
+  "Win32_Foundation",
+  "Win32_Graphics_Gdi",
+  "Win32_Media_Audio",
+  "Win32_Media_Audio_Endpoints",
+  "Win32_Storage_FileSystem",
+  "Win32_System_Com",
+  "Win32_System_Com_StructuredStorage",
+  "Win32_System_DataExchange",
+  "Win32_System_LibraryLoader",
+  "Win32_System_Memory",
+  "Win32_System_Ole",
+  "Win32_System_Threading",
+  "Win32_System_Variant",
+  "Win32_UI_Accessibility",
+  "Win32_UI_Input_KeyboardAndMouse",
+  "Win32_UI_WindowsAndMessaging",
+] }
+# Microphone privacy consent, kept by Windows in the registry.
+winreg = "0.55"
+
+# Parakeet on the CPU of Intel Macs and Windows; Apple silicon runs it in the
+# meetings helper. Pinned: the crate is young, and upgrades are deliberate.
 [target.'cfg(target_arch = "x86_64")'.dependencies]
 transcribe-cpp = { version = "=0.4.1", default-features = false }
+
+# A Windows build would otherwise tune the CPU code to the build machine and
+# crash on older processors: there it ships one CPU module per instruction
+# set, and the fastest the user's processor runs is loaded.
+[target.'cfg(all(target_os = "windows", target_arch = "x86_64"))'.dependencies]
+transcribe-cpp = { version = "=0.4.1", default-features = false, features = ["dynamic-backends"] }
 
 [dev-dependencies]
 tempfile = "3"
 chrono-tz = "0.10"
 tokio = { version = "1.43.0", features = ["macros", "net", "io-util", "sync", "time", "rt-multi-thread", "test-util"] }
+# Maps a model file as transcribe.cpp does. The version the lock already has.
+memmap2 = "0.9.11"
+
+# `#[implement]`, behind a test's own UI Automation provider, names this
+# crate. The version `windows` already pulls in.
+[target.'cfg(target_os = "windows")'.dev-dependencies]
+windows-core = "0.62.2"
 
 [profile.release]
 lto = true

@@ -45,6 +45,7 @@ const macosOnlyGuard = [
 ].join("\n");
 // The guard the merged macOS and Windows tree carries. Either one is accepted
 // until the merge lanes switch lib.rs to the second.
+const supportedTargets = new Set(["macos", "windows"]);
 const macosAndWindowsGuard = [
   '#[cfg(not(any(target_os = "macos", target_os = "windows")))]',
   'compile_error!("Murmur supports macOS and Windows only.");',
@@ -131,9 +132,6 @@ export function bannedTextHits(
 
 const obsoletePaths = [
   ".cargo/config.toml",
-  // The Windows overlay comes with its slice, which removes this entry and
-  // turns the Windows section of this check on.
-  "src-tauri/tauri.windows.conf.json",
   "src-tauri/capabilities/desktop.json",
   "src-tauri/icons/android",
   "src-tauri/icons/ios",
@@ -336,6 +334,16 @@ export function contractProblems(root: string): string[] {
   return problems;
 }
 
+// Target tables of Cargo.toml: by OS for the two platforms, by architecture
+// for the CPU engine of Intel Macs and Windows (never by "not macOS").
+const allowedCargoTargets = new Set([
+  "unix",
+  'target_os = "macos"',
+  'target_os = "windows"',
+  'target_arch = "x86_64"',
+  'all(target_os = "windows", target_arch = "x86_64")',
+]);
+
 export function checkMacos(root: string = defaultRoot): PlatformResult {
   const failures: string[] = [];
 
@@ -355,8 +363,14 @@ export function checkMacos(root: string = defaultRoot): PlatformResult {
 
   for (const relativePath of rustFiles) {
     const source = read(root, relativePath);
-    if (withoutRustGuards(source).includes("target_os")) {
-      failures.push(`platform branch remains: ${relativePath}`);
+    for (const [, target] of withoutRustGuards(source).matchAll(
+      /target_os\s*=\s*"([^"]*)"/g,
+    )) {
+      if (!supportedTargets.has(target)) {
+        failures.push(
+          `branch for unsupported platform '${target}': ${relativePath}`,
+        );
+      }
     }
     for (const text of bannedTextHits(
       relativePath,
@@ -422,27 +436,25 @@ export function checkMacos(root: string = defaultRoot): PlatformResult {
     }
   }
 
-  // The one target section allowed: the CPU engine of Intel Macs, by
-  // architecture, never by OS.
-  const cpuEngineSection = [
-    `[target.'cfg(target_arch = "x86_64")'.dependencies]`,
-    `transcribe-cpp = { version = "=0.4.1", default-features = false }`,
-  ].join("\n");
-  const cargoManifest = read(root, "src-tauri/Cargo.toml").replace(
-    cpuEngineSection,
-    "",
-  );
+  const cargoManifest = read(root, "src-tauri/Cargo.toml");
   for (const text of [
     "tauri-plugin-dialog",
     "tauri-plugin-fs",
     "[patch.crates-io]",
-    "[target.'cfg(",
     "staticlib",
     "cdylib",
     "murmur_app_lib",
   ]) {
     if (cargoManifest.includes(text)) {
       failures.push(`obsolete Cargo configuration remains: ${text}`);
+    }
+  }
+
+  for (const [, target] of cargoManifest.matchAll(
+    /^\[target\.'cfg\((.*)\)'\.(?:dev-)?dependencies\]$/gm,
+  )) {
+    if (!allowedCargoTargets.has(target)) {
+      failures.push(`Cargo dependencies for an unsupported target: ${target}`);
     }
   }
 
@@ -580,10 +592,23 @@ export function checkMacos(root: string = defaultRoot): PlatformResult {
 
 export const windowsOverlayPath = "src-tauri/tauri.windows.conf.json";
 
-// Paths every Windows tree must hold. Empty on purpose: each merge slice that
-// brings Windows files adds the ones it brings, in the same commit, so this
-// list always names what is on the branch.
-export const windowsRequiredPaths: string[] = [];
+// Paths every Windows tree must hold. Each merge slice that brings Windows
+// files adds the ones it brings, in the same commit, so this list always names
+// what is on the branch.
+export const windowsRequiredPaths: string[] = [
+  windowsOverlayPath,
+  "src-tauri/windows-app-manifest.xml",
+  "src-tauri/icons/icon.ico",
+  "src-tauri/src/foreground.rs",
+  "src-tauri/src/uia.rs",
+  "src-tauri/src/window_placement.rs",
+  "src-tauri/src/shortcut/modifier_chord.rs",
+  "src-tauri/src/paste_tx/windows.rs",
+  "src-tauri/src/input/win32.rs",
+  ".github/scripts/windows-smoke.ps1",
+  ".github/scripts/windows-vc-runtime.ps1",
+  ".github/workflows/windows.yml",
+];
 
 export function checkWindows(
   root: string = defaultRoot,

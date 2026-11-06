@@ -2954,6 +2954,7 @@ dependencies = [
  "image",
  "libc",
  "log",
+ "memmap2",
  "natural",
  "objc2",
  "objc2-app-kit",
@@ -2995,6 +2996,9 @@ dependencies = [
  "unicode-normalization",
  "unicode-segmentation",
  "url",
+ "windows 0.62.2",
+ "windows-core 0.62.2",
+ "winreg 0.55.0",
  "zeroize",
 ]
 

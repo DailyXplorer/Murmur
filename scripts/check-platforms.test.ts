@@ -62,7 +62,10 @@ describe("macOS section", () => {
   test("passes on the repository as it is", () => {
     expect(runPlatforms(repoRoot)).toEqual({
       failures: [],
-      passed: [expect.stringMatching(/^macos \(/)],
+      passed: [
+        expect.stringMatching(/^macos \(/),
+        expect.stringMatching(/^windows \(/),
+      ],
     });
   });
 
@@ -164,22 +167,22 @@ describe("platform guard of lib.rs", () => {
   ].join("\n");
 
   test("accepts the macOS-only guard", () => {
-    expect(checkMacos(cloneRepo()).failures).toEqual([]);
+    const root = cloneRepo();
+    rewrite(root, librs, (text) => text.replace(both, macosOnly));
+    expect(checkMacos(root).failures).toEqual([]);
   });
 
   test("accepts the macOS and Windows guard", () => {
-    const root = cloneRepo();
-    rewrite(root, librs, (text) => text.replace(macosOnly, both));
-    expect(checkMacos(root).failures).toEqual([]);
+    expect(checkMacos(cloneRepo()).failures).toEqual([]);
   });
 
   test("rejects a missing or altered guard", () => {
     for (const replacement of [
       "",
-      macosOnly.replace("macOS only", "everything"),
+      both.replace("macOS and Windows only", "everything"),
     ]) {
       const root = cloneRepo();
-      rewrite(root, librs, (text) => text.replace(macosOnly, replacement));
+      rewrite(root, librs, (text) => text.replace(both, replacement));
       expect(checkMacos(root).failures).toContain(
         "the Rust crate does not reject non-macOS targets",
       );
@@ -293,7 +296,7 @@ describe("Windows section", () => {
   test("is a no-op without the overlay and active with it", () => {
     expect(windows.enabled(fixture(false))).toBe(false);
     expect(windows.enabled(fixture(true))).toBe(true);
-    expect(windows.enabled(repoRoot)).toBe(false);
+    expect(windows.enabled(repoRoot)).toBe(true);
   });
 
   test("names the platform in its failures", () => {
@@ -306,7 +309,40 @@ describe("Windows section", () => {
     expect(checkWindows(root, ["src-tauri/src/uia.rs"]).failures).toEqual([]);
   });
 
-  test("an empty placeholder list passes", () => {
-    expect(checkWindows(fixture(true)).failures).toEqual([]);
+  test("the repository holds every required Windows path", () => {
+    expect(checkWindows(repoRoot).failures).toEqual([]);
+  });
+
+  test("a tree without the Windows workflow fails", () => {
+    expect(checkWindows(fixture(true)).failures).toContain(
+      "required Windows asset is missing: .github/workflows/windows.yml",
+    );
+  });
+});
+
+describe("platform branches", () => {
+  test("rejects a branch for another platform", () => {
+    const root = cloneRepo();
+    rewrite(
+      root,
+      "src-tauri/src/clipboard.rs",
+      (text) => `#[cfg(target_os = "linux")]\nfn other() {}\n${text}`,
+    );
+    expect(checkMacos(root).failures).toContain(
+      "branch for unsupported platform 'linux': src-tauri/src/clipboard.rs",
+    );
+  });
+
+  test("rejects Cargo dependencies for a target that is neither platform", () => {
+    const root = cloneRepo();
+    rewrite(
+      root,
+      "src-tauri/Cargo.toml",
+      (text) =>
+        `${text}\n[target.'cfg(not(target_os = "macos"))'.dependencies]\nlibc = "0.2"\n`,
+    );
+    expect(checkMacos(root).failures).toContain(
+      `Cargo dependencies for an unsupported target: not(target_os = "macos")`,
+    );
   });
 });

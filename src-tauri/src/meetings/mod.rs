@@ -9,6 +9,8 @@ pub mod announce;
 pub mod archive;
 pub mod bleed;
 pub mod call_watch;
+// Windows detects no calls (see `call_watch`).
+#[cfg_attr(target_os = "windows", allow(dead_code))]
 pub mod calls;
 pub mod cap;
 pub mod capture;
@@ -21,13 +23,15 @@ pub mod merge;
 pub mod models;
 pub mod offline;
 pub mod paths;
+#[cfg(target_os = "macos")]
 pub mod power;
 pub mod processor;
 pub mod protocol;
 pub mod rename;
 pub mod retention;
 pub mod save_panel;
-#[cfg(test)]
+// Kills its child processes with SIGKILL and reads macOS process usage.
+#[cfg(all(test, target_os = "macos"))]
 mod soak;
 pub mod speakers;
 pub mod spread;

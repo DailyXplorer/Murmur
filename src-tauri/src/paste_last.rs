@@ -14,7 +14,13 @@ use tauri::{AppHandle, Manager};
 pub const BINDING_ID: &str = "paste_last";
 /// Wispr Flow's default. macOS and its bundled apps leave Control+Command+V
 /// unassigned, unlike Option+Shift+Command+V (paste and match style).
+#[cfg(target_os = "macos")]
 pub const DEFAULT_BINDING: &str = "ctrl+command+v";
+/// Win+Ctrl+V opens the sound settings of Windows 11, Ctrl+Alt+V is AltGr+V
+/// (a character on some layouts) and Ctrl+Shift+V pastes as plain text in
+/// many apps: Alt+Shift+V is left to Murmur.
+#[cfg(target_os = "windows")]
+pub const DEFAULT_BINDING: &str = "alt+shift+v";
 
 pub fn request(app: &AppHandle) {
     if let Some(coordinator) = app.try_state::<TranscriptionCoordinator>() {

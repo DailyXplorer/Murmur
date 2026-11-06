@@ -29,11 +29,20 @@ async getShortcutRegistrationErrors() : Promise<Partial<{ [key in string]: Short
 },
 /**
  * What the active keyboard layout writes on the keys shortcuts name, keyed
- * by the name, so a shortcut shows the key to press. Empty when macOS cannot
- * tell, and the names are shown as they are.
+ * by the name, so a shortcut shows the key to press. Empty when the system
+ * cannot tell, and the names are shown as they are.
  */
 async getKeyLabels() : Promise<Partial<{ [key in string]: string }>> {
     return await TAURI_INVOKE("get_key_labels");
+},
+/**
+ * The name to record for a key the user presses, keyed by the name of the
+ * physical key, so the shortcut fires on that key, and the keys no shortcut
+ * can fire on. Only keys whose name changes are listed: none on macOS, which
+ * registers the physical key.
+ */
+async getRecordedKeyNames() : Promise<RecordedKeys> {
+    return await TAURI_INVOKE("get_recorded_key_names");
 },
 async changeAudioFeedbackSetting(enabled: boolean) : Promise<Result<null, string>> {
     try {
@@ -1225,6 +1234,12 @@ ai_cleanup_enabled?: boolean; dictation_style?: DictationStyle;
  */
 window_names_enabled?: boolean; 
 /**
+ * Windows only: `window_names_enabled` was turned on once for a store
+ * from the betas that hid the setting and kept it off. New Windows
+ * stores start with it set.
+ */
+window_names_turned_on_once?: boolean; 
+/**
  * More input gain for quiet speech, and a hint that speech was faint.
  */
 whisper_mode?: boolean; extra_recording_buffer_ms?: number; overlay_style?: OverlayStyle; 
@@ -1737,6 +1752,21 @@ export type PromptKind =
  * "Call ended.", while the meeting recording it goes on.
  */
 "ended"
+/**
+ * What the recorder saves for the physical keys of the active layout.
+ */
+export type RecordedKeys = { 
+/**
+ * The name of the virtual key under each physical key whose name
+ * differs, keyed by the physical key's name.
+ */
+names: Partial<{ [key in string]: string }>; 
+/**
+ * The physical keys whose virtual key no shortcut name registers, such
+ * as the "!" key on AZERTY: saved under their own name, a shortcut would
+ * fire on another key.
+ */
+unusable: string[] }
 export type RecordingRetentionPeriod = "never" | "preserve_limit" | "days_3" | "weeks_2" | "months_3"
 /**
  * What the settings page shows, as it reports it.

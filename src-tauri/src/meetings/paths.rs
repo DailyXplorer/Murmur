@@ -272,6 +272,9 @@ pub fn remove_meeting_files(root: &Path, id: i64, names: &[&str]) -> io::Result<
 #[cfg(test)]
 mod tests {
     use super::*;
+    // Creating links needs extra rights on Windows, where Murmur offers no
+    // meetings: the link tests run on macOS.
+    #[cfg(unix)]
     use std::os::unix::fs::symlink;
 
     #[test]
@@ -288,6 +291,7 @@ mod tests {
         remove_meeting_dir(root.path(), 7).unwrap();
     }
 
+    #[cfg(unix)]
     #[test]
     fn stale_folders_are_removed_and_the_rest_kept() {
         let root = tempfile::tempdir().unwrap();
@@ -345,6 +349,7 @@ mod tests {
         assert!(!untouched.exists());
     }
 
+    #[cfg(unix)]
     #[test]
     fn a_symlinked_folder_or_root_is_never_followed() {
         let outside = tempfile::tempdir().unwrap();
@@ -365,6 +370,7 @@ mod tests {
         assert!(outside.path().join("4").exists());
     }
 
+    #[cfg(unix)]
     #[test]
     fn named_files_are_removed_and_the_rest_kept() {
         let root = tempfile::tempdir().unwrap();
@@ -386,6 +392,7 @@ mod tests {
         assert!(outside.path().join(AUDIO_FILE).exists());
     }
 
+    #[cfg(unix)]
     #[test]
     fn links_inside_the_folder_are_removed_without_touching_their_targets() {
         let outside = tempfile::tempdir().unwrap();
@@ -423,12 +430,14 @@ mod tests {
         assert_eq!(fs::read_dir(&dir).unwrap().count(), 0);
     }
 
+    #[cfg(unix)]
     fn days_ago(now: DateTime<Utc>, days: i64) -> String {
         (now - chrono::TimeDelta::days(days))
             .format("%Y%m%d-%H%M%S")
             .to_string()
     }
 
+    #[cfg(unix)]
     #[test]
     fn only_real_folders_set_aside_over_30_days_ago_are_purged() {
         let now = Utc::now();
@@ -466,6 +475,7 @@ mod tests {
         assert!(outside.path().join("keep.txt").exists());
     }
 
+    #[cfg(unix)]
     #[test]
     fn storage_measures_the_meetings_and_what_was_set_aside_without_the_models() {
         let app_data = tempfile::tempdir().unwrap();

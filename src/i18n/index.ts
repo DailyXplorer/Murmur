@@ -3,6 +3,7 @@ import { initReactI18next } from "react-i18next";
 import { locale } from "@tauri-apps/plugin-os";
 import { LANGUAGE_METADATA } from "./languages";
 import { commands } from "@/bindings";
+import { isWindows } from "@/lib/platform";
 
 // Each language is its own chunk: a window loads English, the fallback,
 // and the one it shows.
@@ -12,6 +13,30 @@ const localeLoaders = import.meta.glob<{ default: Record<string, unknown> }>(
 
 const localeLoader = (code: string) =>
   localeLoaders[`./locales/${code}/translation.json`];
+
+type Tree = Record<string, unknown>;
+
+const isTree = (value: unknown): value is Tree =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+const mergeTrees = (base: Tree, overrides: Tree): Tree => {
+  const merged: Tree = { ...base };
+  for (const [key, value] of Object.entries(overrides)) {
+    const current = merged[key];
+    merged[key] =
+      isTree(current) && isTree(value) ? mergeTrees(current, value) : value;
+  }
+  return merged;
+};
+
+// Where the macOS text says "this Mac", the Windows build says "this PC":
+// each locale's `windows` subtree replaces those keys there.
+const withPlatformText = (translation: Tree): Tree => {
+  const overrides = translation.windows;
+  return isWindows && isTree(overrides)
+    ? mergeTrees(translation, overrides)
+    : translation;
+};
 
 /** Every `changeLanguage` waits for its bundle through this backend. */
 const localeBackend: BackendModule = {
@@ -24,7 +49,7 @@ const localeBackend: BackendModule = {
       return;
     }
     load().then(
-      (module) => callback(null, module.default),
+      (module) => callback(null, withPlatformText(module.default)),
       (error: unknown) => callback(error as Error, false),
     );
   },

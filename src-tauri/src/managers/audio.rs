@@ -10,6 +10,49 @@ use tauri::{Emitter, Manager};
 
 const STREAM_IDLE_TIMEOUT: Duration = Duration::from_secs(30);
 
+/// The volume control of the default output device.
+#[cfg(target_os = "windows")]
+fn output_volume() -> Option<windows::Win32::Media::Audio::Endpoints::IAudioEndpointVolume> {
+    use windows::Win32::Media::Audio::{
+        eMultimedia, eRender, IMMDeviceEnumerator, MMDeviceEnumerator,
+    };
+    use windows::Win32::System::Com::{
+        CoCreateInstance, CoInitializeEx, CLSCTX_ALL, COINIT_MULTITHREADED,
+    };
+
+    // SAFETY: COM calls on this thread; initializing COM again, or in
+    // another apartment already chosen by this thread, leaves it usable.
+    unsafe {
+        let _ = CoInitializeEx(None, COINIT_MULTITHREADED);
+        let devices: IMMDeviceEnumerator =
+            CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL).ok()?;
+        devices
+            .GetDefaultAudioEndpoint(eRender, eMultimedia)
+            .ok()?
+            .Activate(CLSCTX_ALL, None)
+            .ok()
+    }
+}
+
+#[cfg(target_os = "windows")]
+fn set_mute(mute: bool) {
+    if let Some(volume) = output_volume() {
+        // SAFETY: a plain call on a live COM interface.
+        let _ = unsafe { volume.SetMute(mute, std::ptr::null()) };
+    }
+}
+
+/// Reads the current system output mute state, mirroring `set_mute`. `None`
+/// when Windows has no default output device.
+#[cfg(target_os = "windows")]
+fn get_mute() -> Option<bool> {
+    let volume = output_volume()?;
+    // SAFETY: a plain call on a live COM interface.
+    unsafe { volume.GetMute() }
+        .ok()
+        .map(|muted| muted.as_bool())
+}
+
 /// A late fallback must not clear a microphone chosen since its stream started
 /// opening. Call this against the current settings inside a mutation transaction.
 fn clear_unavailable_microphone(settings: &mut AppSettings, unavailable_name: &str) -> bool {
@@ -20,6 +63,7 @@ fn clear_unavailable_microphone(settings: &mut AppSettings, unavailable_name: &s
     true
 }
 
+#[cfg(target_os = "macos")]
 fn set_mute(mute: bool) {
     use std::process::Command;
     let script = format!(
@@ -35,6 +79,7 @@ fn set_mute(mute: bool) {
 /// `None` when `osascript` is missing or returns an error. Callers treat `None`
 /// as "unknown" and fall back to unmuting on stop,
 /// so we never strand the user's audio muted.
+#[cfg(target_os = "macos")]
 fn get_mute() -> Option<bool> {
     use std::process::Command;
 

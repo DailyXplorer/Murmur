@@ -876,7 +876,9 @@ mod tests {
 
     /// A full disk refuses the database write that ends the recording too:
     /// the meeting is saved for processing once there is room, not left on
-    /// "Recording" until the next launch.
+    /// "Recording" until the next launch. Unix file modes stand in for the
+    /// full disk.
+    #[cfg(unix)]
     #[test]
     fn a_close_the_disk_refused_is_saved_once_it_has_room() {
         use std::os::unix::fs::PermissionsExt;
@@ -1397,6 +1399,7 @@ mod tests {
         assert!(!stale.join("analysis.json").exists());
     }
 
+    #[cfg(unix)]
     #[test]
     fn a_stale_folder_that_cannot_be_deleted_never_blocks_a_new_meeting() {
         let mut h = working();
@@ -1419,6 +1422,7 @@ mod tests {
         assert!(outside.path().join("keep.txt").exists());
     }
 
+    #[cfg(unix)]
     #[test]
     fn a_meeting_whose_folder_cannot_be_deleted_stays_listed_to_delete_again() {
         let mut h = working();

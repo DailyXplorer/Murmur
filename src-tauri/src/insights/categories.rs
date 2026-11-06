@@ -17,6 +17,7 @@ pub enum AppCategory {
 }
 
 /// Bundle identifiers matched exactly, or by prefix when the entry ends in `*`.
+#[cfg(target_os = "macos")]
 const BUNDLE_RULES: &[(&str, AppCategory)] = &[
     ("com.openai.chat", AppCategory::AiPrompts),
     ("com.openai.codex", AppCategory::AiPrompts),
@@ -63,6 +64,50 @@ const BUNDLE_RULES: &[(&str, AppCategory)] = &[
     ("com.github.wez.wezterm", AppCategory::Coding),
 ];
 
+/// Lower-cased executable names, which name an app on Windows, matched the
+/// same way.
+#[cfg(target_os = "windows")]
+const EXECUTABLE_RULES: &[(&str, AppCategory)] = &[
+    ("chatgpt.exe", AppCategory::AiPrompts),
+    ("claude.exe", AppCategory::AiPrompts),
+    ("cursor.exe", AppCategory::AiPrompts),
+    ("perplexity.exe", AppCategory::AiPrompts),
+    ("whatsapp*", AppCategory::PersonalMessages),
+    ("telegram.exe", AppCategory::PersonalMessages),
+    ("signal.exe", AppCategory::PersonalMessages),
+    ("discord.exe", AppCategory::PersonalMessages),
+    ("messenger.exe", AppCategory::PersonalMessages),
+    ("slack.exe", AppCategory::WorkMessages),
+    ("ms-teams.exe", AppCategory::WorkMessages),
+    ("teams.exe", AppCategory::WorkMessages),
+    ("outlook.exe", AppCategory::Emails),
+    ("olk.exe", AppCategory::Emails),
+    ("thunderbird.exe", AppCategory::Emails),
+    ("winword.exe", AppCategory::Documents),
+    ("onenote.exe", AppCategory::Documents),
+    ("notepad.exe", AppCategory::Documents),
+    ("obsidian.exe", AppCategory::Documents),
+    ("notion.exe", AppCategory::Documents),
+    ("code.exe", AppCategory::Coding),
+    ("code - insiders.exe", AppCategory::Coding),
+    ("devenv.exe", AppCategory::Coding),
+    ("zed.exe", AppCategory::Coding),
+    ("idea64.exe", AppCategory::Coding),
+    ("pycharm64.exe", AppCategory::Coding),
+    ("webstorm64.exe", AppCategory::Coding),
+    ("rider64.exe", AppCategory::Coding),
+    ("sublime_text.exe", AppCategory::Coding),
+    ("windowsterminal.exe", AppCategory::Coding),
+    ("wezterm-gui.exe", AppCategory::Coding),
+    ("alacritty.exe", AppCategory::Coding),
+    ("warp.exe", AppCategory::Coding),
+];
+
+#[cfg(target_os = "macos")]
+const APP_RULES: &[(&str, AppCategory)] = BUNDLE_RULES;
+#[cfg(target_os = "windows")]
+const APP_RULES: &[(&str, AppCategory)] = EXECUTABLE_RULES;
+
 /// Hosts matched exactly or as a parent domain (`google.com` does not match
 /// `docs.google.com` unless listed; `notion.so` matches `team.notion.so`).
 const DOMAIN_RULES: &[(&str, AppCategory)] = &[
@@ -92,6 +137,7 @@ const DOMAIN_RULES: &[(&str, AppCategory)] = &[
 ];
 
 /// Browsers whose focused window is queried for the active tab's host.
+#[cfg(target_os = "macos")]
 pub const BROWSER_BUNDLE_IDS: &[&str] = &[
     "com.apple.Safari",
     "com.apple.SafariTechnologyPreview",
@@ -106,8 +152,27 @@ pub const BROWSER_BUNDLE_IDS: &[&str] = &[
     "app.zen-browser.zen",
 ];
 
+/// The same browsers by lower-cased executable name.
+#[cfg(target_os = "windows")]
+pub const BROWSER_EXECUTABLES: &[&str] = &[
+    "chrome.exe",
+    "msedge.exe",
+    "firefox.exe",
+    "brave.exe",
+    "opera.exe",
+    "vivaldi.exe",
+    "arc.exe",
+    "zen.exe",
+];
+
+#[cfg(target_os = "macos")]
 pub fn is_browser(bundle_id: &str) -> bool {
     BROWSER_BUNDLE_IDS.contains(&bundle_id)
+}
+
+#[cfg(target_os = "windows")]
+pub fn is_browser(executable: &str) -> bool {
+    BROWSER_EXECUTABLES.contains(&executable)
 }
 
 fn bundle_matches(pattern: &str, bundle_id: &str) -> bool {
@@ -135,7 +200,7 @@ pub fn categorize(bundle_id: &str, host: Option<&str>) -> AppCategory {
             return *category;
         }
     }
-    BUNDLE_RULES
+    APP_RULES
         .iter()
         .find(|(pattern, _)| bundle_matches(pattern, bundle_id))
         .map(|(_, category)| *category)
@@ -146,6 +211,26 @@ pub fn categorize(bundle_id: &str, host: Option<&str>) -> AppCategory {
 mod tests {
     use super::*;
 
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn maps_windows_apps_by_executable_name() {
+        let cases = [
+            ("chatgpt.exe", AppCategory::AiPrompts),
+            ("whatsapp.root.exe", AppCategory::PersonalMessages),
+            ("ms-teams.exe", AppCategory::WorkMessages),
+            ("olk.exe", AppCategory::Emails),
+            ("winword.exe", AppCategory::Documents),
+            ("code.exe", AppCategory::Coding),
+            ("windowsterminal.exe", AppCategory::Coding),
+            ("chrome.exe", AppCategory::Other),
+            ("unknown.exe", AppCategory::Other),
+        ];
+        for (executable, expected) in cases {
+            assert_eq!(categorize(executable, None), expected, "{executable}");
+        }
+    }
+
+    #[cfg(target_os = "macos")]
     #[test]
     fn maps_native_apps_by_bundle_identifier() {
         let cases = [
@@ -205,10 +290,50 @@ mod tests {
         assert_eq!(categorize("com.apple.Safari", None), AppCategory::Other);
     }
 
+    #[cfg(target_os = "macos")]
     #[test]
     fn known_browsers_are_queried_for_a_host() {
         assert!(is_browser("com.apple.Safari"));
         assert!(is_browser("com.google.Chrome"));
         assert!(!is_browser("com.apple.mail"));
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn known_windows_browsers_are_queried_for_a_host() {
+        for executable in ["chrome.exe", "msedge.exe", "firefox.exe", "zen.exe"] {
+            assert!(is_browser(executable), "{executable}");
+        }
+        assert!(!is_browser("outlook.exe"));
+        assert!(!is_browser("code.exe"));
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn a_web_host_overrides_a_windows_browser() {
+        let cases = [
+            ("chrome.exe", Some("github.com"), AppCategory::Coding),
+            ("chrome.exe", Some("mail.google.com"), AppCategory::Emails),
+            (
+                "msedge.exe",
+                Some("outlook.office.com"),
+                AppCategory::Emails,
+            ),
+            ("firefox.exe", Some("claude.ai"), AppCategory::AiPrompts),
+            (
+                "brave.exe",
+                Some("app.slack.com"),
+                AppCategory::WorkMessages,
+            ),
+            ("chrome.exe", Some("example.com"), AppCategory::Other),
+            ("chrome.exe", None, AppCategory::Other),
+        ];
+        for (executable, host, expected) in cases {
+            assert_eq!(
+                categorize(executable, host),
+                expected,
+                "{executable} {host:?}"
+            );
+        }
     }
 }

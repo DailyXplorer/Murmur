@@ -1,8 +1,12 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
+import { isWindows } from "@/lib/platform";
 import { Dialog } from "../ui/Dialog";
 
-const LICENCES = ["parakeet", "diarization", "fluidaudio"] as const;
+// Windows runs only the speech recognition model, on the CPU.
+const LICENCES = isWindows
+  ? (["parakeet"] as const)
+  : (["parakeet", "diarization", "fluidaudio"] as const);
 
 /** The on-device models' licences and attributions. */
 export const ModelLicencesDialog: React.FC<{

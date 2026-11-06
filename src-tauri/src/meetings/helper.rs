@@ -23,6 +23,7 @@ pub enum AnalysisSupport {
     Available,
     /// The analysis needs macOS 15 or later: on macOS 14 FluidAudio's
     /// speaker diarizer crashes on every run.
+    #[cfg_attr(not(target_arch = "aarch64"), allow(dead_code))]
     OsTooOld,
     /// Intel Macs: one speaker per track.
     #[cfg_attr(target_arch = "aarch64", allow(dead_code))]
@@ -131,7 +132,8 @@ pub async fn run(
     })
 }
 
-#[cfg(test)]
+/// The helper is stood in for by shell scripts, so these run on macOS.
+#[cfg(all(test, unix))]
 mod tests {
     use super::*;
     use crate::meetings::merge::Track;

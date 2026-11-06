@@ -10,7 +10,7 @@ mod fluid;
 mod holes;
 #[cfg(all(test, target_arch = "aarch64"))]
 mod live_replay;
-#[cfg(test)]
+#[cfg(all(test, target_os = "macos"))]
 mod real_engine;
 pub mod session;
 pub mod unknown;
@@ -76,8 +76,18 @@ impl LocalEngine {
     /// Releases the model, once the dictation running, if any, is done. The
     /// CPU model maps its file, so deleted models keep their disk space
     /// until then.
+    // Windows deletes through `release_then`; its tests still call this.
+    #[cfg_attr(target_os = "windows", allow(dead_code))]
     pub async fn release(&self) {
         self.session.release().await;
+    }
+
+    /// Releases the model, once the dictation running, if any, is done, and
+    /// loads none until `then` is done. Windows may refuse to delete or
+    /// replace the file of a loaded model.
+    #[cfg(target_os = "windows")]
+    pub async fn release_then<T>(&self, then: impl std::future::Future<Output = T>) -> T {
+        self.session.release_then(then).await
     }
 
     /// Transcribes 16 kHz mono audio of any length, listening for `terms`
@@ -709,5 +719,99 @@ mod tests {
             .unwrap();
         engine.release().await;
         assert_eq!(held.dropped.load(SeqCst), 1);
+    }
+
+    /// Maps the model file read-only, as transcribe.cpp 0.4.1 does
+    /// (`CreateFileMapping` and `MapViewOfFile` on Windows), keeping it open
+    /// without sharing its deletion, so no delete gets past the loaded model.
+    #[cfg(target_os = "windows")]
+    struct Mapping {
+        model: std::path::PathBuf,
+        loads: Arc<AtomicUsize>,
+    }
+
+    #[cfg(target_os = "windows")]
+    struct Mapped {
+        map: memmap2::Mmap,
+        _file: std::fs::File,
+    }
+
+    #[cfg(target_os = "windows")]
+    impl Runtime for Mapping {
+        fn load(&self) -> BoxFuture<'static, anyhow::Result<Box<dyn Loaded>>> {
+            let (model, loads) = (self.model.clone(), Arc::clone(&self.loads));
+            Box::pin(async move {
+                let mut options = std::fs::OpenOptions::new();
+                options.read(true);
+                std::os::windows::fs::OpenOptionsExt::share_mode(&mut options, 1);
+                let file = options.open(model)?;
+                // SAFETY: the tests never write the file while it is mapped.
+                let mapped = unsafe { memmap2::Mmap::map(&file)? };
+                loads.fetch_add(1, SeqCst);
+                Ok(Box::new(Mapped {
+                    map: mapped,
+                    _file: file,
+                }) as Box<dyn Loaded>)
+            })
+        }
+    }
+
+    #[cfg(target_os = "windows")]
+    impl Loaded for Mapped {
+        fn transcribe<'a>(
+            &'a mut self,
+            _: &'a [f32],
+            _: &'a [String],
+            _: Option<&'a str>,
+        ) -> BoxFuture<'a, anyhow::Result<Heard>> {
+            let text = format!("{} bytes", self.map.len());
+            Box::pin(async move {
+                Ok(Heard {
+                    text,
+                    words: Vec::new(),
+                })
+            })
+        }
+    }
+
+    /// Windows may refuse to delete the file of a loaded model: deleting the
+    /// models releases it first, and the next dictation loads it again once
+    /// the models are back.
+    #[cfg(target_os = "windows")]
+    #[tokio::test]
+    async fn deleting_the_models_releases_the_mapped_model() {
+        let dir = tempfile::tempdir().unwrap();
+        let (models, model) = crate::local_models::tests::ready_models(&dir.path().join("models"));
+        let loads = Arc::new(AtomicUsize::new(0));
+        let engine = LocalEngine::new(
+            Box::new(Mapping {
+                model: model.clone(),
+                loads: Arc::clone(&loads),
+            }),
+            MAX_PIECE,
+            Box::new(|| false),
+        );
+        engine.session.warm().await.unwrap();
+        assert!(
+            std::fs::remove_file(&model).is_err(),
+            "Windows deleted the file of a loaded model"
+        );
+
+        crate::commands::local_models::delete(Arc::clone(&models), Some(&engine))
+            .await
+            .unwrap();
+        assert!(!model.exists());
+        assert_eq!(
+            models.status().state,
+            crate::local_models::LocalModelState::Missing
+        );
+        assert!(!engine.session.is_loaded().await);
+
+        // No model: the dictation fails, and the engine stays usable.
+        assert!(engine.session.warm().await.is_err());
+        std::fs::create_dir_all(model.parent().unwrap()).unwrap();
+        std::fs::write(&model, b"the model, downloaded again").unwrap();
+        engine.session.warm().await.unwrap();
+        assert_eq!(loads.load(SeqCst), 2);
     }
 }

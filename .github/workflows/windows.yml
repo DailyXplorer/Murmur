@@ -1,0 +1,246 @@
+name: windows
+# Windows is a beta: this builds, tests, installs and launches the Windows app
+# on every pull request and every push to main. It holds no release secret and
+# publishes nothing.
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: windows-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: latest
+
+      - name: Install pinned Rust toolchain
+        uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # v1
+        with:
+          toolchain: 1.96.0
+          components: rustfmt
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Check translation consistency
+        run: bun run check:translations
+
+      - name: Check platform invariants
+        run: bun run check:platforms
+
+      - name: Run ESLint
+        run: bun run lint
+
+      # On Ubuntu: a Windows checkout turns line endings into CRLF.
+      - name: Check formatting
+        run: bun run format:check
+
+      - name: Build frontend
+        run: bun run build
+
+      - name: Install Playwright browsers
+        run: bunx playwright install --with-deps chromium
+
+      - name: Run Playwright tests
+        run: bun run test:playwright
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
+
+  rust:
+    runs-on: windows-latest
+    steps:
+      # bindings.ts and other checked-in files are compared byte for byte.
+      - name: Keep line endings as committed
+        run: git config --global core.autocrlf false
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install pinned Rust toolchain
+        uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # v1
+        with:
+          toolchain: 1.96.0
+          components: clippy
+
+      - uses: swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
+        with:
+          workspaces: "./src-tauri -> target"
+
+      - name: Run Rust tests
+        working-directory: src-tauri
+        run: cargo test --locked
+
+      - name: Run Clippy
+        working-directory: src-tauri
+        run: cargo clippy --locked --all-targets --all-features -- -D warnings
+
+  # The real GGUF model, loaded and mapped by transcribe.cpp: hears spoken
+  # clips, and deleting the models releases it. A job of its own, so a cache
+  # miss (739 MB) costs only this job.
+  cpu-model:
+    runs-on: windows-latest
+    steps:
+      - name: Keep line endings as committed
+        run: git config --global core.autocrlf false
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install pinned Rust toolchain
+        uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # v1
+        with:
+          toolchain: 1.96.0
+
+      - uses: swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
+        with:
+          workspaces: "./src-tauri -> target"
+          key: cpu-model
+
+      - name: Cache the model
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/models
+          key: windows-parakeet-gguf-${{ hashFiles('src-tauri/src/local_models/pinned.rs') }}
+
+      - name: Download the model
+        working-directory: src-tauri
+        run: cargo run --locked --example fetch_models -- "${{ runner.temp }}/models"
+
+      # Windows' own voices, 16 kHz mono as the app records. French only
+      # where the runner has a French voice. ASCII text: Windows PowerShell
+      # reads the script as ANSI.
+      - name: Record the clips
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          Add-Type -AssemblyName System.Speech
+          $clips = Join-Path $env:RUNNER_TEMP "clips"
+          New-Item -ItemType Directory -Force $clips | Out-Null
+          $voices = (New-Object System.Speech.Synthesis.SpeechSynthesizer).GetInstalledVoices() | Where-Object Enabled
+          $voices | ForEach-Object { Write-Output "voice: $($_.VoiceInfo.Name) ($($_.VoiceInfo.Culture))" }
+          $texts = @(
+            @{ Name = "en"; Culture = "en-US"; Text = "The quick brown fox jumps over the lazy dog near the river bank."; Words = "quick`nbrown`nfox`nriver`n" },
+            @{ Name = "fr"; Culture = "fr-FR"; Text = "Bonjour, je voudrais une table pour quatre personnes jeudi soir."; Words = "table`nquatre`njeudi`n" }
+          )
+          $format = New-Object System.Speech.AudioFormat.SpeechAudioFormatInfo(16000, [System.Speech.AudioFormat.AudioBitsPerSample]::Sixteen, [System.Speech.AudioFormat.AudioChannel]::Mono)
+          $recorded = 0
+          foreach ($clip in $texts) {
+            $voice = $voices | Where-Object { $_.VoiceInfo.Culture.Name -eq $clip.Culture } | Select-Object -First 1
+            if (-not $voice) { Write-Output "no $($clip.Culture) voice: no $($clip.Name) clip"; continue }
+            $synth = New-Object System.Speech.Synthesis.SpeechSynthesizer
+            $synth.SelectVoice($voice.VoiceInfo.Name)
+            $synth.SetOutputToWaveFile((Join-Path $clips "$($clip.Name).wav"), $format)
+            $synth.Speak($clip.Text)
+            $synth.Dispose()
+            [System.IO.File]::WriteAllText((Join-Path $clips "$($clip.Name).txt"), $clip.Words)
+            $recorded++
+          }
+          if ($recorded -eq 0) { throw "no voice to record a clip with" }
+
+      # --exact, and the count checked, so a renamed test fails the job
+      # instead of matching nothing. The replace-then-delete test is macOS
+      # only: Windows may refuse both while the file is mapped.
+      - name: Transcribe the clips and delete the loaded model
+        working-directory: src-tauri
+        shell: bash
+        env:
+          MURMUR_SMOKE_MODELS: ${{ runner.temp }}/models
+          MURMUR_SMOKE_CLIPS: ${{ runner.temp }}/clips
+        run: |
+          set -euo pipefail
+          cargo test --locked --lib -- --ignored --exact --nocapture \
+            engine::local::cpu::tests::the_cpu_model_hears_the_words_of_each_clip \
+            engine::local::cpu::tests::deleting_the_models_releases_the_loaded_cpu_model \
+            | tee "$RUNNER_TEMP/cpu-model.txt"
+          grep -q "test result: ok. 2 passed" "$RUNNER_TEMP/cpu-model.txt"
+
+  installer:
+    runs-on: windows-latest
+    steps:
+      - name: Keep line endings as committed
+        run: git config --global core.autocrlf false
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: latest
+
+      - name: Install pinned Rust toolchain
+        uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # v1
+        with:
+          toolchain: 1.96.0
+
+      - uses: swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
+        with:
+          workspaces: "./src-tauri -> target"
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      # Murmur then starts on a PC without the Visual C++ Redistributable.
+      - name: Locate the Visual C++ runtime
+        shell: pwsh
+        run: ./.github/scripts/windows-vc-runtime.ps1
+
+      - name: Build the installer
+        run: bun run tauri build --target x86_64-pc-windows-msvc --bundles nsis
+
+      - name: Upload the installer
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: murmur-windows-installer
+          path: src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe
+          if-no-files-found: error
+
+  smoke:
+    needs: installer
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: murmur-windows-installer
+          path: installer
+
+      - name: Install, launch and screenshot Murmur
+        shell: pwsh
+        run: >
+          ./.github/scripts/windows-smoke.ps1
+          -Installer (Get-ChildItem installer -Filter *.exe | Select-Object -First 1).FullName
+          -OutputDir "$env:RUNNER_TEMP/smoke"
+
+      - name: Upload screenshots and log
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: murmur-windows-smoke
+          path: ${{ runner.temp }}/smoke/
+          if-no-files-found: error

@@ -17,12 +17,16 @@ const ACRONYMS = [
   "MB",
   "MCP", // Model Context Protocol, the name of the AI assistants' connector
   "NVIDIA",
+  "PC", // the Windows build's "this PC"
   "TDT", // Token-and-Duration Transducer, in the Parakeet model name
 ];
 
-/** Proper nouns and named macOS or app surfaces a sentence may capitalize. */
+/** Proper nouns and named macOS, Windows or app surfaces a sentence may
+ * capitalize. */
 const PROPER_PHRASES = [
   "Screen & System Audio Recording",
+  "Privacy & security → Microphone",
+  "Windows Settings",
   "Privacy & Security → Microphone",
   "System Audio Recording",
   "Privacy & Security",
@@ -32,6 +36,7 @@ const PROPER_PHRASES = [
   "Parakeet Ultra",
   "Moondream",
   "Hugging Face",
+  "UI Automation",
   "Google Meet",
   "Community-1",
   "Speech@FIT",
@@ -51,6 +56,7 @@ const PROPER_PHRASES = [
   "Claude Code",
   "Claude",
   "Discord",
+  "Windows",
   "Log level",
   "Accessibility",
   "Meetings",
@@ -61,6 +67,7 @@ const PROPER_PHRASES = [
   "Murmur",
   "Apple",
   "Codex",
+  "Windows",
   "Slack",
   "Teams",
   "Webex",

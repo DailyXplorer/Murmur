@@ -302,8 +302,10 @@ mod tests {
     use super::*;
     use crate::meetings::protocol::parse_line;
 
+    #[cfg(unix)]
     struct NoHost;
 
+    #[cfg(unix)]
     impl crate::local_models::Host for NoHost {
         fn notify(&self, _: crate::local_models::LocalModelStatus) {}
         fn remember_wanted(&self, _: bool) {}
@@ -323,6 +325,7 @@ mod tests {
     /// run as `<command> <asr>` to `runs`. Asked for v3, it switches the
     /// folder to Ultra, reports the models missing and exits, as the helper
     /// does.
+    #[cfg(unix)]
     fn switching_helper(dir: &Path) -> (Arc<Models>, PathBuf, PathBuf) {
         use std::os::unix::fs::PermissionsExt;
         let path = dir.join("models");
@@ -363,6 +366,7 @@ echo '{{"type":"done"}}'"#,
         (models, program, log)
     }
 
+    #[cfg(unix)]
     fn mic_request(dir: &Path) -> AnalysisRequest {
         AnalysisRequest {
             tracks: vec![(Track::Mic, dir.join("mic.wav"))],
@@ -373,6 +377,7 @@ echo '{{"type":"done"}}'"#,
     /// The switch to Ultra deletes v3 before the helper opens it: the
     /// analysis runs again on Ultra instead of waiting for models that are
     /// not missing.
+    #[cfg(unix)]
     #[tokio::test]
     async fn an_analysis_that_lost_v3_to_the_switch_runs_again_on_ultra() {
         let dir = tempfile::tempdir().unwrap();

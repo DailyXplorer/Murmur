@@ -4,6 +4,7 @@
 
 pub mod categories;
 pub mod frontmost;
+pub mod host;
 pub mod stats;
 
 use anyhow::Result;
@@ -442,20 +443,24 @@ mod tests {
             host,
             dictionary_fixes: fixes,
         };
+        let (slack, browser, mail) = if cfg!(target_os = "windows") {
+            ("slack.exe", "chrome.exe", "olk.exe")
+        } else {
+            (
+                "com.tinyspeck.slackmacgap",
+                "com.apple.Safari",
+                "com.apple.mail",
+            )
+        };
         for d in [
-            dictation(
-                ts(2026, 10, 13, 9),
-                Some("com.tinyspeck.slackmacgap"),
-                None,
-                0,
-            ),
+            dictation(ts(2026, 10, 13, 9), Some(slack), None, 0),
             dictation(
                 ts(2026, 10, 14, 9),
-                Some("com.apple.Safari"),
+                Some(browser),
                 Some("mail.google.com"),
                 2,
             ),
-            dictation(ts(2026, 10, 15, 9), Some("com.apple.mail"), None, 1),
+            dictation(ts(2026, 10, 15, 9), Some(mail), None, 1),
             dictation(ts(2026, 10, 15, 10), None, None, 0),
         ] {
             insert_dictation(&conn, &d).unwrap();

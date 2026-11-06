@@ -1,4 +1,5 @@
+# The activation policy is macOS only: Windows builds have no such method.
 disallowed-methods = [
-    { path = "tauri::AppHandle::set_activation_policy", reason = "use accent::set_dock_presence, which re-applies the accent icon to a new Dock tile" },
-    { path = "tauri::App::set_activation_policy", reason = "use accent::set_dock_presence, which re-applies the accent icon to a new Dock tile" },
+    { path = "tauri::AppHandle::set_activation_policy", reason = "use accent::set_dock_presence, which re-applies the accent icon to a new Dock tile", allow-invalid = true },
+    { path = "tauri::App::set_activation_policy", reason = "use accent::set_dock_presence, which re-applies the accent icon to a new Dock tile", allow-invalid = true },
 ]

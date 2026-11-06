@@ -18,12 +18,14 @@ import { ShowWhatsNewOnUpdate } from "../ShowWhatsNewOnUpdate";
 import { UpdateChecksToggle } from "../UpdateChecksToggle";
 import { AppDataDirectory } from "../AppDataDirectory";
 import { LogDirectory } from "../debug";
+import { isWindows } from "@/lib/platform";
 
 export const AdvancedSettings: React.FC = () => {
   const { t } = useTranslation();
   const { getSetting } = useSettings();
   const experimentalEnabled = getSetting("experimental_enabled") || false;
-  const meetingsEnabled = getSetting("meetings_enabled") ?? true;
+  const meetingsEnabled =
+    !isWindows && (getSetting("meetings_enabled") ?? true);
 
   return (
     <SettingsPage label={t("sidebar.advanced")}>
@@ -32,20 +34,25 @@ export const AdvancedSettings: React.FC = () => {
         <AutostartToggle grouped={true} />
         <ShowTrayIcon grouped={true} />
         <ShowOverlay grouped={true} />
-        <MeetingsToggle grouped={true} />
+        {!isWindows && <MeetingsToggle grouped={true} />}
         {meetingsEnabled && <MeetingCallPrompt />}
         {meetingsEnabled && <MeetingLiveTranscript />}
         {meetingsEnabled && <MeetingsAudioRetention />}
       </SettingsGroup>
 
-      <SettingsGroup title={t("settings.advanced.groups.mcp")}>
-        <McpAccess />
-      </SettingsGroup>
+      {/* The Windows beta has no MCP server, updater or release notes yet. */}
+      {!isWindows && (
+        <SettingsGroup title={t("settings.advanced.groups.mcp")}>
+          <McpAccess />
+        </SettingsGroup>
+      )}
 
-      <SettingsGroup title={t("settings.advanced.groups.updates")}>
-        <UpdateChecksToggle grouped={true} />
-        <ShowWhatsNewOnUpdate grouped={true} />
-      </SettingsGroup>
+      {!isWindows && (
+        <SettingsGroup title={t("settings.advanced.groups.updates")}>
+          <UpdateChecksToggle grouped={true} />
+          <ShowWhatsNewOnUpdate grouped={true} />
+        </SettingsGroup>
+      )}
 
       <SettingsGroup title={t("settings.advanced.groups.storage")}>
         <AppDataDirectory grouped={true} />

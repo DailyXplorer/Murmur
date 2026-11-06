@@ -22,6 +22,8 @@ impl Runtime for CpuRuntime {
         let models = self.models.clone();
         Box::pin(async move {
             let model = tokio::task::spawn_blocking(move || -> anyhow::Result<CpuModel> {
+                #[cfg(target_os = "windows")]
+                load_cpu_modules()?;
                 let options = ModelOptions {
                     backend: Backend::Cpu,
                     device: None,
@@ -51,6 +53,18 @@ impl Runtime for CpuRuntime {
             Ok(Box::new(model) as Box<dyn Loaded>)
         })
     }
+}
+
+/// Windows ships the CPU code as one module per instruction set, beside the
+/// app (see `build.rs`); transcribe.cpp loads the fastest this processor
+/// runs. Once per process, before the first model load: it cannot be retried.
+#[cfg(target_os = "windows")]
+fn load_cpu_modules() -> anyhow::Result<()> {
+    static LOADED: std::sync::OnceLock<Result<(), String>> = std::sync::OnceLock::new();
+    LOADED
+        .get_or_init(|| transcribe_cpp::init_backends_default().map_err(|error| error.to_string()))
+        .clone()
+        .map_err(|error| anyhow::anyhow!("Cannot load the CPU modules: {error}"))
 }
 
 struct CpuModel {
@@ -163,7 +177,10 @@ mod tests {
 
     /// The loaded model maps its file: a download renaming a new file over
     /// it, then the models being deleted, leave it hearing the same words.
-    /// Same variables as above.
+    /// Same variables as above. macOS only: Windows may refuse both while the
+    /// file is mapped, so a delete releases the model first
+    /// (`deleting_the_models_releases_the_loaded_cpu_model`).
+    #[cfg(target_os = "macos")]
     #[tokio::test]
     #[ignore = "needs the GGUF model and recorded speech"]
     async fn the_loaded_model_survives_its_file_replaced_then_deleted() {
@@ -207,5 +224,78 @@ mod tests {
             heard
         );
         println!("still heard after replace and delete: {heard}");
+    }
+
+    struct Silent;
+
+    impl crate::local_models::Host for Silent {
+        fn notify(&self, _: crate::local_models::LocalModelStatus) {}
+        fn remember_wanted(&self, _: bool) {}
+        fn free_bytes(&self, _: &std::path::Path) -> Option<u64> {
+            None
+        }
+        fn prepare(
+            &self,
+            _: PathBuf,
+            _: crate::ProcessingOperation,
+        ) -> crate::local_models::PrepareFuture {
+            Box::pin(async { crate::local_models::Prepared::Done })
+        }
+    }
+
+    fn copy_folder(from: &std::path::Path, to: &std::path::Path) {
+        std::fs::create_dir_all(to).unwrap();
+        for entry in std::fs::read_dir(from).unwrap() {
+            let entry = entry.unwrap();
+            let target = to.join(entry.file_name());
+            if entry.file_type().unwrap().is_dir() {
+                copy_folder(&entry.path(), &target);
+            } else {
+                std::fs::copy(entry.path(), target).unwrap();
+            }
+        }
+    }
+
+    /// Deleting the models while the CPU model is loaded and mapped by
+    /// transcribe.cpp: the delete removes the file, the model is released,
+    /// and the next dictation fails until the models are back. Runs on a copy
+    /// of the models folder `MURMUR_SMOKE_MODELS` names.
+    #[cfg(target_os = "windows")]
+    #[tokio::test]
+    #[ignore = "needs the GGUF model"]
+    async fn deleting_the_models_releases_the_loaded_cpu_model() {
+        let source =
+            PathBuf::from(std::env::var("MURMUR_SMOKE_MODELS").expect("MURMUR_SMOKE_MODELS"));
+        let dir = tempfile::tempdir().unwrap();
+        let folder = dir.path().join("models");
+        copy_folder(&source, &folder);
+        let models = crate::local_models::LocalModels::new(
+            folder.clone(),
+            crate::local_models::manifest::this_mac(),
+            crate::local_models::AnalysisSupport::Available,
+            crate::local_models::manifest::HUGGING_FACE.to_string(),
+            Arc::new(Silent),
+        );
+        assert_eq!(
+            models.status().state,
+            crate::local_models::LocalModelState::Ready
+        );
+        let engine = crate::engine::local::LocalEngine::new(
+            Box::new(CpuRuntime {
+                models: folder.clone(),
+            }),
+            crate::engine::local::MAX_PIECE,
+            Box::new(|| false),
+        );
+        engine.session.warm().await.unwrap();
+
+        crate::commands::local_models::delete(models, Some(&engine))
+            .await
+            .unwrap();
+        assert!(!folder
+            .join(crate::local_models::manifest::Asr::Current.gguf_path())
+            .exists());
+        assert!(!engine.session.is_loaded().await);
+        assert!(engine.session.warm().await.is_err());
     }
 }

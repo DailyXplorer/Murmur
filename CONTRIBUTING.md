@@ -25,7 +25,7 @@ Run the app with `bun run tauri dev`. If CMake rejects an old policy: `CMAKE_POL
 - ESLint, Prettier, and `cargo fmt --check`
 - the frontend build and the Playwright typecheck
 
-On macOS it also runs Clippy with the flags from the macOS `test` job (`cargo clippy --locked --all-targets --all-features -- -D warnings`). On Linux that step is skipped, because the crate compiles on macOS only. CI still runs Clippy on the macOS runner.
+On macOS it also runs Clippy with the flags from the macOS `test` job (`cargo clippy --locked --all-targets --all-features -- -D warnings`). On Linux that step is skipped, because the crate compiles on macOS and Windows only. CI runs Clippy on the macOS runner and on the Windows runner (`windows.yml`).
 
 Two other CI jobs are separate:
 
@@ -52,9 +52,14 @@ Use the [bug report form](.github/ISSUE_TEMPLATE/bug_report.yml) and the [featur
 
 Issues labeled [good first issue](https://github.com/DailyXplorer/Murmur/issues?q=is%3Aopen+is%3Aissue+label%3A%22good+first+issue%22) are scoped for someone new to the repo. [Help wanted](https://github.com/DailyXplorer/Murmur/issues?q=is%3Aopen+is%3Aissue+label%3A%22help+wanted%22) is the wider list. Comment on the issue before you start so two people do not take the same one.
 
-## macOS on main, Windows on beta
+## macOS and Windows (beta)
 
-`main` builds for macOS only. The `compile_error!` at the top of `src-tauri/src/lib.rs` keeps it that way. Windows work stays on the `beta` branch. Do not add Windows targets, `cfg(target_os)`, or a Windows CI job on `main`.
+Murmur builds for macOS and Windows, and Windows stays labelled beta. Both ship from `main`, with one version number and one update feed. The `compile_error!` at the top of `src-tauri/src/lib.rs` rejects every other platform.
+
+- Windows code goes in a Windows file (`*_windows.rs`, `windows.rs`, `win32.rs`, `uia*`) or behind `#[cfg(target_os = "windows")]`. Never use `cfg(not(target_os = "macos"))` to mean Windows.
+- The macOS app must not change when you add Windows code. A pull request that touches shared code proves the Mac build is unchanged: run `scripts/macos-expanded-diff.sh` and explain every hunk in the pull request body (see "How to prove a change is a no-op on macOS" in [AGENTS.md](AGENTS.md)). That script does not compare the frontend, so gate a shared frontend change on `isWindows` or list it in the body.
+- `bun run check:platforms` holds the rules of each platform. Changing a macOS pin needs a reason in the pull request body.
+- `.github/workflows/windows.yml` runs on every pull request. It holds no release secret.
 
 ## Pull requests
 

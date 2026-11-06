@@ -4,6 +4,7 @@ import { Dropdown, type DropdownOption } from "../ui/Dropdown";
 import { SettingContainer } from "../ui/SettingContainer";
 import { useSettings } from "../../hooks/useSettings";
 import type { PasteMethod } from "@/bindings";
+import { isWindows } from "@/lib/platform";
 
 interface PasteMethodProps {
   grouped?: boolean;
@@ -21,7 +22,7 @@ export const PasteMethodSetting: React.FC<PasteMethodProps> = React.memo(
       {
         value: "ctrl_v",
         label: t("settings.advanced.pasteMethod.options.clipboard", {
-          modifier: "Cmd",
+          modifier: isWindows ? "Ctrl" : "Cmd",
         }),
       },
     ];

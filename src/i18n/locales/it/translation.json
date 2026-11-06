@@ -20,6 +20,7 @@
     "errorPaste": "Impossibile incollare. Il testo è negli appunti e nella cronologia.",
     "errorRecording": "Impossibile avviare la registrazione. Controlla il microfono.",
     "errorMicrophoneDenied": "L'accesso al microfono è disattivato. Consenti Murmur in Impostazioni di Sistema.",
+    "errorMicrophoneDeniedWindows": "L'accesso al microfono è disattivato. Consenti le app desktop in Impostazioni di Windows → Privacy e sicurezza → Microfono.",
     "warningLongRecording": "Registrazione lunga: il caricamento può essere lento o rifiutato.",
     "errorShortcutUnavailable": "{{shortcut}} è usata da un'altra app. Scegli un'altra scorciatoia nelle impostazioni di Murmur.",
     "errorMicrophoneStartup": "Il microfono sempre attivo non si è avviato. Murmur lo aprirà quando registri.",
@@ -130,6 +131,7 @@
     "permissions": {
       "title": "Permessi richiesti",
       "description": "Murmur ha bisogno di alcuni permessi per funzionare correttamente.",
+      "descriptionWindows": "Murmur ha bisogno dell'accesso al microfono per funzionare correttamente.",
       "microphone": {
         "title": "Accesso al microfono",
         "description": "Necessario per sentire la tua voce per la trascrizione."
@@ -223,7 +225,8 @@
           "set": "Errore nella configurazione della scorciatoia: {{error}}",
           "reset": "Errore nella reinizializzazione della scorciatoia al valore originale",
           "registrationFailed": "Un'altra app usa questa scorciatoia. Scegline una diversa.",
-          "usedByAnotherAction": "Un'altra azione di Murmur usa questa scorciatoia. Scegline una diversa."
+          "usedByAnotherAction": "Un'altra azione di Murmur usa questa scorciatoia. Scegline una diversa.",
+          "unusableKey": "Questo tasto non può essere usato in una scorciatoia su Windows. Scegline un altro."
         }
       },
       "language": {
@@ -687,14 +690,16 @@
   },
   "accessibility": {
     "permissionsDescription": "Murmur ha bisogno dei permessi di accessibilità per digitare il testo trascritto.",
-    "openSettings": "Apri Impostazioni di Sistema"
+    "openSettings": "Apri Impostazioni di Sistema",
+    "openSettingsWindows": "Apri Impostazioni di Windows"
   },
   "errors": {
     "loadDirectory": "Errore di caricamento cartella: {{error}}",
     "micPermissionDeniedTitle": "Accesso al microfono negato",
     "micPermissionDenied": {
       "generic": "L'accesso al microfono è stato negato dal sistema operativo. Concedi l'autorizzazione al microfono nelle impostazioni di sistema.",
-      "macos": "Concedi l'accesso al microfono in Impostazioni di Sistema → Privacy e sicurezza → Microfono."
+      "macos": "Concedi l'accesso al microfono in Impostazioni di Sistema → Privacy e sicurezza → Microfono.",
+      "windows": "Consenti alle app desktop di usare il microfono in Impostazioni di Windows → Privacy e sicurezza → Microfono."
     },
     "noInputDeviceTitle": "Nessun microfono trovato",
     "noInputDevice": "Non è stato rilevato alcun dispositivo di ingresso audio. Collega un microfono o delle cuffie e riprova.",
@@ -960,5 +965,69 @@
     "noResults": "Nessun risultato per «{{query}}»",
     "failed": "Ricerca non riuscita. Riprova.",
     "clear": "Cancella ricerca"
+  },
+  "windows": {
+    "onboarding": {
+      "model": {
+        "title": "Trascrivi su questo PC",
+        "description": "Murmur trasforma la tua voce in testo direttamente su questo PC. L'audio resta sul PC e non ci sono limiti di utilizzo.",
+        "alreadyHere": "Il modello è già su questo PC."
+      },
+      "done": {
+        "preparing": "Il modello si sta preparando per questo PC."
+      }
+    },
+    "settings": {
+      "history": {
+        "fallback": {
+          "language_not_supported": "Trascritto nel cloud: questa lingua non è supportata su questo PC.",
+          "cloud_limit_reached": "Trascritto su questo PC: era stato raggiunto il limite di ChatGPT.",
+          "cloud_failed": "Trascritto su questo PC: ChatGPT non era disponibile."
+        }
+      },
+      "transcription": {
+        "windowNames": {
+          "description": "Quando inizi a dettare, Murmur legge il testo della finestra attiva tramite l'accessibilità di Windows (UI Automation) e invia alla pulizia i nomi trovati, per scriverli correttamente. Invia anche un breve estratto del testo intorno al cursore. Non viene salvato nulla. I campi password e i gestori di password non vengono mai letti."
+        },
+        "engine": {
+          "local": {
+            "title": "Su questo PC",
+            "description": "25 lingue europee. Il tuo audio resta su questo PC."
+          }
+        },
+        "localModel": {
+          "preparing": "Preparazione per questo PC…",
+          "row": {
+            "reason": {
+              "disk": "Salvataggio non riuscito."
+            }
+          },
+          "failed": {
+            "disk": "Impossibile salvare il modello su questo PC.",
+            "prepare_failed": "Il modello è stato scaricato ma non si è caricato su questo PC."
+          }
+        },
+        "chatgpt": {
+          "signOutDialog": {
+            "body": "Murmur e l'app Codex condividono una sola sessione ChatGPT su questo PC, quindi uscire qui fa uscire anche da Codex."
+          },
+          "errors": {
+            "saveFailed": "Accesso effettuato, ma non è stato possibile salvare la sessione su questo PC."
+          }
+        }
+      }
+    },
+    "meetings": {
+      "models": {
+        "licence": {
+          "parakeet": "Riconoscimento vocale: Parakeet Ultra di Moondream, basato su Parakeet TDT 0.6B v3 di NVIDIA, CC BY 4.0. Convertito in GGUF a 8 bit da handy-computer."
+        }
+      }
+    },
+    "localSttCard": {
+      "description": "Trascrivi su questo PC in 25 lingue europee. Il tuo audio resta su questo PC.",
+      "downloading": "Download in corso… {{percent}}%. Al termine Murmur passerà a questo PC.",
+      "switched": "Ora la trascrizione avviene su questo PC."
+    }
   }
 }

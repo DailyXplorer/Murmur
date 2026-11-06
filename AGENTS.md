@@ -44,7 +44,7 @@ For macOS build setup, code signing, and notarization, see [BUILD.md](BUILD.md).
 
 ## Architecture Overview
 
-Murmur is a macOS desktop speech-to-text application built with Tauri 2.x (Rust backend + React/TypeScript frontend).
+Murmur is a macOS and Windows (beta) desktop speech-to-text application built with Tauri 2.x (Rust backend + React/TypeScript frontend).
 
 ### Backend Structure (src-tauri/src/)
 
@@ -240,7 +240,15 @@ One check, `scripts/check-platforms.ts` (`bun run check:platforms`; `check:macos
 - **`checkMacos()`** holds the obsolete and required paths, the forbidden text, the capability scopes, the command manifests and the Tauri config. `lib.rs` must carry either the macOS-only `compile_error!` or `#[cfg(not(any(target_os = "macos", target_os = "windows")))] compile_error!("Murmur supports macOS and Windows only.");`. Windows text the rule bans (`PasteMethod::ShiftInsert`, `WindowsMicrophonePermissionStatus`, ...) is allowed in a file named for Windows (`*_windows.rs`, `windows.rs`, `win32.rs`, `uia*`, at any depth) and inside an item under `#[cfg(target_os = "windows")]`, nowhere else. The check is textual: an item ends at its closing brace or its first `;`.
 - **The macOS contract** is `scripts/fixtures/macos-contract.json`. It pins what keeps an installed Mac app updating with its permissions intact: the bundle identifier, product name, bundle targets, the `bundle.macOS` object, `createUpdaterArtifacts`, `externalBin`, `macOSPrivateApi`, the updater public key and the one feed URL in `tauri.conf.json`; the SHA-256 of `Entitlements.plist` and `Info.plist`; and the structure of `build.yml` and `release.yml` (signing secret names, signing step names, the `release-signing` environment, the two macOS matrix entries, `make_latest`). Workflow facts are text, never hashes, so a dependabot bump of an action does not trip them. Every pin carries a `why`.
 - **Changing a pin** is a deliberate edit of that JSON file in the same pull request, with the reason in the PR body. For a plist, run `sha256sum` on the new file. A pull request must never change a pin to make the check pass without that reason.
-- **`checkWindows()`** is a placeholder: `windowsRequiredPaths` is empty. A slice that brings Windows files lists the ones it brings in the same commit.
+- **`checkWindows()`** holds `windowsRequiredPaths`: the Windows files and the Windows workflow the branch carries. A slice that brings more Windows files lists them in the same commit.
+
+### Windows (beta)
+
+Windows shares the tree, the version number and the feed URL with the Mac app, and stays labelled beta. What it has now: dictation with local or Codex transcription, AI cleanup, history, Insights, custom words, window names through UI Automation (`uia.rs`), the foreground-window paste target (`foreground.rs`, `paste_tx/windows.rs`, `input/win32.rs`), shortcuts including modifier-only chords (`shortcut/modifier_chord.rs`), monitor-aware overlay and settings window placement (`window_placement.rs`), and a per-user NSIS installer (`tauri.windows.conf.json`). Meetings, MCP and automatic updates are off on Windows (`restrict_to_windows` in `settings.rs`, hidden in Advanced) until their slices land.
+
+- **Text:** where the Mac text says "this Mac", a locale's `windows` subtree says "this PC"; `src/i18n/index.ts` merges it over the locale when `isWindows`.
+- **CI:** `.github/workflows/windows.yml` (workflow `windows`; jobs `frontend`, `rust`, `cpu-model`, `installer`, `smoke`) runs on every pull request, on pushes to `main` and by hand. It holds no release secret and builds the installer without updater artifacts.
+- **Rule:** a hunk in a shared file is either inert on macOS (a Windows file, `cfg(target_os = "windows")`, or a platform check in the frontend) or listed in the pull request body.
 
 ## Troubleshooting
 
@@ -249,8 +257,8 @@ See the [Troubleshooting](BUILD.md#troubleshooting) section in BUILD.md.
 ## No-go
 
 - Do not edit `src/bindings.ts` by hand. It is generated.
-- Do not remove the `compile_error!` at the top of `src-tauri/src/lib.rs`. `main` is macOS-only. Windows work stays on `beta`.
-- Do not add a Windows target, a `target_os` cfg, or a Windows CI job on `main`.
+- Do not remove the `compile_error!` at the top of `src-tauri/src/lib.rs`: Murmur builds for macOS and Windows only.
+- The macOS app must not change when Windows code is added: Windows code sits in a Windows file or behind `cfg(target_os = "windows")`, never behind `cfg(not(target_os = "macos"))`, and a pull request that touches shared code proves the Mac build is unchanged (see "How to prove a change is a no-op on macOS").
 - Do not create GitHub labels.
 - Do not silence a check with `#[allow]`, `eslint-disable`, a skipped test, or `--no-verify` unless the pull request explains why.
 - Do not ask CodeRabbit to push commits. Autofix, fix-ci, and the "Prompt for AI Agents" block are disabled.
