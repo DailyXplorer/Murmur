@@ -51,8 +51,10 @@ pub mod protocol;
 pub mod rename;
 pub mod retention;
 pub mod save_panel;
-// Kills its child processes with SIGKILL and reads macOS process usage.
-#[cfg(all(test, target_os = "macos"))]
+// Kills its child processes (SIGKILL on a Mac, TerminateProcess on Windows)
+// and reads each platform's process memory. The three-hour run with `say` and
+// the helper is macOS-only; Windows has a soak of its own in the same file.
+#[cfg(all(test, any(target_os = "macos", target_os = "windows")))]
 mod soak;
 pub mod speakers;
 pub mod spread;
