@@ -137,23 +137,24 @@ test.describe("Windows build", () => {
   const WINDOWS_COMMAND =
     "C:\\Users\\Some One\\AppData\\Local\\Murmur\\murmur.exe";
   const windowsAccess = (page: Page) =>
-    group(page).getByRole("checkbox", { name: "Let AI agents connect (MCP)" });
+    group(page).getByRole("checkbox", {
+      name: "Let AI agents read your meetings (MCP)",
+    });
 
-  test("names no meetings, which Windows does not have", async ({ page }) => {
+  test("offers meetings and dictations, as on the Mac", async ({ page }) => {
     await openAdvanced(page, "?platform=windows&mcp=1");
 
     await expect(windowsAccess(page)).toBeChecked();
     await expect(dictations(page)).toBeVisible();
-    await expect(group(page).getByText(/meeting/i)).toHaveCount(0);
-    // The descriptions are the info bubbles' names.
-    await expect(
-      group(page).getByRole("button", { name: /meeting/i }),
-    ).toHaveCount(0);
-    await expect(
-      group(page).getByRole("button", {
-        name: "Lets them search and read your dictations. They may send what they read to their own servers.",
-      }),
-    ).toBeVisible();
+    // The explanation lives in the row's info bubble, not under its title.
+    await group(page)
+      .getByRole("button", {
+        name: /^Also lets them read your latest dictations/,
+      })
+      .click();
+    await expect(page.getByRole("tooltip")).toHaveText(
+      "Also lets them read your latest dictations, which are more personal than meetings.",
+    );
   });
 
   test("is off by default and shows nothing to connect", async ({ page }) => {

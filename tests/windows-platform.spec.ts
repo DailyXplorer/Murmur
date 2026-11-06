@@ -61,11 +61,11 @@ const transcribeShortcut = (page: Page) =>
   page.getByRole("button", { name: "Transcribe Shortcut: Press keys..." });
 
 test.describe("Windows build", () => {
-  test("offers dictation only", async ({ page }) => {
+  test("offers dictation and Meetings", async ({ page }) => {
     await openWindows(page);
 
     await expect(nav(page, "General")).toBeVisible();
-    await expect(nav(page, "Meetings")).toHaveCount(0);
+    await expect(nav(page, "Meetings")).toBeVisible();
     await expect(
       page.getByRole("button", { name: "Check for updates" }),
     ).toBeVisible();
@@ -82,8 +82,66 @@ test.describe("Windows build", () => {
       page.getByRole("checkbox", { name: "Check for updates" }),
     ).toBeVisible();
     await expect(page.getByText("Show what's new")).toHaveCount(0);
-    await expect(page.getByText("Meetings", { exact: true })).toHaveCount(0);
+    await expect(
+      page.getByRole("checkbox", { name: "Meetings", exact: true }),
+    ).toBeChecked();
     await expect(page.getByRole("dialog")).toHaveCount(0);
+  });
+
+  test("shows no Meetings page while Meetings are off", async ({ page }) => {
+    await page.goto(
+      "/tests/fixtures/settings-pages.html?platform=windows&meetings=0",
+    );
+    await expect(page.getByRole("navigation")).toBeVisible();
+    await expect(nav(page, "Meetings")).toHaveCount(0);
+  });
+
+  test("words the Meetings page for a PC and opens the Windows microphone settings", async ({
+    page,
+  }) => {
+    await openWindows(page);
+    await nav(page, "Meetings").click();
+
+    await expect(
+      page.getByText("Microphone access", { exact: true }),
+    ).toBeVisible();
+    await expect(page.getByText("System audio access")).toHaveCount(0);
+    await expect(page.getByText(/System Audio Recording/)).toHaveCount(0);
+    await expect(page.getByText(/\bMacs?\b|macOS|menu bar/)).toHaveCount(0);
+
+    await page.getByRole("button", { name: "Open Windows Settings" }).click();
+    await expect
+      .poll(() =>
+        page.evaluate(() =>
+          window.settingsPages.calls.map(({ command }) => command),
+        ),
+      )
+      .toContain("open_microphone_settings");
+    expect(
+      await page.evaluate(() =>
+        window.settingsPages.calls.map(({ command }) => command),
+      ),
+    ).not.toContain("open_system_audio_privacy_settings");
+  });
+
+  test("moves a deleted meeting to the Recycle Bin, never the Trash", async ({
+    page,
+  }) => {
+    await openWindows(page);
+    await nav(page, "Meetings").click();
+
+    await page
+      .getByRole("listitem")
+      .nth(1)
+      .getByRole("button", { name: "Delete meeting" })
+      .click();
+
+    const dialog = page.getByRole("dialog");
+    await expect(dialog).toContainText("Move this meeting to the Recycle Bin?");
+    await expect(dialog).not.toContainText("Trash");
+    await expect(
+      dialog.getByRole("button", { name: "Move to Recycle Bin" }),
+    ).toBeVisible();
   });
 
   test("offers context from the active window, read through UI Automation", async ({
@@ -126,13 +184,34 @@ test.describe("Windows build", () => {
   });
 
   test("credits only the speech model it downloads", async ({ page }) => {
-    await openWindows(page);
+    await page.goto(
+      "/tests/fixtures/settings-pages.html?platform=windows&meetings=0",
+    );
+    await expect(page.getByRole("navigation")).toBeVisible();
     await nav(page, "About").click();
     await page.getByRole("button", { name: "View licences" }).click();
 
     const dialog = page.getByRole("dialog");
     await expect(dialog.getByRole("listitem")).toHaveCount(1);
     await expect(dialog).toContainText("Parakeet TDT 0.6B v3 by NVIDIA");
+    await expect(dialog).not.toContainText("Core ML");
+    await expect(dialog).not.toContainText("pyannote");
+  });
+
+  test("credits the speaker model and its runtime once Meetings are on", async ({
+    page,
+  }) => {
+    await openWindows(page);
+    await nav(page, "About").click();
+    await page.getByRole("button", { name: "View licences" }).click();
+
+    const dialog = page.getByRole("dialog");
+    await expect(dialog.getByRole("listitem")).toHaveCount(3);
+    await expect(dialog).toContainText("Parakeet TDT 0.6B v3 by NVIDIA");
+    await expect(dialog).toContainText("pyannote Community-1, CC BY 4.0");
+    await expect(dialog).toContainText("converted to ONNX by altunenes");
+    await expect(dialog).toContainText("ONNX Runtime: Microsoft, MIT License.");
+    await expect(dialog).not.toContainText("Sortformer");
     await expect(dialog).not.toContainText("Core ML");
   });
 

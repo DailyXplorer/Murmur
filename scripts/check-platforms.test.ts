@@ -18,6 +18,7 @@ import {
   checkWindows,
   isWindowsFile,
   runPlatforms,
+  windowsMeetingsProblems,
   withoutWindowsBlocks,
 } from "./check-platforms.ts";
 
@@ -328,6 +329,26 @@ describe("Windows section", () => {
       "the Windows config builds updater artifacts: a release build turns them on",
       "the Windows updater does not read exactly the windows-beta feed",
       "the Windows updater does not install in passive mode",
+    ]);
+  });
+
+  test("Meetings stay on for Windows", () => {
+    const root = cloneRepo();
+    rewrite(root, "src-tauri/src/settings.rs", (text) =>
+      text.replace(
+        /fn default_meetings_enabled\(\) -> bool \{\s*true\s*\}/,
+        'fn default_meetings_enabled() -> bool {\n    cfg!(target_os = "macos")\n}',
+      ),
+    );
+    rewrite(root, "src/components/Sidebar.tsx", (text) =>
+      text.replace(
+        "enabled: (settings) => settings?.meetings_enabled",
+        "enabled: (settings) => !isWindows && settings?.meetings_enabled",
+      ),
+    );
+    expect(windowsMeetingsProblems(root)).toEqual([
+      "Meetings are not on by default on every platform",
+      "the sidebar hides the Meetings page on Windows",
     ]);
   });
 

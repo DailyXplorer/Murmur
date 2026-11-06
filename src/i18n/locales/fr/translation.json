@@ -65,15 +65,19 @@
     "meetingStoppedAtLimit": "La réunion a atteint la limite de 3 heures et a été enregistrée.",
     "meetingWriteFailed": "La réunion s’est arrêtée car Murmur n’a pas pu écrire sur le disque. Ce qui a été enregistré est conservé.",
     "meetingLowDiskSpace": "Il reste moins de 1,5 Go sur ce Mac. Une longue réunion peut s’arrêter plus tôt ; ce qui est enregistré est conservé.",
+    "meetingLowDiskSpaceWindows": "Il reste moins de 1,5 Go sur ce PC. Une longue réunion peut s’arrêter plus tôt ; ce qui est enregistré est conservé.",
     "meetingSystemAudioInterrupted": "L’audio système s’est arrêté après le changement de sortie audio. Murmur continue d’essayer de le rétablir ; votre micro est toujours enregistré.",
     "meetingMicrophoneInterrupted": "Le micro a cessé d’enregistrer. Murmur continue d’essayer de le rétablir ; vérifiez qu’il est toujours branché.",
     "meetingMicrophoneDenied": "L’accès au microphone est désactivé : la réunion n’enregistre pas votre voix. Autorisez Murmur dans Réglages du système → Confidentialité et sécurité → Microphone.",
+    "meetingMicrophoneDeniedWindows": "L’accès au microphone est désactivé : la réunion n’enregistre pas votre voix. Autorisez les applications de bureau dans Paramètres Windows → Confidentialité et sécurité → Microphone.",
     "meetingSystemAudioDenied": "L’enregistrement audio du système est désactivé : la réunion n’enregistre pas vos interlocuteurs. Autorisez Murmur dans Réglages du système → Confidentialité et sécurité → Enregistrement de l’écran et de l’audio du système.",
     "meetingRecovered": "Une réunion a été interrompue par une fermeture inattendue de Murmur. Ce qui a été enregistré est en cours de transcription.",
     "meetingsRecovered": "{{count}} réunions ont été interrompues par une fermeture inattendue de Murmur. Ce qui a été enregistré est en cours de transcription.",
     "meetingsReset": "Votre liste de réunions était endommagée et a été réinitialisée. Ses enregistrements sont conservés 30 jours.",
     "meetingPausedWhileAsleep": "Votre Mac s’est mis en veille pendant la réunion. Rien n’a été enregistré de {{from}} à {{to}}.",
-    "meetingAudioDropped": "Une partie de l’audio de la réunion a été perdue, car le Mac était trop occupé."
+    "meetingPausedWhileAsleepWindows": "Votre PC s’est mis en veille pendant la réunion. Rien n’a été enregistré de {{from}} à {{to}}.",
+    "meetingAudioDropped": "Une partie de l’audio de la réunion a été perdue, car le Mac était trop occupé.",
+    "meetingAudioDroppedWindows": "Une partie de l’audio de la réunion a été perdue, car le PC était trop occupé."
   },
   "sidebar": {
     "general": "Général",
@@ -361,9 +365,6 @@
         "description": "Les applications IA que vous connectez, comme Claude ou Codex, peuvent lister, rechercher et lire vos réunions. Lecture seule. Elles peuvent envoyer ce qu’elles lisent à leurs propres serveurs.",
         "dictations": "Inclure l’historique des dictées",
         "dictationsDescription": "Leur permet aussi de lire vos dernières dictées, plus personnelles que les réunions.",
-        "labelWindows": "Laisser les agents IA se connecter (MCP)",
-        "descriptionWindows": "Les applications IA que vous connectez, comme Claude ou Codex, peuvent demander à Murmur ce que vous partagez ci-dessous. Murmur ne modifie jamais rien par ce biais.",
-        "dictationsDescriptionWindows": "Leur permet de rechercher et de lire vos dictées. Elles peuvent envoyer ce qu’elles lisent à leurs propres serveurs.",
         "setupTitle": "Connecter une application",
         "setupDescription": "Choisissez votre application, puis collez ceci dedans. Sans fenêtre ni port réseau.",
         "clientsLabel": "Application IA",
@@ -803,7 +804,8 @@
         "parakeet": "Reconnaissance vocale : Parakeet Ultra par Moondream, d’après Parakeet TDT 0.6B v3 par NVIDIA, CC BY 4.0. Converti en Core ML par Fluid Inference (puce Apple) et en GGUF 8 bits par handy-computer (Mac Intel).",
         "diarization": "Diarisation Community-1 : pyannote, CC BY 4.0, avec WeSpeaker et BUT Speech@FIT. Conversion Core ML modifiée par Fluid Inference.",
         "fluidaudio": "FluidAudio : Fluid Inference, licence Apache 2.0.",
-        "sortformer": "Détection des locuteurs sous Windows : Sortformer v2.1 par NVIDIA, NVIDIA Open Model License. Converti en GGUF 8 bits par handy-computer."
+        "pyannote": "Détection des locuteurs sous Windows : pyannote Community-1, CC BY 4.0, avec WeSpeaker et BUT Speech@FIT. Modifié : converti en ONNX par altunenes et scindé en deux parties par welcomyou.",
+        "onnxruntime": "ONNX Runtime : Microsoft, licence MIT."
       }
     },
     "transcript": {
@@ -1021,12 +1023,44 @@
             "saveFailed": "Connecté, mais la session n’a pas pu être enregistrée sur ce PC."
           }
         }
+      },
+      "advanced": {
+        "meetingsToggle": {
+          "description": "Enregistrez vos réunions depuis votre microphone et l’audio du système. Ajoute une page Réunions, un raccourci et un élément dans la zone de notification."
+        }
       }
     },
     "meetings": {
       "models": {
         "licence": {
           "parakeet": "Reconnaissance vocale : Parakeet Ultra par Moondream, d’après Parakeet TDT 0.6B v3 par NVIDIA, CC BY 4.0. Converti en GGUF 8 bits par handy-computer."
+        },
+        "preparing": "Préparation des modèles pour ce PC…",
+        "unsupported": "La détection des intervenants nécessite un processeur Intel ou AMD 64 bits. Les réunions affichent un intervenant par source audio."
+      },
+      "recording": {
+        "description": "Vous pouvez aussi démarrer et arrêter une réunion avec son raccourci ou depuis le menu de la zone de notification. Une réunion s’arrête d’elle-même au bout de 3 heures."
+      },
+      "live": {
+        "unsupported": "Le texte en direct demande un PC avec un processeur Intel ou AMD 64 bits. La transcription sera faite après l’arrêt."
+      },
+      "systemAudioUnavailable": "L’audio du système nécessite un PC avec un processeur Intel ou AMD 64 bits : les réunions n’enregistrent que votre microphone.",
+      "permission": {
+        "title": "Accès au microphone",
+        "description": "Si une réunion n’enregistre pas votre voix, autorisez les applications de bureau dans Paramètres Windows → Confidentialité et sécurité → Microphone.",
+        "open": "Ouvrir Paramètres Windows"
+      },
+      "localFallback": "Codex était indisponible pendant {{duration}} de cette réunion, cette partie a donc été transcrite sur ce PC.",
+      "deleteDialog": {
+        "title": "Placer cette réunion dans la Corbeille ?",
+        "description": "Sa transcription et son enregistrement vont dans la Corbeille, où vous pouvez encore les ouvrir. Murmur ne la liste plus.",
+        "confirm": "Placer dans la Corbeille"
+      },
+      "audio": {
+        "deleteDialog": {
+          "title": "Placer l'audio de cette réunion dans la Corbeille ?",
+          "description": "L'enregistrement va dans la Corbeille, où vous pouvez encore l'ouvrir. La transcription et le résumé restent dans Murmur, mais la réunion ne pourra plus être transcrite à nouveau.",
+          "confirm": "Placer dans la Corbeille"
         }
       }
     },

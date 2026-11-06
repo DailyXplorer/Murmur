@@ -12,9 +12,8 @@ import { ToggleSwitch } from "../ui/ToggleSwitch";
 const COPIED_MS = 2000;
 const ID_PREFIX = "mcp-client";
 
-/** Lets AI apps read meetings (macOS) and dictations through `murmur mcp`,
- * off until turned on, and shows what to paste into the app. The Windows copy
- * speaks of dictations only while Meetings are hidden there. */
+/** Lets AI apps read meetings and dictations through `murmur mcp`, off until
+ * turned on, and shows what to paste into the app. */
 export const McpAccess: React.FC = () => {
   const { t } = useTranslation();
   const { getSetting, updateSetting, isUpdating } = useSettings();
@@ -62,16 +61,8 @@ export const McpAccess: React.FC = () => {
         checked={enabled}
         onChange={(value) => updateSetting("mcp_enabled", value)}
         isUpdating={isUpdating("mcp_enabled")}
-        label={t(
-          isWindows
-            ? "settings.advanced.mcp.labelWindows"
-            : "settings.advanced.mcp.label",
-        )}
-        description={t(
-          isWindows
-            ? "settings.advanced.mcp.descriptionWindows"
-            : "settings.advanced.mcp.description",
-        )}
+        label={t("settings.advanced.mcp.label")}
+        description={t("settings.advanced.mcp.description")}
         grouped={true}
       />
       {enabled && (
@@ -80,11 +71,7 @@ export const McpAccess: React.FC = () => {
           onChange={(value) => updateSetting("mcp_include_dictations", value)}
           isUpdating={isUpdating("mcp_include_dictations")}
           label={t("settings.advanced.mcp.dictations")}
-          description={t(
-            isWindows
-              ? "settings.advanced.mcp.dictationsDescriptionWindows"
-              : "settings.advanced.mcp.dictationsDescription",
-          )}
+          description={t("settings.advanced.mcp.dictationsDescription")}
           grouped={true}
         />
       )}

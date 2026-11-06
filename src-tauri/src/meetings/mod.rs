@@ -27,6 +27,14 @@ pub mod cap;
 pub mod capture;
 pub mod chunking;
 pub mod coordinator;
+// Speaker diarization with pyannote Community-1: every stage but the two
+// networks is plain Rust and tested on any host; only the ONNX Runtime glue
+// (`diarize::pyannote`) is Windows-only.
+#[cfg_attr(
+    not(all(target_os = "windows", target_arch = "x86_64")),
+    allow(dead_code)
+)]
+pub mod diarize;
 pub mod export;
 pub mod helper;
 pub mod live;
@@ -45,8 +53,10 @@ pub mod protocol;
 pub mod rename;
 pub mod retention;
 pub mod save_panel;
-// Kills its child processes with SIGKILL and reads macOS process usage.
-#[cfg(all(test, target_os = "macos"))]
+// Kills its child processes (SIGKILL on a Mac, TerminateProcess on Windows)
+// and reads each platform's process memory. The three-hour run with `say` and
+// the helper is macOS-only; Windows has a soak of its own in the same file.
+#[cfg(all(test, any(target_os = "macos", target_os = "windows")))]
 mod soak;
 pub mod speakers;
 pub mod spread;
@@ -56,6 +66,10 @@ pub mod tokens;
 pub mod track_audio;
 pub mod transcribe;
 pub mod trash;
+// The Recycle Bin call is Windows-only; what decides its input and result is
+// plain code, tested on every host.
+#[cfg(any(target_os = "windows", test))]
+mod trash_windows;
 pub mod wav_recovery;
 
 use std::collections::{HashSet, VecDeque};
@@ -87,7 +101,16 @@ use transcribe::{CodexTranscriber, CodexVerdict, LocalTranscriber, RetryPolicy, 
 
 pub const BINDING_ID: &str = "meeting_toggle";
 /// Option+Command+M is macOS's "Minimize All"; adding Control frees it.
+#[cfg(target_os = "macos")]
 pub const DEFAULT_BINDING: &str = "ctrl+option+command+m";
+/// The default of the betas, where Meetings were hidden. Ctrl+Alt+Win+M reads
+/// as AltGr+Win+M on layouts that have an AltGr key.
+#[cfg(target_os = "windows")]
+pub const PREVIOUS_DEFAULT_BINDING: &str = "ctrl+option+command+m";
+/// Ctrl+Alt is AltGr on many layouts and Win+Ctrl+M is taken by Windows
+/// itself: Alt+Shift+M is left to Murmur, as Alt+Shift+V is for paste last.
+#[cfg(target_os = "windows")]
+pub const DEFAULT_BINDING: &str = "alt+shift+m";
 pub const TRAY_ITEM_ID: &str = "meeting_toggle";
 
 /// Sent whenever a meeting starts or stops.
@@ -1301,6 +1324,24 @@ mod tests {
         crate::shortcut::tauri_impl::parse_shortcut(DEFAULT_BINDING).unwrap();
     }
 
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn default_binding_leaves_the_other_default_shortcuts_alone() {
+        let default = crate::shortcut::tauri_impl::parse_shortcut(DEFAULT_BINDING).unwrap();
+        for taken in [
+            crate::paste_last::DEFAULT_BINDING,
+            crate::settings::DEFAULT_TRANSCRIBE_BINDING,
+            "win+m",
+            "ctrl+m",
+            "alt+m",
+        ] {
+            if let Ok(taken) = crate::shortcut::tauri_impl::parse_shortcut(taken) {
+                assert_ne!(default, taken, "{taken:?}");
+            }
+        }
+    }
+
+    #[cfg(target_os = "macos")]
     #[test]
     fn default_binding_leaves_standard_macos_shortcuts_alone() {
         // A global hotkey swallows its keys in every app, so the default must

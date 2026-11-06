@@ -240,12 +240,8 @@ pub async fn open_system_audio_privacy_settings() -> Result<(), String> {
 #[tauri::command]
 #[specta::specta]
 pub async fn open_system_audio_privacy_settings() -> Result<(), String> {
-    Err(MEETINGS_UNAVAILABLE.to_string())
+    Err("Windows has no system audio permission to open".to_string())
 }
-
-/// Meetings need the macOS system-audio tap and on-device analysis.
-#[cfg(target_os = "windows")]
-const MEETINGS_UNAVAILABLE: &str = "Meetings are not available on Windows";
 
 /// What turning meetings on or off does to the meeting shortcut.
 enum MeetingShortcutChange {
@@ -305,10 +301,6 @@ fn toggle_meetings(mut settings: AppSettings, enabled: bool) -> Option<MeetingsT
 #[tauri::command]
 #[specta::specta]
 pub fn change_meetings_enabled_setting(app: AppHandle, enabled: bool) -> Result<(), String> {
-    #[cfg(target_os = "windows")]
-    if enabled {
-        return Err(MEETINGS_UNAVAILABLE.to_string());
-    }
     let Some(toggle) = toggle_meetings(get_settings(&app), enabled) else {
         return Ok(());
     };

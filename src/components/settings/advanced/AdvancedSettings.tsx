@@ -24,8 +24,7 @@ export const AdvancedSettings: React.FC = () => {
   const { t } = useTranslation();
   const { getSetting } = useSettings();
   const experimentalEnabled = getSetting("experimental_enabled") || false;
-  const meetingsEnabled =
-    !isWindows && (getSetting("meetings_enabled") ?? true);
+  const meetingsEnabled = getSetting("meetings_enabled") ?? true;
 
   return (
     <SettingsPage label={t("sidebar.advanced")}>
@@ -34,7 +33,7 @@ export const AdvancedSettings: React.FC = () => {
         <AutostartToggle grouped={true} />
         <ShowTrayIcon grouped={true} />
         <ShowOverlay grouped={true} />
-        {!isWindows && <MeetingsToggle grouped={true} />}
+        <MeetingsToggle grouped={true} />
         {meetingsEnabled && <MeetingCallPrompt />}
         {meetingsEnabled && <MeetingLiveTranscript />}
         {meetingsEnabled && <MeetingsAudioRetention />}

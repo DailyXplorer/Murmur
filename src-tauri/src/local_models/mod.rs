@@ -358,6 +358,19 @@ impl LocalModels {
         });
     }
 
+    /// Deletes the folders of models no source holds any more
+    /// (`manifest::RETIRED_FOLDERS`). A failure is logged and left to the next
+    /// launch.
+    fn remove_retired(&self) {
+        for folder in manifest::RETIRED_FOLDERS {
+            match std::fs::remove_dir_all(self.dir.join(folder)) {
+                Ok(()) => log::info!("Deleted a retired model folder"),
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+                Err(error) => log::warn!("Cannot delete a retired model folder: {error}"),
+            }
+        }
+    }
+
     /// The state once no download, check or compile is running.
     pub async fn settled(&self) -> LocalModelState {
         let mut state = self.state.subscribe();
@@ -617,6 +630,10 @@ impl LocalModels {
             // the CTC model: done here, the first dictation does not wait.
             self.prepare(operation).await?;
             std::fs::write(&marker, &id)?;
+            // Only an earlier Windows build made a retired folder.
+            if cfg!(target_os = "windows") {
+                self.remove_retired();
+            }
             Ok::<_, Stopped>(())
         };
         if let Err(Stopped::Failed(reason)) = fetched.await {

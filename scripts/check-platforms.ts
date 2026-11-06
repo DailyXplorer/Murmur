@@ -612,11 +612,27 @@ export const windowsRequiredPaths: string[] = [
   "src-tauri/src/meetings/call_probe_windows.rs",
   "src-tauri/src/meetings/capture/loopback_logic.rs",
   "src-tauri/src/meetings/capture/wasapi.rs",
+  "src-tauri/src/meetings/capture/route.rs",
   "src-tauri/src/meetings/power_windows.rs",
   "src-tauri/src/meetings/archive/aac.rs",
   "src-tauri/src/meetings/archive/media_foundation.rs",
   "src-tauri/src/meetings/archive/resample.rs",
+  "src-tauri/src/meetings/trash_windows.rs",
+  "src-tauri/src/meetings/diarize/mod.rs",
+  "src-tauri/src/meetings/diarize/ahc.rs",
+  "src-tauri/src/meetings/diarize/assign.rs",
+  "src-tauri/src/meetings/diarize/config.rs",
+  "src-tauri/src/meetings/diarize/embedding.rs",
+  "src-tauri/src/meetings/diarize/fbank.rs",
+  "src-tauri/src/meetings/diarize/parity.rs",
+  "src-tauri/src/meetings/diarize/plda.rs",
+  "src-tauri/src/meetings/diarize/pyannote.rs",
+  "src-tauri/src/meetings/diarize/reconstruct.rs",
+  "src-tauri/src/meetings/diarize/segmentation.rs",
+  "src-tauri/src/meetings/diarize/types.rs",
+  "src-tauri/src/meetings/diarize/vbx.rs",
   "docs/windows-meetings.md",
+  "docs/windows-meetings-owner-checks.md",
   "src-tauri/updater-artifacts.conf.json",
   ".github/scripts/minisign.mjs",
   ".github/scripts/windows-updater-manifest.mjs",
@@ -627,9 +643,11 @@ export const windowsRequiredPaths: string[] = [
   ".github/scripts/fixtures/windows-updater/Murmur_1.9.0-beta.7_x64-setup.exe.sig",
   ".github/scripts/check-nextest-timeout.ps1",
   ".github/scripts/windows-media-foundation.ps1",
+  ".github/scripts/windows-record-dialogue.ps1",
   ".github/scripts/windows-smoke.ps1",
   ".github/scripts/windows-vc-runtime.ps1",
   ".github/workflows/windows.yml",
+  ".github/workflows/meetings-windows.yml",
 ];
 
 // Until the unified release removes the override, a Windows install reads its
@@ -682,6 +700,66 @@ export function windowsUpdaterProblems(root: string): string[] {
   return problems;
 }
 
+/**
+ * Meetings are on for Windows: nothing hides them there. Each rule fails on
+ * the line that used to keep them out.
+ */
+export function windowsMeetingsProblems(root: string): string[] {
+  const problems: string[] = [];
+  // A tree with no sources is reported by the required paths, not here.
+  if (!existsSync(path.join(root, "src-tauri/src/settings.rs")))
+    return problems;
+  const rustFunctionBody = (source: string, signature: string): string => {
+    const start = source.indexOf(signature);
+    if (start === -1) return "";
+    const end = source.indexOf("\n}\n", start);
+    return source.slice(start, end === -1 ? undefined : end);
+  };
+  const settingsSource = read(root, "src-tauri/src/settings.rs");
+  if (
+    rustFunctionBody(settingsSource, "fn default_meetings_enabled()")
+      .replace(/\s+/g, " ")
+      .trim() !== "fn default_meetings_enabled() -> bool { true"
+  ) {
+    problems.push("Meetings are not on by default on every platform");
+  }
+  if (
+    rustFunctionBody(settingsSource, "fn restrict_to_windows(").includes(
+      "meetings_enabled",
+    )
+  ) {
+    problems.push("restrict_to_windows turns Meetings off on Windows");
+  }
+  if (!settingsSource.includes("fn turn_on_meetings_once(")) {
+    problems.push("a Windows store written with Meetings off is not migrated");
+  }
+  if (
+    /!isWindows[^\n]*meetings_enabled/.test(
+      read(root, "src/components/Sidebar.tsx"),
+    )
+  ) {
+    problems.push("the sidebar hides the Meetings page on Windows");
+  }
+  if (
+    /!isWindows[^\n]*<MeetingsToggle/.test(
+      read(root, "src/components/settings/advanced/AdvancedSettings.tsx"),
+    )
+  ) {
+    problems.push("the Advanced page hides the Meetings switch on Windows");
+  }
+  if (
+    read(root, "src-tauri/src/commands/meetings.rs").includes(
+      "not available on Windows",
+    )
+  ) {
+    problems.push("a meetings command refuses to run on Windows");
+  }
+  if (!/Meetings/.test(read(root, ".github/scripts/windows-smoke.ps1"))) {
+    problems.push("the Windows smoke test does not open the Meetings page");
+  }
+  return problems;
+}
+
 export function checkWindows(
   root: string = defaultRoot,
   required: string[] = windowsRequiredPaths,
@@ -694,6 +772,7 @@ export function checkWindows(
   }
   if (required === windowsRequiredPaths) {
     failures.push(...windowsUpdaterProblems(root));
+    failures.push(...windowsMeetingsProblems(root));
   }
   return { failures, summary: `${required.length} required paths` };
 }
