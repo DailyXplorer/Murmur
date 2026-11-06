@@ -48,13 +48,46 @@ pub fn this_mac() -> &'static [Source] {
     }
 }
 
-/// The speaker model (Sortformer) relative to the models directory, on
-/// Windows, where it is the one optional source.
-#[cfg(target_os = "windows")]
-pub fn speaker_gguf_path() -> std::path::PathBuf {
-    let source = &pinned::WINDOWS[1];
-    std::path::Path::new(source.folder).join(source.files[0].path)
+/// Where the speaker model of Windows (pyannote Community-1 as ONNX files,
+/// its optional sources) sits under the models directory. All its sources
+/// share the folder.
+pub const PYANNOTE_FOLDER: &str = "pyannote";
+pub const SEGMENTATION_ONNX: &str = "segmentation-community-1.onnx";
+pub const ENCODER_ONNX: &str = "embedding_encoder.onnx";
+pub const HEAD_WEIGHT_NPY: &str = "resnet_seg_1_weight.npy";
+pub const HEAD_BIAS_NPY: &str = "resnet_seg_1_bias.npy";
+pub const PLDA_PARAMETERS_JSON: &str = "plda-parameters.json";
+pub const XVECTOR_TRANSFORM_JSON: &str = "xvector-transform.json";
+/// Every file of the speaker model.
+pub const PYANNOTE_FILES: [&str; 6] = [
+    SEGMENTATION_ONNX,
+    ENCODER_ONNX,
+    HEAD_WEIGHT_NPY,
+    HEAD_BIAS_NPY,
+    PLDA_PARAMETERS_JSON,
+    XVECTOR_TRANSFORM_JSON,
+];
+
+/// A file of the speaker model, relative to the models directory.
+pub fn pyannote_path(file: &str) -> std::path::PathBuf {
+    std::path::Path::new(PYANNOTE_FOLDER).join(file)
 }
+
+/// What the manifest pins for a file of the speaker model: its size and
+/// SHA-256, to check the file before it is opened.
+pub fn pyannote_entry(file: &str) -> Option<&'static ModelFile> {
+    pinned::WINDOWS
+        .iter()
+        .filter(|source| source.folder == PYANNOTE_FOLDER)
+        .flat_map(|source| source.files)
+        .find(|entry| entry.path == file)
+}
+
+/// Folders of models no source holds any more: deleted once the optional
+/// sources are in place. `sortformer` held the speaker model of an earlier
+/// Windows build (at most four voices, trained on English), which pyannote
+/// replaced.
+pub const RETIRED_FOLDERS: &[&str] = &["sortformer"];
 
 /// The speech model earlier versions downloaded, Parakeet TDT 0.6B v3. A
 /// folder it left ready stays in use while Parakeet Ultra downloads beside
@@ -160,13 +193,17 @@ mod tests {
     fn the_download_sizes_are_the_ones_shown() {
         assert_eq!(total_bytes(pinned::APPLE_SILICON), 756_903_921);
         assert_eq!(total_bytes(pinned::X86_64), 740_363_168);
-        assert_eq!(total_bytes(pinned::WINDOWS), 879_673_504);
+        assert_eq!(total_bytes(pinned::WINDOWS), 773_096_642);
+        assert_eq!(
+            total_bytes(pinned::WINDOWS.iter().filter(|s| s.optional)),
+            32_733_474
+        );
     }
 
     /// Windows dictates with the Intel Mac model, so a models folder ready
     /// before the speaker model came stays ready: same required sources.
     #[test]
-    fn windows_adds_one_optional_speaker_model_to_the_intel_set() {
+    fn windows_adds_the_optional_speaker_model_to_the_intel_set() {
         let required: Vec<_> = pinned::WINDOWS.iter().filter(|s| !s.optional).collect();
         assert_eq!(required.len(), pinned::X86_64.len());
         for (windows, intel) in required.iter().zip(pinned::X86_64) {
@@ -184,10 +221,46 @@ mod tests {
             id(pinned::X86_64)
         );
         let optional: Vec<_> = pinned::WINDOWS.iter().filter(|s| s.optional).collect();
-        assert_eq!(optional.len(), 1);
-        assert_eq!(optional[0].folder, "sortformer");
-        assert_eq!(optional[0].files.len(), 1);
-        assert!(optional[0].files[0].path.ends_with("Q8_0.gguf"));
+        assert_eq!(optional.len(), 3);
+        assert!(optional.iter().all(|s| s.folder == PYANNOTE_FOLDER));
+    }
+
+    /// The names the analyzer opens are the pinned ones, and nothing else is
+    /// in the folder.
+    #[test]
+    fn the_speaker_model_files_are_the_pinned_ones() {
+        let mut pinned_names: Vec<&str> = pinned::WINDOWS
+            .iter()
+            .filter(|s| s.optional)
+            .flat_map(|s| s.files.iter().map(|f| f.path))
+            .collect();
+        pinned_names.sort_unstable();
+        let mut named = PYANNOTE_FILES.to_vec();
+        named.sort_unstable();
+        assert_eq!(pinned_names, named);
+        assert_eq!(
+            pyannote_path(ENCODER_ONNX),
+            std::path::Path::new("pyannote").join("embedding_encoder.onnx")
+        );
+        for name in PYANNOTE_FILES {
+            let entry = pyannote_entry(name).expect(name);
+            assert_eq!(entry.path, name);
+        }
+        assert!(pyannote_entry("model.onnx").is_none());
+    }
+
+    /// A models folder an earlier Windows build filled with the Sortformer
+    /// model keeps its dictation models: the retired folder is none of the
+    /// current sources' and not the speech model's.
+    #[test]
+    fn a_retired_folder_is_no_source_folder() {
+        for retired in RETIRED_FOLDERS {
+            for source in pinned::WINDOWS {
+                assert_ne!(source.folder, *retired, "{}", source.repo);
+            }
+            assert_ne!(*retired, PREVIOUS.folder);
+        }
+        assert_eq!(RETIRED_FOLDERS, ["sortformer"]);
     }
 
     /// The Meetings page shows the size the download really is, in every

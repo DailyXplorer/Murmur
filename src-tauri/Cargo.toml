@@ -149,6 +149,12 @@ transcribe-cpp = { version = "=0.4.1", default-features = false }
 # set, and the fastest the user's processor runs is loaded, as Handy does.
 [target.'cfg(all(target_os = "windows", target_arch = "x86_64"))'.dependencies]
 transcribe-cpp = { version = "=0.4.1", default-features = false, features = ["dynamic-backends"] }
+# ONNX Runtime for the speaker model of Meetings (pyannote Community-1): the
+# CPU provider only, prebuilt binaries that the build downloads, checks against
+# the hash the crate pins and links statically, so no DLL ships beside the app
+# and no system copy of onnxruntime.dll can be picked up by name. Pinned: the
+# crate is a release candidate, and upgrades are deliberate.
+ort = { version = "=2.0.0-rc.15", default-features = false, features = ["std", "download-binaries", "tls-native"] }
 
 [dev-dependencies]
 tempfile = "3"
