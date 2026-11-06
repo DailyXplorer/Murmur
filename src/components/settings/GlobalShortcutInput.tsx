@@ -25,6 +25,13 @@ import { toast } from "sonner";
 
 const MODIFIER_KEYS = new Set(["ctrl", "option", "shift", "command"]);
 
+// macOS records the physical key under its own name and needs no layout read
+// to do so; only Windows waits for one (`recordedKeys`).
+const PHYSICAL_KEYS: RecordedKeys = { names: {}, unusable: [] };
+const NO_LAYOUT_READ_YET: RecordedKeys | null = isWindows
+  ? null
+  : PHYSICAL_KEYS;
+
 // Read from the event flags rather than tracked keydowns, so a key whose
 // keyup was swallowed can never linger in the recorded shortcut.
 const modifiersHeld = (e: KeyboardEvent): string[] =>
@@ -62,8 +69,8 @@ export const GlobalShortcutInput: React.FC<GlobalShortcutInputProps> = ({
   const [keyLabels, setKeyLabels] = useState<KeyLabels>({});
   // The name to save for a pressed key, by the key's own name: on Windows,
   // the virtual key the layout puts there, which the shortcut fires on.
-  // Null until the layout read for this capture answers.
-  const recordedKeys = useRef<RecordedKeys | null>(null);
+  // Null until the layout read for this capture answers (Windows only).
+  const recordedKeys = useRef<RecordedKeys | null>(NO_LAYOUT_READ_YET);
   // Counts layout reads, so an older read never overwrites a newer one.
   const layoutReads = useRef(0);
   const shortcutRefs = useRef<Map<string, HTMLElement | null>>(new Map());
@@ -91,8 +98,9 @@ export const GlobalShortcutInput: React.FC<GlobalShortcutInputProps> = ({
   }, [shortcutId]);
 
   // Shortcuts name keys after a US keyboard; show what the user's layout
-  // prints on them instead. The layout can change while Settings stay open,
-  // so it is read again when a capture starts and when the window comes back.
+  // prints on them instead. macOS reads it once, at mount. On Windows it can
+  // change while Settings stay open, so it is read again when a capture
+  // starts and when the window comes back.
   const readLayout = useCallback(() => {
     const read = ++layoutReads.current;
     commands
@@ -101,10 +109,11 @@ export const GlobalShortcutInput: React.FC<GlobalShortcutInputProps> = ({
         if (read === layoutReads.current) setKeyLabels(labels);
       })
       .catch(() => undefined);
+    if (!isWindows) return;
     commands
       .getRecordedKeyNames()
       // The backend answers no names when it cannot read the layout too.
-      .catch((): RecordedKeys => ({ names: {}, unusable: [] }))
+      .catch((): RecordedKeys => PHYSICAL_KEYS)
       .then((keys) => {
         if (read === layoutReads.current) recordedKeys.current = keys;
       });
@@ -115,8 +124,10 @@ export const GlobalShortcutInput: React.FC<GlobalShortcutInputProps> = ({
     const readIfShown = () => {
       if (document.visibilityState === "visible") readLayout();
     };
-    window.addEventListener("focus", readLayout);
-    document.addEventListener("visibilitychange", readIfShown);
+    if (isWindows) {
+      window.addEventListener("focus", readLayout);
+      document.addEventListener("visibilitychange", readIfShown);
+    }
     return () => {
       // Answers still on their way are dropped.
       layoutReads.current++;
@@ -248,8 +259,10 @@ export const GlobalShortcutInput: React.FC<GlobalShortcutInputProps> = ({
 
     setOriginalBinding(bindings[id]?.current_binding || "");
     setHeldModifiers([]);
-    recordedKeys.current = null;
-    readLayout();
+    if (isWindows) {
+      recordedKeys.current = null;
+      readLayout();
+    }
     // Suspends all bindings so no shortcut fires (or swallows the
     // keystrokes) while keys are being recorded
     beginCapture(id);
