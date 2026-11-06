@@ -1,10 +1,10 @@
 //! Windows: the words of a meeting with their times, and who spoke when, from
-//! two models on the CPU inside the app (transcribe.cpp): Parakeet Ultra for
-//! the words, Sortformer (up to four speakers) for the voices. There is no
-//! helper process here, so a crash in native code is answered with
-//! `catch_unwind`, a time limit scaled to the audio, and a cancel that stops
-//! the models between their steps. What decides the result is in
-//! `analysis_local`, which a test runs without models.
+//! models on the CPU inside the app: Parakeet Ultra (transcribe.cpp) for the
+//! words, pyannote Community-1 (ONNX Runtime, `diarize/`) for the voices, any
+//! number of them. There is no helper process here, so a crash in native code
+//! is answered with `catch_unwind`, a time limit scaled to the audio, and a
+//! cancel that stops the models between their steps. What decides the result
+//! is in `analysis_local`, which a test runs without models.
 
 use anyhow::{anyhow, bail, Context};
 use std::ops::Range;
@@ -13,15 +13,12 @@ use std::path::Path;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use transcribe_cpp::{
-    Backend, CancelToken, DiarizeExtension, DiarizeOptions, DiarizeSession, DiarizeSessionOptions,
-    Error, ErrorKind, Model, ModelOptions, RunOptions, Session, SessionOptions,
-    SortformerDiarizeOptions, SortformerPreset, TimestampKind,
+    CancelToken, Error, ErrorKind, Model, RunOptions, Session, SessionOptions, TimestampKind,
 };
 
 use super::analysis::{Analysis, AnalysisRequest, AnalyzeFuture, Analyzer, AnalyzerOutcome};
-use super::analysis_local::{
-    self as local, Diarizer, Failure, Heard, Recognizer, Run, Spoken, TrackAudio,
-};
+use super::analysis_local::{self as local, Diarizer, Failure, Heard, Recognizer, Run, TrackAudio};
+use super::diarize::pyannote;
 use super::helper::Ended;
 use super::merge::Track;
 use super::models::Models;
@@ -29,9 +26,8 @@ use super::protocol::{ErrorCode, Message, Phase};
 use super::store::SpeakerAnalysis;
 use crate::audio_toolkit::constants::TARGET_SAMPLE_RATE;
 use crate::audio_toolkit::pauses::{is_silent, speech_pieces};
-use crate::engine::local::cpu::{load_cpu_modules, load_model};
+use crate::engine::local::cpu::load_model;
 use crate::engine::local::MAX_PIECE;
-use crate::local_models::manifest::speaker_gguf_path;
 use crate::ProcessingOperation;
 
 /// How long a stopped run is given to return before it is left behind.
@@ -56,13 +52,10 @@ impl Analyzer for CppAnalyzer {
             }
             // The speaker model comes after the speech model. Without it
             // the words are timed all the same.
-            let speaker_model = if models.wait_optional(&operation).await {
-                Some(models.dir().join(speaker_gguf_path()))
-            } else if operation.is_cancelled() {
+            let speaker_model = models.wait_optional(&operation).await;
+            if !speaker_model && operation.is_cancelled() {
                 return AnalyzerOutcome::Cancelled;
-            } else {
-                None
-            };
+            }
             let started = Instant::now();
             // The model looked for, as the helper analyzer reads it.
             let asr = crate::local_models::asr_in_use(models.dir());
@@ -76,7 +69,7 @@ impl Analyzer for CppAnalyzer {
             let dir = models.dir().to_path_buf();
             let mut job = tokio::task::spawn_blocking({
                 let stop = stop.clone();
-                move || analyze_blocking(&dir, &request, speaker_model.as_deref(), &stop)
+                move || analyze_blocking(&dir, &request, speaker_model, &stop)
             });
             let deadline = tokio::time::sleep(limit);
             tokio::pin!(deadline);
@@ -173,7 +166,7 @@ fn threads() -> i32 {
 fn analyze_blocking(
     dir: &Path,
     request: &AnalysisRequest,
-    speaker_model: Option<&Path>,
+    speaker_model: bool,
     stop: &CancelToken,
 ) -> Finished {
     let mut analysis = Analysis::default();
@@ -202,7 +195,7 @@ fn analyze_blocking(
 fn run_models(
     dir: &Path,
     request: &AnalysisRequest,
-    speaker_model: Option<&Path>,
+    speaker_model: bool,
     stop: &CancelToken,
     analysis: &mut Analysis,
     speech_model_missing: &mut bool,
@@ -240,14 +233,25 @@ fn run_models(
             return Ended::Crashed;
         }
     };
-    let mut speakers = speaker_model.and_then(|path| match Sortformer::load(path, stop) {
-        Ok(speakers) => Some(speakers),
-        Err(error) => {
+    let is_stopped = || stop.is_cancelled();
+    let mut speakers: Option<Box<dyn Diarizer + '_>> = if speaker_model {
+        match pyannote::load(dir, usize::try_from(threads()).unwrap_or(1), &is_stopped) {
+            Ok(speakers) => Some(Box::new(speakers)),
             // Missing or damaged: the words are timed, one speaker per track.
-            log::warn!("Meeting analysis: no speaker model ({:?})", error.kind());
-            None
+            Err(Failure::Missing) => {
+                log::warn!("Meeting analysis: no speaker model");
+                None
+            }
+            // The files are there but cannot run (a processor without AVX2, a
+            // runtime that does not start): the same, and the run says so.
+            Err(failure) => {
+                log::warn!("Meeting analysis: the speaker model cannot run ({failure:?})");
+                Some(Box::new(Unusable(failure)))
+            }
         }
-    });
+    } else {
+        None
+    };
     let mut last_step: Option<(Phase, Track, u32)> = None;
     local::run(
         &Run {
@@ -257,9 +261,7 @@ fn run_models(
             stop: &|| stop.is_cancelled(),
         },
         &mut recognizer,
-        speakers
-            .as_mut()
-            .map(|speakers| speakers as &mut dyn Diarizer),
+        speakers.as_deref_mut(),
         analysis,
         &mut |phase, track, fraction| {
             // A line per tenth of a phase: numbers and fixed words only.
@@ -279,18 +281,6 @@ fn failure(error: &Error) -> Failure {
         ErrorKind::ModelFileNotFound => Failure::Missing,
         kind => Failure::Failed(format!("{kind:?}")),
     }
-}
-
-fn cpu_model(path: &Path) -> transcribe_cpp::Result<Model> {
-    Model::load_with(
-        path,
-        &ModelOptions {
-            backend: Backend::Cpu,
-            device: None,
-            // Mapped from the file, which is only ever replaced by a rename.
-            no_mmap: false,
-        },
-    )
 }
 
 /// Parakeet Ultra, asked for the time of every word.
@@ -337,44 +327,13 @@ impl Recognizer for Parakeet {
     }
 }
 
-/// Sortformer in its offline operating point.
-struct Sortformer {
-    session: DiarizeSession,
-}
+/// A speaker model that cannot run: the words are timed, the run ends as a
+/// failure of the speaker stage and each track keeps one speaker.
+struct Unusable(Failure);
 
-impl Sortformer {
-    fn load(path: &Path, stop: &CancelToken) -> transcribe_cpp::Result<Self> {
-        if let Err(error) = load_cpu_modules() {
-            log::error!("Meeting analysis: {error:#}");
-        }
-        let model = cpu_model(path)?;
-        let mut session = model.diarize_session_with(&DiarizeSessionOptions {
-            n_threads: threads(),
-        })?;
-        session.set_cancel_token(stop);
-        Ok(Self { session })
-    }
-}
-
-impl Diarizer for Sortformer {
-    fn tell_apart(&mut self, track: &[f32]) -> Result<Vec<Spoken>, Failure> {
-        let options = DiarizeOptions {
-            family: Some(DiarizeExtension::Sortformer(SortformerDiarizeOptions {
-                preset: Some(SortformerPreset::VeryHighLatency),
-            })),
-        };
-        let segments = self
-            .session
-            .run(track, &options)
-            .map_err(|error| failure(&error))?;
-        Ok(segments
-            .into_iter()
-            .map(|segment| Spoken {
-                speaker: segment.speaker_id,
-                start_ms: segment.t0_ms,
-                end_ms: segment.t1_ms,
-            })
-            .collect())
+impl Diarizer for Unusable {
+    fn tell_apart(&mut self, _: &[f32]) -> Result<Vec<local::Spoken>, Failure> {
+        Err(self.0.clone())
     }
 }
 
@@ -422,6 +381,7 @@ fn read_track(path: &Path) -> anyhow::Result<Vec<f32>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::local_models::manifest::{pyannote_path, PYANNOTE_FILES};
     use crate::meetings::protocol::timed_words;
     use std::path::PathBuf;
 
@@ -502,7 +462,7 @@ mod tests {
             tracks: vec![(Track::Mic, dir.path().join("mic.wav"))],
             by_levels: Track::Mic,
         };
-        let finished = analyze_blocking(dir.path(), &request, None, &CancelToken::new());
+        let finished = analyze_blocking(dir.path(), &request, false, &CancelToken::new());
         assert_eq!(finished.ended, Ended::Crashed);
         assert!(finished.analysis.words.is_empty());
         assert!(matches!(
@@ -511,22 +471,20 @@ mod tests {
         ));
     }
 
-    /// Needs both models and the spoken utterances, so CI runs it on its own
-    /// (`cpu model` on Windows): `MURMUR_SMOKE_MODELS=<models dir>
-    /// MURMUR_SMOKE_DIALOGUE=<dir> cargo test --lib
-    /// meetings::analysis_cpp -- --ignored`. The folder holds `u1.wav`,
-    /// `u2.wav`, `u3.wav` (16 kHz mono, spoken in turn by two voices) with
-    /// the words of each in `u<N>.txt`, one per line, and `one-voice` when
-    /// the machine had only one voice.
-    #[test]
-    #[ignore = "needs the models and recorded speech"]
-    fn two_voices_are_timed_and_told_apart() {
+    /// Runs the analysis on the dialogue of `clips` with the models of
+    /// `MURMUR_SMOKE_MODELS`. The folder holds `u1.wav`, `u2.wav`, `u3.wav`
+    /// (16 kHz mono, spoken in turn by two voices) with the words of each in
+    /// `u<N>.txt`, one per line, and `one-voice` when the machine had only
+    /// one voice.
+    fn check_dialogue(clips: &Path) {
         let models =
             PathBuf::from(std::env::var("MURMUR_SMOKE_MODELS").expect("MURMUR_SMOKE_MODELS"));
-        let clips =
-            PathBuf::from(std::env::var("MURMUR_SMOKE_DIALOGUE").expect("MURMUR_SMOKE_DIALOGUE"));
-        let speaker_model = models.join(speaker_gguf_path());
-        assert!(speaker_model.is_file(), "the speaker model is not fetched");
+        for name in PYANNOTE_FILES {
+            assert!(
+                models.join(pyannote_path(name)).is_file(),
+                "{name} is not fetched"
+            );
+        }
 
         // The dialogue: each utterance, then a second of silence.
         let gap = TARGET_SAMPLE_RATE as usize;
@@ -564,8 +522,7 @@ mod tests {
             by_levels: Track::System,
         };
         let started = Instant::now();
-        let finished =
-            analyze_blocking(&models, &request, Some(&speaker_model), &CancelToken::new());
+        let finished = analyze_blocking(&models, &request, true, &CancelToken::new());
         println!(
             "analysed {length:.1} s of speech in {:.1} s: {:?}",
             started.elapsed().as_secs_f32(),
@@ -646,5 +603,32 @@ mod tests {
         );
         assert!(near(second_starts, spans[1].0), "{second_starts}");
         assert!(near(first_ends, spans[0].1), "{first_ends}");
+    }
+
+    /// Needs the models and the spoken utterances, so CI runs it on its own
+    /// (`cpu model` on Windows): `MURMUR_SMOKE_MODELS=<models dir>
+    /// MURMUR_SMOKE_DIALOGUE=<dir> cargo test --lib
+    /// meetings::analysis_cpp -- --ignored`.
+    #[test]
+    #[ignore = "needs the models and recorded speech"]
+    fn two_voices_are_timed_and_told_apart() {
+        let clips =
+            PathBuf::from(std::env::var("MURMUR_SMOKE_DIALOGUE").expect("MURMUR_SMOKE_DIALOGUE"));
+        check_dialogue(&clips);
+    }
+
+    /// The same in French, where the runner has French voices; it says so and
+    /// passes without checking anything where it has none.
+    #[test]
+    #[ignore = "needs the models and recorded French speech"]
+    fn two_french_voices_are_timed_and_told_apart() {
+        let clips = PathBuf::from(
+            std::env::var("MURMUR_SMOKE_DIALOGUE_FR").expect("MURMUR_SMOKE_DIALOGUE_FR"),
+        );
+        if !clips.join("u1.wav").is_file() {
+            println!("no French voice on this machine: the French dialogue is skipped");
+            return;
+        }
+        check_dialogue(&clips);
     }
 }

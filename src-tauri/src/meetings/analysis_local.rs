@@ -61,6 +61,17 @@ pub trait Recognizer {
 pub trait Diarizer {
     /// Who spoke when on a whole track of 16 kHz mono audio.
     fn tell_apart(&mut self, track: &[f32]) -> Result<Vec<Spoken>, Failure>;
+
+    /// `tell_apart`, reporting the share of the track done (0.0 to 1.0) as it
+    /// goes. A model that cannot say reports nothing.
+    fn tell_apart_reporting(
+        &mut self,
+        track: &[f32],
+        progress: &mut dyn FnMut(f64),
+    ) -> Result<Vec<Spoken>, Failure> {
+        let _ = progress;
+        self.tell_apart(track)
+    }
 }
 
 /// The audio side of a run: reading a track, cutting it into pieces the
@@ -248,7 +259,9 @@ pub fn run(
         // Nobody to tell apart: a model fed silence invents speakers.
         Vec::new()
     } else {
-        match speakers.tell_apart(&samples) {
+        match speakers.tell_apart_reporting(&samples, &mut |fraction| {
+            progress(Phase::Diarize, diarize, fraction)
+        }) {
             Ok(spoken) => turns(&spoken, samples_ms(samples.len())),
             Err(failure) => return ended_by(failure, "diarize", analysis),
         }
@@ -748,6 +761,83 @@ mod tests {
         assert_eq!(turns(&reversed, 10_000), result);
     }
 
+    /// The model numbers speakers as it meets them; there is no maximum, and
+    /// two digits name a speaker as well as one.
+    #[test]
+    fn twelve_speakers_are_named_s1_to_s12_in_the_order_they_start() {
+        let spoken: Vec<Spoken> = (1..=12)
+            .rev()
+            .map(|speaker| Spoken {
+                speaker,
+                start_ms: i64::from(speaker) * 5_000,
+                end_ms: i64::from(speaker) * 5_000 + 4_000,
+            })
+            .collect();
+        let result = turns(&spoken, 70_000);
+        let names: Vec<String> = result.iter().map(|turn| turn.spk.clone()).collect();
+        let expected: Vec<String> = (1..=12).map(|speaker| format!("S{speaker}")).collect();
+        assert_eq!(names, expected);
+        assert!(result.windows(2).all(|pair| pair[0].s < pair[1].s));
+    }
+
+    #[test]
+    fn a_run_keeps_the_turns_of_more_than_four_speakers() {
+        let mut speakers = Voices::two();
+        speakers.answer = Ok((1..=8)
+            .map(|speaker| Spoken {
+                speaker,
+                start_ms: i64::from(speaker - 1) * 4_000,
+                end_ms: i64::from(speaker) * 4_000,
+            })
+            .collect());
+        let (ended, analysis, _) = analyse(
+            &tracks(40, 40),
+            Track::System,
+            &Fake::new(),
+            &mut Words::new(1),
+            Some(&mut speakers),
+        );
+        assert_eq!(ended, Ended::Done);
+        let turns = analysis.turns.expect("no turns");
+        let names: std::collections::BTreeSet<&str> =
+            turns.iter().map(|turn| turn.spk.as_str()).collect();
+        assert_eq!(names.len(), 8);
+        assert!(names.contains("S8"));
+        assert_eq!(analysis.outcome(), SpeakerAnalysis::Separated);
+    }
+
+    #[test]
+    fn a_speaker_model_that_reports_its_progress_has_it_passed_on() {
+        struct Reporting;
+        impl Diarizer for Reporting {
+            fn tell_apart(&mut self, _: &[f32]) -> Result<Vec<Spoken>, Failure> {
+                Ok(Vec::new())
+            }
+            fn tell_apart_reporting(
+                &mut self,
+                _: &[f32],
+                progress: &mut dyn FnMut(f64),
+            ) -> Result<Vec<Spoken>, Failure> {
+                progress(0.25);
+                progress(0.75);
+                Ok(Vec::new())
+            }
+        }
+        let (_, _, steps) = analyse(
+            &tracks(40, 40),
+            Track::System,
+            &Fake::new(),
+            &mut Words::new(1),
+            Some(&mut Reporting),
+        );
+        let diarize: Vec<f64> = steps
+            .iter()
+            .filter(|(phase, _, _)| *phase == Phase::Diarize)
+            .map(|(_, _, fraction)| *fraction)
+            .collect();
+        assert_eq!(diarize, [0.0, 0.25, 0.75, 1.0]);
+    }
+
     #[test]
     fn the_time_limit_grows_with_the_audio_and_never_falls_below_the_base() {
         assert_eq!(time_limit(&[]), LIMIT_BASE);
@@ -758,6 +848,23 @@ mod tests {
             LIMIT_BASE + Duration::from_millis(3 * hour * 2)
         );
         assert!(time_limit(&[hour]) < time_limit(&[hour, hour]));
+    }
+
+    /// The speaker pass costs one window of the segmentation and one of the
+    /// encoder per 2 s of audio: 0.057 s per second of audio on 2 threads of a
+    /// server CPU (`docs/windows-meetings.md`). A processor 20 times slower
+    /// than that (1.2 s per second), that also recognises both tracks at real
+    /// time, still ends a 3-hour meeting within the limit; a hung model does
+    /// not.
+    #[test]
+    fn a_three_hour_meeting_on_a_very_slow_processor_fits_the_limit() {
+        let hour = 3_600_000u64;
+        let three_hours = 3 * hour;
+        let limit = time_limit(&[three_hours, three_hours]);
+        let recognition = Duration::from_millis(2 * three_hours);
+        let speakers = Duration::from_millis(three_hours * 12 / 10);
+        assert!(recognition + speakers < limit);
+        assert!(limit < Duration::from_millis(6 * three_hours + 60 * 60 * 1000));
     }
 
     #[test]

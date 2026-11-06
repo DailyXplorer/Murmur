@@ -433,6 +433,38 @@ mod tests {
         assert_eq!(speaker_rows(["s2"], false)[0].name, "Speaker 1");
     }
 
+    /// Nothing in the numbering, the rows or the assignment caps the number
+    /// of voices: a meeting of twelve keeps twelve, `s10` after `s9`.
+    #[test]
+    fn twelve_speakers_keep_their_keys_names_and_words() {
+        let segments: Vec<Segment> = (0..12u64)
+            .rev()
+            .map(|n| segment(&format!("S{}", n + 1), n * 4_000, n * 4_000 + 3_500))
+            .collect();
+        let keys = number(&segments);
+        assert_eq!(keys.len(), 12);
+        for n in 1..=12 {
+            assert_eq!(keys[&format!("S{n}")], format!("s{n}"));
+        }
+
+        let rows = speaker_rows(keys.values().map(String::as_str), false);
+        let names: Vec<&str> = rows.iter().map(|row| row.name.as_str()).collect();
+        assert_eq!(names[0], "Speaker 1");
+        assert_eq!(names[11], "Speaker 12");
+        let colours: Vec<u32> = rows.iter().map(|row| row.color_index).collect();
+        assert_eq!(colours, (1..=12).collect::<Vec<u32>>());
+
+        // A sentence of six words in each turn goes to its speaker.
+        let tokens: Vec<TimedToken> = (0..12u64)
+            .flat_map(|n| timed("un deux trois quatre cinq six.", n * 4_000, 500))
+            .collect();
+        let owners = assigned(&tokens, &segments);
+        let expected: Vec<String> = (1..=12u32)
+            .flat_map(|n| std::iter::repeat_n(format!("S{n}"), 6))
+            .collect();
+        assert_eq!(owners, expected);
+    }
+
     #[test]
     fn the_identity_changes_with_the_diarization() {
         let first = [segment("A", 0, 1_000), segment("B", 1_000, 2_000)];

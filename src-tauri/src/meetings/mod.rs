@@ -25,6 +25,14 @@ pub mod cap;
 pub mod capture;
 pub mod chunking;
 pub mod coordinator;
+// Speaker diarization with pyannote Community-1: every stage but the two
+// networks is plain Rust and tested on any host; only the ONNX Runtime glue
+// (`diarize::pyannote`) is Windows-only.
+#[cfg_attr(
+    not(all(target_os = "windows", target_arch = "x86_64")),
+    allow(dead_code)
+)]
+pub mod diarize;
 pub mod export;
 pub mod helper;
 pub mod live;
