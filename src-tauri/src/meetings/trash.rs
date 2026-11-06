@@ -304,6 +304,7 @@ pub mod tests {
         assert!(names(&root).is_empty());
     }
 
+    #[cfg(unix)]
     #[test]
     fn a_folder_that_is_a_link_is_never_trashed() {
         let tmp = tempfile::tempdir().unwrap();
