@@ -25,7 +25,9 @@ mod foreground;
 mod helpers;
 mod input;
 mod insights;
-#[cfg(target_os = "macos")]
+// Only the macOS clipboard and Accessibility code reach it outside tests, but
+// the shared field_excerpt tests use it everywhere.
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 mod leading_space;
 pub mod local_models;
 mod managers;
