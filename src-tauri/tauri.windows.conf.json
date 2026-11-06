@@ -22,9 +22,6 @@
   },
   "plugins": {
     "updater": {
-      "endpoints": [
-        "https://github.com/DailyXplorer/Murmur/releases/download/windows-beta/latest.json"
-      ],
       "windows": {
         "installMode": "passive"
       }

@@ -1,6 +1,24 @@
 name: "Release"
 
-on: workflow_dispatch
+on:
+  workflow_dispatch:
+    inputs:
+      windows:
+        description: "Build and publish the Windows installer with this release. Off: a Mac-only release, as before Windows joined."
+        type: boolean
+        default: true
+      channel:
+        description: "stable: the release the update feed and Latest point at. test: a prerelease on the updater-test feed, for trying the updater on a Mac and a PC."
+        type: choice
+        options:
+          - stable
+          - test
+        default: stable
+
+# Two releases must never write the feeds at the same time.
+concurrency:
+  group: release
+  cancel-in-progress: false
 
 jobs:
   validate-release-source:
@@ -30,6 +48,25 @@ jobs:
           test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
           test "$GITHUB_SHA" = "$(git rev-parse refs/remotes/origin/main)"
           echo "sha=$GITHUB_SHA" >> "$GITHUB_OUTPUT"
+
+      # A stable release is x.y.z, a test release x.y.z-test.N: a test version
+      # can never become Latest, and a stable version never lands on the test feed.
+      - name: Check the version suits the channel
+        shell: bash
+        env:
+          CHANNEL: ${{ inputs.channel }}
+        run: |
+          set -euo pipefail
+          version=$(jq -r .version src-tauri/tauri.conf.json)
+          case "$CHANNEL" in
+            stable) pattern='^[0-9]+\.[0-9]+\.[0-9]+$' ;;
+            test) pattern='^[0-9]+\.[0-9]+\.[0-9]+-test\.[0-9]+$' ;;
+            *) echo "::error::Unknown channel $CHANNEL"; exit 1 ;;
+          esac
+          if ! [[ "$version" =~ $pattern ]]; then
+            echo "::error::Version $version does not suit the $CHANNEL channel (stable: x.y.z, test: x.y.z-test.N)"
+            exit 1
+          fi
 
   create-release:
     needs: validate-release-source
@@ -66,7 +103,7 @@ jobs:
               target_commitish: '${{ needs.validate-release-source.outputs.sha }}',
               name: `v${{ steps.get-version.outputs.version }}`,
               draft: true,
-              prerelease: false,
+              prerelease: ${{ inputs.channel == 'test' }},
               generate_release_notes: true
             })
             return data.id
@@ -90,7 +127,7 @@ jobs:
     with:
       platform: ${{ matrix.platform }}
       target: ${{ matrix.target }}
-      build-args: ${{ matrix.args }}
+      build-args: ${{ matrix.args }}${{ inputs.channel == 'test' && ' --config src-tauri/updater-test.conf.json' || '' }}
       sign-binaries: true
       asset-prefix: "murmur"
       release-id: ${{ needs.create-release.outputs.release-id }}
@@ -113,11 +150,37 @@ jobs:
       MACOS_CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
       MACOS_SIGNING_IDENTITY: ${{ secrets.MACOS_SIGNING_IDENTITY }}
 
-  publish-release:
+  # Windows is a beta but ships in the same release. The installer and its
+  # signature reach the draft only after the install smoke test passed on it.
+  publish-windows:
+    if: ${{ inputs.windows }}
     permissions:
       contents: write
-    needs: [validate-release-source, create-release, publish-tauri]
+    needs: [validate-release-source, create-release]
+    uses: ./.github/workflows/build-windows.yml
+    with:
+      release-id: ${{ needs.create-release.outputs.release-id }}
+      tag: v${{ needs.create-release.outputs.version }}
+      version: ${{ needs.create-release.outputs.version }}
+      ref: ${{ needs.validate-release-source.outputs.sha }}
+      updater-endpoint: ${{ inputs.channel == 'test' && format('https://github.com/{0}/releases/download/updater-test/latest.json', github.repository) || '' }}
+    secrets:
+      TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+
+  # Runs when the Mac builds passed and the Windows build passed or was not
+  # asked for. A failed Windows build with windows=true leaves the draft
+  # unpublished, so no feed is ever half written.
+  publish-release:
+    if: ${{ always() && needs.publish-tauri.result == 'success' && ((inputs.windows && needs.publish-windows.result == 'success') || (!inputs.windows && needs.publish-windows.result == 'skipped')) }}
+    permissions:
+      contents: write
+    needs:
+      [validate-release-source, create-release, publish-tauri, publish-windows]
     runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_REPO: ${{ github.repository }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -125,14 +188,85 @@ jobs:
           ref: ${{ needs.validate-release-source.outputs.sha }}
           persist-credentials: false
 
+      - name: Check the channel suits the version
+        env:
+          CHANNEL: ${{ inputs.channel }}
+          VERSION: ${{ needs.create-release.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          case "$CHANNEL" in
+            stable) pattern='^[0-9]+\.[0-9]+\.[0-9]+$' ;;
+            test) pattern='^[0-9]+\.[0-9]+\.[0-9]+-test\.[0-9]+$' ;;
+            *) echo "::error::Unknown channel $CHANNEL"; exit 1 ;;
+          esac
+          if ! [[ "$VERSION" =~ $pattern ]]; then
+            echo "::error::Version $VERSION does not suit the $CHANNEL channel"
+            exit 1
+          fi
+
       - name: Build and upload updater manifest
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           RELEASE_ID: ${{ needs.create-release.outputs.release-id }}
           VERSION: ${{ needs.create-release.outputs.version }}
+          INCLUDE_WINDOWS: ${{ inputs.windows }}
         run: node .github/scripts/publish-updater-manifest.mjs
 
+      # The manifest sits on the draft only. Every signature in it is checked
+      # against the file it points at and the updater public key before the
+      # release goes public.
+      - name: Download the assets the manifest points at
+        env:
+          RELEASE_ID: ${{ needs.create-release.outputs.release-id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir assets
+          gh api --paginate "repos/${GITHUB_REPOSITORY}/releases/${RELEASE_ID}/assets" \
+            --jq '.[] | [.id, .name] | @tsv' > asset-list.tsv
+          jq -r '.platforms[].url' latest.json | sort -u | while read -r url; do
+            name=$(node -e 'process.stdout.write(decodeURIComponent(process.argv[1].split("/").pop()))' "$url")
+            id=$(awk -F'\t' -v name="$name" '$2 == name { print $1 }' asset-list.tsv)
+            [ -n "$id" ] || { echo "::error::$name is not on the release"; exit 1; }
+            gh api -H "Accept: application/octet-stream" "repos/${GITHUB_REPOSITORY}/releases/assets/${id}" > "assets/${name}"
+          done
+
+      - name: Verify the updater signatures
+        env:
+          VERSION: ${{ needs.create-release.outputs.version }}
+          RELEASE_TAG: v${{ needs.create-release.outputs.version }}
+          INCLUDE_WINDOWS: ${{ inputs.windows }}
+        run: node .github/scripts/publish-updater-manifest.mjs --verify-signatures assets
+
+      # Read before anything is public: the feed the old Windows betas read
+      # must exist, and its current file is kept for a rollback.
+      - name: Keep the previous windows-beta feed and prepare the new one
+        if: inputs.channel == 'stable' && inputs.windows
+        env:
+          VERSION: ${{ needs.create-release.outputs.version }}
+          RELEASE_TAG: v${{ needs.create-release.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh release view windows-beta > /dev/null
+          mkdir previous-feed legacy-feed
+          curl --fail --silent --show-error --location \
+            --output previous-feed/latest.json \
+            "https://github.com/${GITHUB_REPOSITORY}/releases/download/windows-beta/latest.json"
+          node .github/scripts/publish-updater-manifest.mjs --emit-legacy-feed legacy-feed/latest.json
+
+      - name: Keep the previous windows-beta feed as an artifact
+        if: inputs.channel == 'stable' && inputs.windows
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: windows-beta-feed-before-${{ needs.create-release.outputs.version }}
+          path: previous-feed/latest.json
+          if-no-files-found: error
+          retention-days: 90
+
       - name: Publish release
+        if: inputs.channel == 'stable'
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
         with:
           script: |
@@ -145,9 +279,27 @@ jobs:
               make_latest: 'true'
             })
 
+      # A test release is a prerelease and never Latest: the stable feed
+      # (releases/latest/download/latest.json) is not touched.
+      - name: Publish test prerelease
+        if: inputs.channel == 'test'
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
+        with:
+          script: |
+            await github.rest.repos.updateRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              release_id: Number('${{ needs.create-release.outputs.release-id }}'),
+              draft: false,
+              prerelease: true,
+              make_latest: 'false'
+            })
+
       - name: Verify public updater manifest
+        if: inputs.channel == 'stable'
         env:
           VERSION: ${{ needs.create-release.outputs.version }}
+          INCLUDE_WINDOWS: ${{ inputs.windows }}
         shell: bash
         run: |
           set -euo pipefail
@@ -160,4 +312,64 @@ jobs:
             sleep 5
           done
           echo "Updater manifest did not become publicly available" >&2
+          exit 1
+
+      - name: Point the windows-beta feed at this release
+        if: inputs.channel == 'stable' && inputs.windows
+        shell: bash
+        run: gh release upload windows-beta legacy-feed/latest.json --clobber
+
+      - name: Verify public windows-beta feed
+        if: inputs.channel == 'stable' && inputs.windows
+        env:
+          VERSION: ${{ needs.create-release.outputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          url="https://github.com/${GITHUB_REPOSITORY}/releases/download/windows-beta/latest.json"
+          for attempt in 1 2 3 4 5; do
+            if manifest="$(curl --fail --silent --show-error --location "$url")" &&
+              VERSION="$VERSION" MANIFEST="$manifest" node .github/scripts/publish-updater-manifest.mjs --verify-public-legacy; then
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "The windows-beta feed did not become publicly available" >&2
+          exit 1
+
+      - name: Point the test feed at this release
+        if: inputs.channel == 'test'
+        env:
+          SHA: ${{ needs.validate-release-source.outputs.sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if ! gh release view updater-test > /dev/null 2>&1; then
+            gh release create updater-test \
+              --target "$SHA" \
+              --prerelease \
+              --latest=false \
+              --title "Updater test feed" \
+              --notes "Test builds of Murmur read their update feed from this release. Do not download anything from here. The test installers are the releases named v<version>-test.N."
+          fi
+          gh release upload updater-test latest.json --clobber
+
+      - name: Verify public test feed
+        if: inputs.channel == 'test'
+        env:
+          VERSION: ${{ needs.create-release.outputs.version }}
+          RELEASE_TAG: v${{ needs.create-release.outputs.version }}
+          INCLUDE_WINDOWS: ${{ inputs.windows }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          url="https://github.com/${GITHUB_REPOSITORY}/releases/download/updater-test/latest.json"
+          for attempt in 1 2 3 4 5; do
+            if manifest="$(curl --fail --silent --show-error --location "$url")" &&
+              VERSION="$VERSION" MANIFEST="$manifest" node .github/scripts/publish-updater-manifest.mjs --verify-public; then
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "The test feed did not become publicly available" >&2
           exit 1

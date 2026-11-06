@@ -21,3 +21,21 @@ Markdown with absolute paths:
 ```md
 ![Streaming transcription preview](/release-notes/0.9.0/streaming-transcription.webp)
 ```
+
+## Windows (beta)
+
+Murmur for Windows ships in the same release as the Mac app, under the same
+version number. Every release's notes end with a "Windows (beta)" section in
+user terms:
+
+```md
+## Windows (beta)
+
+Murmur for Windows is a beta and comes with this release: download
+`Murmur_<version>_x64-setup.exe` from the same page as the Mac app. The
+installer has no Windows certificate, so SmartScreen asks once. PCs on Beta 7
+or 8 update by themselves. Nothing changes for Mac users.
+```
+
+A release built with `windows` off (a Mac-only fix) says so in one line. Test
+releases (`x.y.z-test.N`) use the notes of `x.y.z`.

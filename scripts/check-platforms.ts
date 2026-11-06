@@ -648,15 +648,23 @@ export const windowsRequiredPaths: string[] = [
   ".github/scripts/windows-vc-runtime.ps1",
   ".github/workflows/windows.yml",
   ".github/workflows/meetings-windows.yml",
+  ".github/workflows/build-windows.yml",
+  ".github/workflows/release-dry-run.yml",
+  ".github/scripts/release-dry-run.mjs",
+  "src-tauri/updater-test.conf.json",
+  "scripts/release-contract.ts",
 ];
 
-// Until the unified release removes the override, a Windows install reads its
-// own feed; the macOS endpoint and the shared public key stay in the base
-// config (the macOS contract pins them).
-export const windowsUpdateFeed =
-  "https://github.com/DailyXplorer/Murmur/releases/download/windows-beta/latest.json";
+// The Windows app reads the same feed as the Mac app: the overlay holds no
+// endpoint, and the base config holds exactly this one. The `windows-beta`
+// feed is only a pointer for installs older than the unified release; it may
+// appear in docs and release scripts, never in a Tauri config.
+export const stableUpdateFeed =
+  "https://github.com/DailyXplorer/Murmur/releases/latest/download/latest.json";
+export const testUpdateFeed =
+  "https://github.com/DailyXplorer/Murmur/releases/download/updater-test/latest.json";
 
-interface WindowsOverlay {
+interface UpdaterConfig {
   bundle?: { createUpdaterArtifacts?: boolean };
   plugins?: {
     updater?: {
@@ -667,9 +675,9 @@ interface WindowsOverlay {
   };
 }
 
-/** The Windows updater rules: its own feed, passive installs, no signing by default. */
+/** The Windows updater rules: the shared feed, passive installs, no signing by default. */
 export function windowsUpdaterProblems(root: string): string[] {
-  const overlay = JSON.parse(read(root, windowsOverlayPath)) as WindowsOverlay;
+  const overlay = JSON.parse(read(root, windowsOverlayPath)) as UpdaterConfig;
   const updater = overlay.plugins?.updater;
   const problems: string[] = [];
   if (overlay.bundle?.createUpdaterArtifacts !== false) {
@@ -677,9 +685,20 @@ export function windowsUpdaterProblems(root: string): string[] {
       "the Windows config builds updater artifacts: a release build turns them on",
     );
   }
-  if ((updater?.endpoints ?? []).join("\n") !== windowsUpdateFeed) {
+  if (updater?.endpoints !== undefined) {
     problems.push(
-      "the Windows updater does not read exactly the windows-beta feed",
+      "the Windows config overrides the updater endpoints: it reads the shared feed",
+    );
+  }
+  const baseConfig = existsSync(path.join(root, "src-tauri/tauri.conf.json"))
+    ? read(root, "src-tauri/tauri.conf.json")
+    : "{}";
+  const base = JSON.parse(baseConfig) as UpdaterConfig;
+  if (
+    (base.plugins?.updater?.endpoints ?? []).join("\n") !== stableUpdateFeed
+  ) {
+    problems.push(
+      "tauri.conf.json does not hold exactly the stable update feed as its one endpoint",
     );
   }
   if (updater?.windows?.installMode !== "passive") {
@@ -692,9 +711,29 @@ export function windowsUpdaterProblems(root: string): string[] {
   }
   const artifactsPath = "src-tauri/updater-artifacts.conf.json";
   if (existsSync(path.join(root, artifactsPath))) {
-    const artifacts = JSON.parse(read(root, artifactsPath)) as WindowsOverlay;
+    const artifacts = JSON.parse(read(root, artifactsPath)) as UpdaterConfig;
     if (artifacts.bundle?.createUpdaterArtifacts !== true) {
       problems.push(`${artifactsPath} does not turn the artifacts on`);
+    }
+  }
+  const testPath = "src-tauri/updater-test.conf.json";
+  if (existsSync(path.join(root, testPath))) {
+    const test = JSON.parse(read(root, testPath)) as Record<string, unknown>;
+    const { $schema: _schema, ...rest } = test;
+    if (
+      JSON.stringify(rest) !==
+      JSON.stringify({ plugins: { updater: { endpoints: [testUpdateFeed] } } })
+    ) {
+      problems.push(`${testPath} must hold only the test feed endpoint`);
+    }
+  }
+  for (const name of readdirSync(path.join(root, "src-tauri"))) {
+    if (/^tauri.*\.json$/.test(name) || /\.conf\.json$/.test(name)) {
+      if (read(root, `src-tauri/${name}`).includes("windows-beta")) {
+        problems.push(
+          `src-tauri/${name} points at the legacy windows-beta feed`,
+        );
+      }
     }
   }
   return problems;

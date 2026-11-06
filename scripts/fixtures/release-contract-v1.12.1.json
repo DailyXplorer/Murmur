@@ -1,0 +1,449 @@
+{
+  "release": {
+    "on": "workflow_dispatch",
+    "jobs": {
+      "validate-release-source": {
+        "if": "github.ref == 'refs/heads/main' && github.actor == github.repository_owner && github.triggering_actor == github.repository_owner",
+        "permissions": {
+          "contents": "read"
+        },
+        "runs-on": "ubuntu-latest",
+        "outputs": {
+          "sha": "${{ steps.source.outputs.sha }}"
+        },
+        "steps": [
+          {
+            "name": "Checkout selected commit",
+            "uses": "actions/checkout",
+            "with": {
+              "ref": "${{ github.sha }}",
+              "fetch-depth": 0,
+              "persist-credentials": false
+            }
+          },
+          {
+            "name": "Validate immutable main source",
+            "id": "source",
+            "shell": "bash",
+            "run": "set -euo pipefail\ngit fetch --no-tags origin +refs/heads/main:refs/remotes/origin/main\ntest \"$(git rev-parse HEAD)\" = \"$GITHUB_SHA\"\ntest \"$GITHUB_SHA\" = \"$(git rev-parse refs/remotes/origin/main)\"\necho \"sha=$GITHUB_SHA\" >> \"$GITHUB_OUTPUT\"\n"
+          }
+        ]
+      },
+      "create-release": {
+        "needs": "validate-release-source",
+        "permissions": {
+          "contents": "write"
+        },
+        "runs-on": "ubuntu-latest",
+        "outputs": {
+          "release-id": "${{ steps.create-release.outputs.result }}",
+          "version": "${{ steps.get-version.outputs.version }}"
+        },
+        "steps": [
+          {
+            "name": "Checkout repository",
+            "uses": "actions/checkout",
+            "with": {
+              "ref": "${{ needs.validate-release-source.outputs.sha }}",
+              "persist-credentials": false
+            }
+          },
+          {
+            "name": "Get version from tauri.conf.json",
+            "id": "get-version",
+            "shell": "bash",
+            "run": "VERSION=$(grep -o '\"version\": \"[^\"]*\"' src-tauri/tauri.conf.json | cut -d'\"' -f4)\necho \"Application version from tauri.conf.json: $VERSION\"\necho \"version=$VERSION\" >> \"$GITHUB_OUTPUT\"\n"
+          },
+          {
+            "name": "Create Draft Release",
+            "id": "create-release",
+            "uses": "actions/github-script",
+            "with": {
+              "script": "const { data } = await github.rest.repos.createRelease({\n  owner: context.repo.owner,\n  repo: context.repo.repo,\n  tag_name: `v${{ steps.get-version.outputs.version }}`,\n  target_commitish: '${{ needs.validate-release-source.outputs.sha }}',\n  name: `v${{ steps.get-version.outputs.version }}`,\n  draft: true,\n  prerelease: false,\n  generate_release_notes: true\n})\nreturn data.id\n"
+            }
+          }
+        ]
+      },
+      "publish-tauri": {
+        "permissions": {
+          "contents": "write"
+        },
+        "needs": ["validate-release-source", "create-release"],
+        "strategy": {
+          "fail-fast": false,
+          "matrix": {
+            "include": [
+              {
+                "platform": "macos-26",
+                "args": "--target aarch64-apple-darwin",
+                "target": "aarch64-apple-darwin"
+              },
+              {
+                "platform": "macos-latest",
+                "args": "--target x86_64-apple-darwin",
+                "target": "x86_64-apple-darwin"
+              }
+            ]
+          }
+        },
+        "uses": "./.github/workflows/build.yml",
+        "with": {
+          "platform": "${{ matrix.platform }}",
+          "target": "${{ matrix.target }}",
+          "build-args": "${{ matrix.args }}",
+          "sign-binaries": true,
+          "asset-prefix": "murmur",
+          "release-id": "${{ needs.create-release.outputs.release-id }}",
+          "ref": "${{ needs.validate-release-source.outputs.sha }}",
+          "environment": "release-signing",
+          "no-cache": true
+        },
+        "secrets": {
+          "APPLE_CERTIFICATE": "${{ secrets.APPLE_CERTIFICATE }}",
+          "APPLE_CERTIFICATE_PASSWORD": "${{ secrets.APPLE_CERTIFICATE_PASSWORD }}",
+          "KEYCHAIN_PASSWORD": "${{ secrets.KEYCHAIN_PASSWORD }}",
+          "APPLE_ID": "${{ secrets.APPLE_ID }}",
+          "APPLE_TEAM_ID": "${{ secrets.APPLE_TEAM_ID }}",
+          "APPLE_ID_PASSWORD": "${{ secrets.APPLE_ID_PASSWORD }}",
+          "APPLE_PASSWORD": "${{ secrets.APPLE_PASSWORD }}",
+          "TAURI_SIGNING_PRIVATE_KEY": "${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}",
+          "TAURI_SIGNING_PRIVATE_KEY_PASSWORD": "${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}",
+          "MACOS_CERT_P12_BASE64": "${{ secrets.MACOS_CERT_P12_BASE64 }}",
+          "MACOS_CERT_PASSWORD": "${{ secrets.MACOS_CERT_PASSWORD }}",
+          "MACOS_SIGNING_IDENTITY": "${{ secrets.MACOS_SIGNING_IDENTITY }}"
+        }
+      },
+      "publish-release": {
+        "permissions": {
+          "contents": "write"
+        },
+        "needs": ["validate-release-source", "create-release", "publish-tauri"],
+        "runs-on": "ubuntu-latest",
+        "steps": [
+          {
+            "name": "Checkout repository",
+            "uses": "actions/checkout",
+            "with": {
+              "ref": "${{ needs.validate-release-source.outputs.sha }}",
+              "persist-credentials": false
+            }
+          },
+          {
+            "name": "Build and upload updater manifest",
+            "env": {
+              "GITHUB_TOKEN": "${{ secrets.GITHUB_TOKEN }}",
+              "RELEASE_ID": "${{ needs.create-release.outputs.release-id }}",
+              "VERSION": "${{ needs.create-release.outputs.version }}"
+            },
+            "run": "node .github/scripts/publish-updater-manifest.mjs"
+          },
+          {
+            "name": "Publish release",
+            "uses": "actions/github-script",
+            "with": {
+              "script": "await github.rest.repos.updateRelease({\n  owner: context.repo.owner,\n  repo: context.repo.repo,\n  release_id: Number('${{ needs.create-release.outputs.release-id }}'),\n  draft: false,\n  prerelease: false,\n  make_latest: 'true'\n})\n"
+            }
+          },
+          {
+            "name": "Verify public updater manifest",
+            "env": {
+              "VERSION": "${{ needs.create-release.outputs.version }}"
+            },
+            "shell": "bash",
+            "run": "set -euo pipefail\nurl=\"https://github.com/${GITHUB_REPOSITORY}/releases/latest/download/latest.json\"\nfor attempt in 1 2 3 4 5; do\n  if manifest=\"$(curl --fail --silent --show-error --location \"$url\")\" &&\n    VERSION=\"$VERSION\" MANIFEST=\"$manifest\" node .github/scripts/publish-updater-manifest.mjs --verify-public; then\n    exit 0\n  fi\n  sleep 5\ndone\necho \"Updater manifest did not become publicly available\" >&2\nexit 1\n"
+          }
+        ]
+      }
+    }
+  },
+  "build": {
+    "name": "Build",
+    "on": {
+      "workflow_call": {
+        "inputs": {
+          "platform": {
+            "required": true,
+            "type": "string"
+          },
+          "target": {
+            "required": true,
+            "type": "string"
+          },
+          "build-args": {
+            "required": false,
+            "type": "string",
+            "default": ""
+          },
+          "release-id": {
+            "required": false,
+            "type": "string"
+          },
+          "asset-prefix": {
+            "required": false,
+            "type": "string",
+            "default": "murmur"
+          },
+          "upload-artifacts": {
+            "required": false,
+            "type": "boolean",
+            "default": false
+          },
+          "sign-binaries": {
+            "required": false,
+            "type": "boolean",
+            "default": false
+          },
+          "ref": {
+            "required": false,
+            "type": "string",
+            "default": "${{ github.ref }}"
+          },
+          "no-cache": {
+            "required": false,
+            "type": "boolean",
+            "default": false
+          },
+          "environment": {
+            "required": false,
+            "type": "string",
+            "default": "unsigned-build"
+          }
+        },
+        "secrets": {
+          "APPLE_CERTIFICATE": {
+            "required": false
+          },
+          "APPLE_CERTIFICATE_PASSWORD": {
+            "required": false
+          },
+          "KEYCHAIN_PASSWORD": {
+            "required": false
+          },
+          "APPLE_ID": {
+            "required": false
+          },
+          "APPLE_TEAM_ID": {
+            "required": false
+          },
+          "APPLE_ID_PASSWORD": {
+            "required": false
+          },
+          "APPLE_PASSWORD": {
+            "required": false
+          },
+          "TAURI_SIGNING_PRIVATE_KEY": {
+            "required": false
+          },
+          "TAURI_SIGNING_PRIVATE_KEY_PASSWORD": {
+            "required": false
+          },
+          "MACOS_CERT_P12_BASE64": {
+            "required": false
+          },
+          "MACOS_CERT_PASSWORD": {
+            "required": false
+          },
+          "MACOS_SIGNING_IDENTITY": {
+            "required": false
+          }
+        }
+      }
+    },
+    "jobs": {
+      "build": {
+        "runs-on": "${{ inputs.platform }}",
+        "environment": "${{ inputs.environment }}",
+        "env": {
+          "HAS_APPLE_CERTIFICATE": "${{ inputs.sign-binaries && secrets.APPLE_CERTIFICATE != '' }}",
+          "HAS_APPLE_NOTARIZATION": "${{ inputs.sign-binaries && secrets.APPLE_ID != '' && secrets.APPLE_TEAM_ID != '' && (secrets.APPLE_ID_PASSWORD != '' || secrets.APPLE_PASSWORD != '') }}",
+          "HAS_STABLE_CERTIFICATE": "${{ inputs.sign-binaries && secrets.APPLE_CERTIFICATE == '' && secrets.MACOS_CERT_P12_BASE64 != '' && secrets.MACOS_CERT_PASSWORD != '' && secrets.MACOS_SIGNING_IDENTITY != '' }}",
+          "TAURI_BUNDLER_DMG_IGNORE_CI": "true"
+        },
+        "steps": [
+          {
+            "name": "Checkout repository",
+            "uses": "actions/checkout",
+            "with": {
+              "ref": "${{ inputs.ref }}",
+              "fetch-depth": 0,
+              "persist-credentials": false
+            }
+          },
+          {
+            "name": "Refuse to release without a signing certificate",
+            "if": "inputs.release-id && env.HAS_APPLE_CERTIFICATE != 'true' && env.HAS_STABLE_CERTIFICATE != 'true'",
+            "shell": "bash",
+            "run": "echo \"::error::A release needs APPLE_CERTIFICATE or the MACOS_CERT_P12_BASE64, MACOS_CERT_PASSWORD and MACOS_SIGNING_IDENTITY secrets. None is set, so the build would be signed ad hoc.\"\nexit 1\n"
+          },
+          {
+            "name": "Get version from tauri.conf.json",
+            "id": "get-version",
+            "shell": "bash",
+            "run": "VERSION=$(grep -o '\"version\": \"[^\"]*\"' src-tauri/tauri.conf.json | cut -d'\"' -f4)\necho \"Application version from tauri.conf.json: $VERSION\"\necho \"version=$VERSION\" >> \"$GITHUB_OUTPUT\"\n"
+          },
+          {
+            "name": "Determine build profile",
+            "id": "build-profile",
+            "shell": "bash",
+            "run": "if [[ \"${{ inputs.build-args }}\" == *\"--debug\"* ]]; then\n  echo \"profile=debug\" >> \"$GITHUB_OUTPUT\"\n  echo \"Build profile: debug\"\nelse\n  echo \"profile=release\" >> \"$GITHUB_OUTPUT\"\n  echo \"Build profile: release\"\nfi\n"
+          },
+          {
+            "name": "Setup Bun",
+            "uses": "oven-sh/setup-bun"
+          },
+          {
+            "name": "Install Rust 1.96.0",
+            "uses": "dtolnay/rust-toolchain",
+            "with": {
+              "toolchain": "1.96.0",
+              "targets": "${{ inputs.target }}"
+            }
+          },
+          {
+            "name": "Rust cache",
+            "if": "${{ !inputs.no-cache }}",
+            "uses": "swatinem/rust-cache",
+            "with": {
+              "workspaces": "./src-tauri -> target",
+              "key": "${{ inputs.platform }}-${{ inputs.target }}"
+            }
+          },
+          {
+            "name": "Cache the meetings helper build",
+            "if": "${{ !inputs.no-cache && inputs.target == 'aarch64-apple-darwin' }}",
+            "uses": "actions/cache",
+            "with": {
+              "path": "src-tauri/swift/MurmurMeetingsHelper/.build",
+              "key": "meetings-helper-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('src-tauri/swift/MurmurMeetingsHelper/Package.resolved') }}"
+            }
+          },
+          {
+            "name": "install frontend dependencies",
+            "run": "bun install --frozen-lockfile"
+          },
+          {
+            "name": "import Apple Developer Certificate",
+            "if": "inputs.sign-binaries && env.HAS_APPLE_CERTIFICATE == 'true'",
+            "env": {
+              "APPLE_CERTIFICATE": "${{ secrets.APPLE_CERTIFICATE }}",
+              "APPLE_CERTIFICATE_PASSWORD": "${{ secrets.APPLE_CERTIFICATE_PASSWORD }}",
+              "KEYCHAIN_PASSWORD": "${{ secrets.KEYCHAIN_PASSWORD }}"
+            },
+            "run": "printf '%s' \"$APPLE_CERTIFICATE\" | base64 --decode > certificate.p12\nsecurity create-keychain -p \"$KEYCHAIN_PASSWORD\" build.keychain\nsecurity default-keychain -s build.keychain\nsecurity unlock-keychain -p \"$KEYCHAIN_PASSWORD\" build.keychain\nsecurity set-keychain-settings -t 3600 -u build.keychain\nsecurity import certificate.p12 -k build.keychain -P \"$APPLE_CERTIFICATE_PASSWORD\" -T /usr/bin/codesign\nsecurity set-key-partition-list -S apple-tool:,apple:,codesign: -s -k \"$KEYCHAIN_PASSWORD\" build.keychain\nsecurity find-identity -v -p codesigning build.keychain\n"
+          },
+          {
+            "name": "verify certificate",
+            "if": "inputs.sign-binaries && env.HAS_APPLE_CERTIFICATE == 'true'",
+            "run": "CERT_INFO=$(security find-identity -v -p codesigning build.keychain | grep \"Developer ID Application\")\nCERT_ID=$(echo \"$CERT_INFO\" | awk -F'\"' '{print $2}')\necho \"CERT_ID=$CERT_ID\" >> $GITHUB_ENV\necho \"Certificate imported.\"\n"
+          },
+          {
+            "name": "Import stable signing certificate",
+            "if": "env.HAS_STABLE_CERTIFICATE == 'true'",
+            "env": {
+              "MACOS_CERT_P12_BASE64": "${{ secrets.MACOS_CERT_P12_BASE64 }}",
+              "MACOS_CERT_PASSWORD": "${{ secrets.MACOS_CERT_PASSWORD }}",
+              "MACOS_SIGNING_IDENTITY": "${{ secrets.MACOS_SIGNING_IDENTITY }}"
+            },
+            "shell": "bash",
+            "run": "set -euo pipefail\nkeychain=\"$RUNNER_TEMP/murmur-signing.keychain-db\"\nkeychain_password=\"$(openssl rand -base64 32)\"\ncertificate=\"$RUNNER_TEMP/murmur-signing.p12\"\n\nprintf '%s' \"$MACOS_CERT_P12_BASE64\" | base64 --decode > \"$certificate\"\nsecurity create-keychain -p \"$keychain_password\" \"$keychain\"\nsecurity set-keychain-settings -lut 21600 \"$keychain\"\nsecurity unlock-keychain -p \"$keychain_password\" \"$keychain\"\nsecurity import \"$certificate\" -k \"$keychain\" -P \"$MACOS_CERT_PASSWORD\" -T /usr/bin/codesign\nsecurity set-key-partition-list -S apple-tool:,apple:,codesign: -s -k \"$keychain_password\" \"$keychain\" > /dev/null\nrm -f \"$certificate\"\n\n# codesign looks identities up through the user search list.\nexisting=$(security list-keychains -d user | tr -d '\"')\n# shellcheck disable=SC2086\nsecurity list-keychains -d user -s \"$keychain\" $existing\n\n# A self-signed certificate is not trusted, so `find-identity -v`\n# hides it; codesign still signs with it. Check it is present.\nif ! security find-identity -p codesigning \"$keychain\" | grep -qF \"\\\"$MACOS_SIGNING_IDENTITY\\\"\"; then\n  echo \"Signing identity not found in the imported certificate\" >&2\n  exit 1\nfi\necho \"STABLE_SIGNING_IDENTITY=$MACOS_SIGNING_IDENTITY\" >> \"$GITHUB_ENV\"\necho \"STABLE_SIGNING_KEYCHAIN=$keychain\" >> \"$GITHUB_ENV\"\n"
+          },
+          {
+            "name": "Build test bundles without updater signatures",
+            "if": "${{ !inputs.sign-binaries }}",
+            "uses": "tauri-apps/tauri-action",
+            "env": {
+              "GITHUB_TOKEN": "${{ secrets.GITHUB_TOKEN }}",
+              "APPLE_SIGNING_IDENTITY": "-"
+            },
+            "with": {
+              "includeUpdaterJson": false,
+              "args": "${{ inputs.build-args }} --config '{\"bundle\":{\"createUpdaterArtifacts\":false}}'"
+            }
+          },
+          {
+            "name": "Build with Tauri",
+            "if": "inputs.sign-binaries && (env.HAS_APPLE_CERTIFICATE != 'true' || env.HAS_APPLE_NOTARIZATION != 'true')",
+            "uses": "tauri-apps/tauri-action",
+            "env": {
+              "GITHUB_TOKEN": "${{ secrets.GITHUB_TOKEN }}",
+              "APPLE_SIGNING_IDENTITY": "${{ env.HAS_APPLE_CERTIFICATE == 'true' && env.CERT_ID || env.HAS_STABLE_CERTIFICATE == 'true' && env.STABLE_SIGNING_IDENTITY || '-' }}",
+              "TAURI_SIGNING_PRIVATE_KEY": "${{ inputs.sign-binaries && secrets.TAURI_SIGNING_PRIVATE_KEY || '' }}",
+              "TAURI_SIGNING_PRIVATE_KEY_PASSWORD": "${{ inputs.sign-binaries && secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD || '' }}"
+            },
+            "with": {
+              "tagName": "${{ inputs.release-id && format('v{0}', steps.get-version.outputs.version) || '' }}",
+              "releaseName": "${{ inputs.release-id && format('v{0}', steps.get-version.outputs.version) || '' }}",
+              "releaseId": "${{ inputs.release-id }}",
+              "includeUpdaterJson": false,
+              "args": "${{ inputs.build-args }}"
+            }
+          },
+          {
+            "name": "Build and notarize with Tauri",
+            "if": "inputs.sign-binaries && env.HAS_APPLE_CERTIFICATE == 'true' && env.HAS_APPLE_NOTARIZATION == 'true'",
+            "uses": "tauri-apps/tauri-action",
+            "env": {
+              "GITHUB_TOKEN": "${{ secrets.GITHUB_TOKEN }}",
+              "APPLE_SIGNING_IDENTITY": "${{ env.CERT_ID }}",
+              "APPLE_ID": "${{ secrets.APPLE_ID }}",
+              "APPLE_TEAM_ID": "${{ secrets.APPLE_TEAM_ID }}",
+              "APPLE_ID_PASSWORD": "${{ secrets.APPLE_ID_PASSWORD }}",
+              "APPLE_PASSWORD": "${{ secrets.APPLE_PASSWORD }}",
+              "TAURI_SIGNING_PRIVATE_KEY": "${{ inputs.sign-binaries && secrets.TAURI_SIGNING_PRIVATE_KEY || '' }}",
+              "TAURI_SIGNING_PRIVATE_KEY_PASSWORD": "${{ inputs.sign-binaries && secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD || '' }}"
+            },
+            "with": {
+              "tagName": "${{ inputs.release-id && format('v{0}', steps.get-version.outputs.version) || '' }}",
+              "releaseName": "${{ inputs.release-id && format('v{0}', steps.get-version.outputs.version) || '' }}",
+              "releaseId": "${{ inputs.release-id }}",
+              "includeUpdaterJson": false,
+              "args": "${{ inputs.build-args }}"
+            }
+          },
+          {
+            "name": "Verify macOS dylib bundling",
+            "shell": "bash",
+            "run": "APP=$(find src-tauri/target -name \"*.app\" -type d | head -1)\necho \"=== Checking all @rpath deps are satisfied ===\"\nRPATH_DEPS=$(otool -L \"$APP/Contents/MacOS/murmur\" | awk '$1 ~ /^@rpath\\// {print $1}')\nif [ -z \"$RPATH_DEPS\" ]; then\n  echo \"No @rpath dependencies to verify.\"\n  exit 0\nfi\nwhile read -r dep; do\n  libname=$(basename \"$dep\")\n  if [ ! -f \"$APP/Contents/Frameworks/$libname\" ]; then\n    echo \"MISSING: $libname not found in Frameworks/\"\n    exit 1\n  else\n    echo \"OK: $libname\"\n  fi\ndone <<< \"$RPATH_DEPS\"\n"
+          },
+          {
+            "name": "Upload debug symbols (macOS)",
+            "if": "steps.build-profile.outputs.profile == 'release'",
+            "uses": "actions/upload-artifact",
+            "with": {
+              "name": "${{ inputs.asset-prefix }}-${{ inputs.target }}-dSYM",
+              "path": "src-tauri/target/${{ inputs.target }}/release/murmur.dSYM",
+              "if-no-files-found": "error",
+              "retention-days": 90
+            }
+          },
+          {
+            "name": "Launch the built app",
+            "if": "steps.build-profile.outputs.profile == 'release'",
+            "shell": "bash",
+            "env": {
+              "APP": "src-tauri/target/${{ inputs.target }}/${{ steps.build-profile.outputs.profile }}/bundle/macos/Murmur.app",
+              "SMOKE_TIMEOUT": "${{ inputs.target == 'x86_64-apple-darwin' && '60' || '15' }}"
+            },
+            "run": "bash scripts/smoke-macos-app.sh \"$APP\""
+          },
+          {
+            "name": "Remove stable signing keychain",
+            "if": "always() && env.STABLE_SIGNING_KEYCHAIN != ''",
+            "shell": "bash",
+            "run": "security delete-keychain \"$STABLE_SIGNING_KEYCHAIN\" || true"
+          },
+          {
+            "name": "Upload artifacts (macOS)",
+            "if": "inputs.upload-artifacts",
+            "uses": "actions/upload-artifact",
+            "with": {
+              "name": "${{ inputs.asset-prefix }}-${{ inputs.target }}",
+              "path": "src-tauri/target/${{ inputs.target }}/${{ steps.build-profile.outputs.profile }}/bundle/dmg/*.dmg\nsrc-tauri/target/${{ inputs.target }}/${{ steps.build-profile.outputs.profile }}/bundle/macos/*.app\n",
+              "retention-days": 30
+            }
+          }
+        ]
+      }
+    }
+  }
+}

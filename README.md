@@ -89,8 +89,9 @@ does not store anything in the keychain.
 
 ### Windows (beta)
 
-1. Open the [Windows releases](https://github.com/DailyXplorer/Murmur/releases?q=Murmur%20for%20Windows&expanded=true)
-   and download `Murmur_…_x64-setup.exe` from the first one in the list.
+1. Open the [latest release](https://github.com/DailyXplorer/Murmur/releases/latest)
+   and download `Murmur_…_x64-setup.exe`. The Mac and Windows downloads are on
+   the same page.
 2. Run the installer. It is not signed, so SmartScreen blocks it: click
    **More info**, then **Run anyway**. Murmur installs for the current user.
 3. Open Murmur, download the speech model or sign in with ChatGPT. Hold
