@@ -1,8 +1,6 @@
-//! The tools: five where meetings exist (macOS), `search` over dictations and
-//! `recent_dictations` where they do not (Windows). Each one reads through a
-//! connection opened read-only and returns JSON text. None takes a path, and
-//! none returns audio, audio paths, window names, field excerpts, settings or
-//! account data.
+//! The five tools. Each one reads through a connection opened read-only and
+//! returns JSON text. None takes a path, and none returns audio, audio
+//! paths, window names, field excerpts, settings or account data.
 
 use anyhow::Error;
 use chrono::{DateTime, SecondsFormat};
@@ -14,7 +12,6 @@ use std::time::Duration;
 
 use super::access::Access;
 use super::rpc::{RpcError, Server, INVALID_PARAMS};
-use super::MEETINGS_EXIST;
 use crate::managers::history::{self, HistoryManager};
 use crate::meetings::store::{self, list_page, with_speaker_names};
 use crate::search::search_failed;
@@ -27,13 +24,6 @@ const DICTATIONS_OFF_MESSAGE: &str = "Dictation history is not shared. Turn on \
 const UPDATE_MESSAGE: &str =
     "Murmur's data is not ready for this version. Open Murmur once to finish updating.";
 const READ_FAILED_MESSAGE: &str = "Murmur could not read its data. Try again.";
-const MEETINGS_SEARCH: &str = "Find meetings by the words in their title, summary or transcript. Every word must appear somewhere in the meeting; a word matches as a prefix; \"double quotes\" match a phrase.";
-const DICTATIONS_SEARCH: &str = "Find dictations by the words in their text. Every word must appear in the dictation; a word matches as a prefix; \"double quotes\" match a phrase.";
-const SCOPE_MESSAGE: &str = if MEETINGS_EXIST {
-    "scope must be meetings, dictations or all"
-} else {
-    "scope must be dictations"
-};
 
 const MEETINGS_FILE: &str = "meetings.db";
 const HISTORY_FILE: &str = "history.db";
@@ -57,9 +47,8 @@ pub fn open_read_only(path: &Path) -> rusqlite::Result<Connection> {
 
 /// The tools the user's settings allow, as `tools/list` answers.
 pub fn list(access: Access) -> Value {
-    let meetings = access.meetings && MEETINGS_EXIST;
     let mut tools = Vec::new();
-    if meetings {
+    if access.meetings {
         tools.push(tool(
             "list_meetings",
             "List the user's recorded meetings, newest first: id, title, start time, duration and status.",
@@ -69,11 +58,24 @@ pub fn list(access: Access) -> Value {
             }),
             &[],
         ));
-    }
-    if meetings || access.dictations {
-        tools.push(search_tool(meetings, access.dictations));
-    }
-    if meetings {
+        let (scope_text, scope_values) = if access.dictations {
+            (
+                "Where to look (default all).",
+                json!(["meetings", "dictations", "all"]),
+            )
+        } else {
+            ("Where to look (default meetings).", json!(["meetings"]))
+        };
+        tools.push(tool(
+            "search",
+            "Find meetings by the words in their title, summary or transcript. Every word must appear somewhere in the meeting; a word matches as a prefix; \"double quotes\" match a phrase.",
+            json!({
+                "query": {"type": "string", "description": "The words to look for."},
+                "scope": {"type": "string", "enum": scope_values, "description": scope_text},
+                "limit": {"type": "integer", "minimum": 1, "maximum": MAX_SEARCH, "description": "How many results (default 10)."}
+            }),
+            &["query"],
+        ));
         tools.push(tool(
             "get_transcript",
             "Read a meeting's transcript turn by turn, with who spoke and when. Long meetings come in pages: pass next_from_seq to read on.",
@@ -105,29 +107,6 @@ pub fn list(access: Access) -> Value {
     json!({"tools": tools})
 }
 
-/// `search`, worded for what the user let it look in.
-fn search_tool(meetings: bool, dictations: bool) -> Value {
-    let (description, scopes, default_scope) = match (meetings, dictations) {
-        (true, true) => (
-            MEETINGS_SEARCH,
-            json!(["meetings", "dictations", "all"]),
-            "all",
-        ),
-        (true, false) => (MEETINGS_SEARCH, json!(["meetings"]), "meetings"),
-        (false, _) => (DICTATIONS_SEARCH, json!(["dictations"]), "dictations"),
-    };
-    tool(
-        "search",
-        description,
-        json!({
-            "query": {"type": "string", "description": "The words to look for."},
-            "scope": {"type": "string", "enum": scopes, "description": format!("Where to look (default {default_scope}).")},
-            "limit": {"type": "integer", "minimum": 1, "maximum": MAX_SEARCH, "description": "How many results (default 10)."}
-        }),
-        &["query"],
-    )
-}
-
 fn tool(name: &str, description: &str, properties: Value, required: &[&str]) -> Value {
     json!({
         "name": name,
@@ -153,10 +132,10 @@ pub fn call(server: &Server, name: &str, arguments: &Value) -> Result<Value, Rpc
     let dir = server.data_dir.as_path();
     let args = Args(arguments);
     let outcome = match name {
-        "list_meetings" if MEETINGS_EXIST => list_meetings(dir, &args),
+        "list_meetings" => list_meetings(dir, &args),
         "search" => search(dir, access, &args),
-        "get_transcript" if MEETINGS_EXIST => get_transcript(dir, &args),
-        "get_summary" if MEETINGS_EXIST => get_summary(dir, &args),
+        "get_transcript" => get_transcript(dir, &args),
+        "get_summary" => get_summary(dir, &args),
         "recent_dictations" => recent_dictations(dir, access, &args),
         _ => {
             return Err(RpcError {
@@ -289,14 +268,12 @@ fn search(dir: &Path, access: Access, args: &Args) -> Result<Value, String> {
         .text("query")?
         .ok_or_else(|| "query is required".to_string())?;
     let limit = args.count("limit", 10, MAX_SEARCH)?;
-    let scope = args
-        .text("scope")?
-        .unwrap_or(if MEETINGS_EXIST { "all" } else { "dictations" });
+    let scope = args.text("scope")?.unwrap_or("all");
     let (in_meetings, in_dictations) = match scope {
-        "meetings" if MEETINGS_EXIST => (true, false),
+        "meetings" => (true, false),
         "dictations" => (false, true),
-        "all" if MEETINGS_EXIST => (true, access.dictations),
-        _ => return Err(SCOPE_MESSAGE.to_string()),
+        "all" => (true, access.dictations),
+        _ => return Err("scope must be meetings, dictations or all".to_string()),
     };
     if in_dictations && !access.dictations {
         return Err(DICTATIONS_OFF_MESSAGE.to_string());

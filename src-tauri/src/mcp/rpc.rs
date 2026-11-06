@@ -7,7 +7,6 @@ use std::path::PathBuf;
 
 use super::access::Access;
 use super::tools;
-use super::MEETINGS_EXIST;
 
 /// Protocol revisions this server speaks, newest first. A client asking for
 /// another one is answered with the first.
@@ -19,15 +18,10 @@ const METHOD_NOT_FOUND: i64 = -32601;
 pub const INVALID_PARAMS: i64 = -32602;
 
 /// What the AI app is told about the server.
-const INSTRUCTIONS: &str = if MEETINGS_EXIST {
+const INSTRUCTIONS: &str =
     "Read-only access to the user's Murmur meetings (and, if they allowed it, dictations). \
 Use list_meetings or search to find a meeting, then get_summary or get_transcript. \
-Nothing here can change anything."
-} else {
-    "Read-only access to the user's Murmur dictations. \
-Use search to find a dictation by its words, or recent_dictations for the latest. \
-Nothing here can change anything."
-};
+Nothing here can change anything.";
 
 pub struct Server {
     pub data_dir: PathBuf,
