@@ -5,13 +5,16 @@
 
 use std::fmt;
 use std::time::Instant;
+#[cfg(any(target_os = "macos", test))]
 use unicode_segmentation::UnicodeSegmentation;
 
+#[cfg(any(target_os = "macos", test))]
 use crate::leading_space::Before;
 
 pub const MAX_BEFORE_CHARS: usize = 300;
 pub const MAX_AFTER_CHARS: usize = 100;
 // Two subdivision flags need 28 UTF-16 units; two four-person ZWJ families need 22.
+#[cfg(any(target_os = "macos", test))]
 const CARET_WINDOW_UNITS: usize = 32;
 
 /// A selection or insertion point in UTF-16 code units, as Accessibility reports it.
@@ -108,6 +111,7 @@ pub trait FocusedText {
 
 /// Grapheme context before a caret. Never reads secure text or guesses a caret
 /// from a selection, and starts no read after `deadline`.
+#[cfg(any(target_os = "macos", test))]
 pub fn char_before(focused: &impl FocusedText, deadline: Instant) -> Option<Before> {
     let in_time = || Instant::now() < deadline;
     if !in_time() || focused.is_secure() || !in_time() {

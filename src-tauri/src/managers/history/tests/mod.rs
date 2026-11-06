@@ -8,6 +8,7 @@ use rusqlite::{params, Connection};
 
 use chrono::{DateTime, Utc};
 use rusqlite_migration::Migrations;
+#[cfg(unix)]
 use std::path::PathBuf;
 
 use super::entries::{cleanup_columns, insert_row};

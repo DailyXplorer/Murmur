@@ -104,7 +104,6 @@ fn offer_copy(
 
 /// Puts the text on the clipboard, after any pending guarded paste settles,
 /// so it stays there. Must run on the main thread.
-#[cfg(target_os = "macos")]
 pub(crate) fn copy_to_keep(app_handle: &AppHandle, text: &str) -> Result<(), String> {
     crate::paste_tx::settle_pending();
     write_text_to_clipboard(app_handle, text)

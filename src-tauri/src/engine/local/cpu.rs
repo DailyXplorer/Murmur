@@ -280,11 +280,11 @@ mod tests {
             models.status().state,
             crate::local_models::LocalModelState::Ready
         );
-        let engine = super::LocalEngine::new(
+        let engine = crate::engine::local::LocalEngine::new(
             Box::new(CpuRuntime {
                 models: folder.clone(),
             }),
-            super::MAX_PIECE,
+            crate::engine::local::MAX_PIECE,
             Box::new(|| false),
         );
         engine.session.warm().await.unwrap();
