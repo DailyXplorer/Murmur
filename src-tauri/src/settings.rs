@@ -267,6 +267,11 @@ pub struct AppSettings {
     pub autostart_enabled: bool,
     #[serde(default = "default_update_checks_enabled")]
     pub update_checks_enabled: bool,
+    /// Windows only: `update_checks_enabled` was turned on once for a store
+    /// from the betas that had no updater and kept it off. New Windows
+    /// stores start with it set.
+    #[serde(default)]
+    pub update_checks_turned_on_once: bool,
     #[serde(default = "default_show_whats_new_on_update")]
     pub show_whats_new_on_update: bool,
     /// The app version whose What's New the user has already seen.
@@ -437,9 +442,8 @@ fn default_autostart_enabled() -> bool {
     false
 }
 
-/// On macOS only: see `restrict_to_windows`.
 fn default_update_checks_enabled() -> bool {
-    cfg!(target_os = "macos")
+    true
 }
 
 fn default_show_whats_new_on_update() -> bool {
@@ -567,9 +571,8 @@ pub const DEFAULT_TRANSCRIBE_BINDING: &str = "option+space";
 pub const DEFAULT_TRANSCRIBE_BINDING: &str = "ctrl+super";
 
 /// Turns off what the Windows build does not offer: meetings (the system
-/// audio tap and the analysis helper are macOS code), the clamshell
-/// microphone (read through macOS APIs), and update checks, as the Windows
-/// beta ships without an updater. Returns whether anything changed.
+/// audio tap and the analysis helper are macOS code) and the clamshell
+/// microphone (read through macOS APIs). Returns whether anything changed.
 #[cfg(target_os = "windows")]
 fn restrict_to_windows(settings: &mut AppSettings) -> bool {
     let mut changed = false;
@@ -577,7 +580,6 @@ fn restrict_to_windows(settings: &mut AppSettings) -> bool {
         changed |= std::mem::replace(value, false);
     };
     set(&mut settings.meetings_enabled);
-    set(&mut settings.update_checks_enabled);
     if settings.clamshell_microphone.take().is_some() {
         changed = true;
     }
@@ -595,6 +597,20 @@ fn turn_on_window_context_once(stored: &serde_json::Value, settings: &mut AppSet
     }
     settings.window_names_turned_on_once = true;
     settings.window_names_enabled = true;
+    true
+}
+
+/// The betas before the updater came to Windows forced update checks off on
+/// every load, so nobody there chose "off": it is turned on once, as it is by
+/// default. Read from the stored value: a salvaged store takes the marker
+/// from the defaults. Returns whether anything changed.
+#[cfg(target_os = "windows")]
+fn turn_on_update_checks_once(stored: &serde_json::Value, settings: &mut AppSettings) -> bool {
+    if stored.get("update_checks_turned_on_once").is_some() {
+        return false;
+    }
+    settings.update_checks_turned_on_once = true;
+    settings.update_checks_enabled = true;
     true
 }
 
@@ -661,6 +677,7 @@ pub fn get_default_settings() -> AppSettings {
         start_hidden: default_start_hidden(),
         autostart_enabled: default_autostart_enabled(),
         update_checks_enabled: default_update_checks_enabled(),
+        update_checks_turned_on_once: cfg!(target_os = "windows"),
         show_whats_new_on_update: default_show_whats_new_on_update(),
         whats_new_last_seen_version: default_whats_new_last_seen_version(),
         onboarding_completed: false,
@@ -776,6 +793,7 @@ fn parse_stored_settings(settings_value: &serde_json::Value) -> (AppSettings, bo
     #[cfg(target_os = "windows")]
     {
         updated |= turn_on_window_context_once(settings_value, &mut settings);
+        updated |= turn_on_update_checks_once(settings_value, &mut settings);
     }
     updated |= normalize_settings(&mut settings);
     (settings, updated)
@@ -1624,7 +1642,13 @@ mod tests {
         let settings = get_default_settings();
         assert!(!settings.meetings_enabled);
         assert!(settings.window_names_enabled);
-        assert!(!settings.update_checks_enabled);
+        assert!(settings.update_checks_enabled);
+        assert!(settings.update_checks_turned_on_once);
+    }
+
+    #[test]
+    fn update_checks_are_on_by_default() {
+        assert!(get_default_settings().update_checks_enabled);
     }
 
     #[cfg(target_os = "windows")]
@@ -1632,7 +1656,6 @@ mod tests {
     fn a_store_with_macos_only_features_is_restricted_on_windows() {
         let mut stored = default_settings_json();
         stored["meetings_enabled"] = serde_json::json!(true);
-        stored["update_checks_enabled"] = serde_json::json!(true);
         stored["clamshell_microphone"] = serde_json::json!("Built-in Microphone");
         stored["selected_language"] = serde_json::json!("fr");
 
@@ -1640,7 +1663,7 @@ mod tests {
 
         assert!(updated);
         assert!(!settings.meetings_enabled);
-        assert!(!settings.update_checks_enabled);
+        assert!(settings.update_checks_enabled);
         assert!(settings.clamshell_microphone.is_none());
         assert_eq!(settings.selected_language, "fr");
         let (_, rewritten) = parse_stored_settings(&serde_json::to_value(settings).unwrap());
@@ -1674,6 +1697,48 @@ mod tests {
             assert!(!updated, "{paste_method:?}");
             assert!(!settings.window_names_enabled, "{paste_method:?}");
         }
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn update_checks_are_turned_on_once_for_a_beta_store() {
+        // A salvaged store takes the marker from the defaults, already set.
+        for paste_method in [None, Some("shift_insert")] {
+            let mut stored = default_settings_json();
+            stored["update_checks_enabled"] = serde_json::json!(false);
+            if let Some(paste_method) = paste_method {
+                stored["paste_method"] = serde_json::json!(paste_method);
+            }
+            stored
+                .as_object_mut()
+                .unwrap()
+                .remove("update_checks_turned_on_once");
+
+            let (mut settings, updated) = parse_stored_settings(&stored);
+            assert!(updated, "{paste_method:?}");
+            assert!(settings.update_checks_enabled, "{paste_method:?}");
+            assert!(settings.update_checks_turned_on_once, "{paste_method:?}");
+
+            // Turned off afterwards, it stays off.
+            settings.update_checks_enabled = false;
+            let (settings, updated) =
+                parse_stored_settings(&serde_json::to_value(settings).unwrap());
+            assert!(!updated, "{paste_method:?}");
+            assert!(!settings.update_checks_enabled, "{paste_method:?}");
+        }
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn a_store_with_updates_marked_done_keeps_the_users_off() {
+        let mut stored = default_settings_json();
+        stored["update_checks_enabled"] = serde_json::json!(false);
+        stored["update_checks_turned_on_once"] = serde_json::json!(true);
+
+        let (settings, updated) = parse_stored_settings(&stored);
+
+        assert!(!updated);
+        assert!(!settings.update_checks_enabled);
     }
 
     #[test]
@@ -2110,19 +2175,18 @@ mod tests {
 
     #[cfg(target_os = "windows")]
     #[test]
-    fn persisted_windows_settings_keep_restrictions_and_migrate_context_only_once() {
+    fn persisted_windows_settings_keep_restrictions_and_migrate_once() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join(SETTINGS_STORE_PATH);
         let mut stored = default_settings_json();
         stored["meetings_enabled"] = serde_json::json!(true);
-        stored["update_checks_enabled"] = serde_json::json!(true);
+        stored["update_checks_enabled"] = serde_json::json!(false);
         stored["clamshell_microphone"] = serde_json::json!("Built-in Microphone");
         stored["window_names_enabled"] = serde_json::json!(false);
         stored["overlay_position"] = serde_json::json!("from-a-newer-build");
-        stored
-            .as_object_mut()
-            .unwrap()
-            .remove("window_names_turned_on_once");
+        let fields = stored.as_object_mut().unwrap();
+        fields.remove("window_names_turned_on_once");
+        fields.remove("update_checks_turned_on_once");
         fs::write(
             &path,
             serde_json::to_vec_pretty(&serde_json::json!({ "settings": stored })).unwrap(),
@@ -2132,7 +2196,8 @@ mod tests {
         let file = file::SettingsFile::open(path.clone());
         let mut settings = read_from(&file);
         assert!(!settings.meetings_enabled);
-        assert!(!settings.update_checks_enabled);
+        assert!(settings.update_checks_enabled);
+        assert!(settings.update_checks_turned_on_once);
         assert!(settings.clamshell_microphone.is_none());
         assert!(settings.window_names_enabled);
         assert!(settings.window_names_turned_on_once);
@@ -2141,12 +2206,14 @@ mod tests {
             serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
         let persisted: AppSettings = serde_json::from_value(persisted["settings"].clone()).unwrap();
         assert!(!persisted.meetings_enabled);
-        assert!(!persisted.update_checks_enabled);
+        assert!(persisted.update_checks_enabled);
+        assert!(persisted.update_checks_turned_on_once);
         assert!(persisted.clamshell_microphone.is_none());
         assert!(persisted.window_names_turned_on_once);
         assert!(persisted.window_names_enabled);
 
         settings.window_names_enabled = false;
+        settings.update_checks_enabled = false;
         file.store_checked(serde_json::to_value(settings).unwrap())
             .unwrap();
         drop(file);
@@ -2156,6 +2223,7 @@ mod tests {
         assert!(reloaded.window_names_turned_on_once);
         assert!(!reloaded.meetings_enabled);
         assert!(!reloaded.update_checks_enabled);
+        assert!(reloaded.update_checks_turned_on_once);
         assert!(reloaded.clamshell_microphone.is_none());
     }
 }

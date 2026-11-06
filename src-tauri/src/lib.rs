@@ -343,13 +343,19 @@ fn center_settings_window_on_pointer_screen(
 /// Builds the settings window, hidden. Closing it can destroy it, so every
 /// open after the first may build it again.
 fn build_main_window(app: &AppHandle) -> tauri::Result<tauri::WebviewWindow> {
+    // A rebuilt window opens at the size the user left it at; its position is
+    // chosen by `center_settings_window_on_pointer_screen` at every show.
+    #[cfg(target_os = "windows")]
+    let size = settings_window::remembered_size(app).unwrap_or(SETTINGS_WINDOW_SIZE);
+    #[cfg(not(target_os = "windows"))]
+    let size = SETTINGS_WINDOW_SIZE;
     let window = tauri::WebviewWindowBuilder::new(
         app,
         settings_window::MAIN_WINDOW,
         tauri::WebviewUrl::App("/".into()),
     )
     .title("Murmur")
-    .inner_size(SETTINGS_WINDOW_SIZE.0, SETTINGS_WINDOW_SIZE.1)
+    .inner_size(size.0, size.1)
     .min_inner_size(SETTINGS_WINDOW_MIN_SIZE.0, SETTINGS_WINDOW_MIN_SIZE.1)
     .resizable(true)
     .maximizable(true)
@@ -359,15 +365,71 @@ fn build_main_window(app: &AppHandle) -> tauri::Result<tauri::WebviewWindow> {
     // the window is shown, so it matches the in-app palette without a flash
     // of the wrong theme.
     shortcut::apply_window_theme(app, get_settings(app).theme);
+    // The taskbar shows the window's own icon, which a new window lacks.
+    #[cfg(target_os = "windows")]
+    if let Err(error) = accent::apply_native_accent(app, get_settings(app).accent_color) {
+        log::warn!("Failed to apply native accent icon: {error}");
+    }
     Ok(window)
 }
 
+/// The logical inner size of a settings window that is neither full screen,
+/// maximized nor minimized.
+#[cfg(target_os = "windows")]
+fn settings_window_restorable_size(window: &tauri::Window) -> tauri::Result<Option<(f64, f64)>> {
+    if window.is_fullscreen()? || window.is_maximized()? || window.is_minimized()? {
+        return Ok(None);
+    }
+    let size = window
+        .inner_size()?
+        .to_logical::<f64>(window.scale_factor()?);
+    Ok(Some((size.width, size.height)))
+}
+
+/// Keeps the size of the settings window about to be destroyed.
+#[cfg(target_os = "windows")]
+fn remember_settings_window_size(window: &tauri::Window) {
+    match settings_window_restorable_size(window) {
+        Ok(Some(size)) => settings_window::remember_size(window.app_handle(), size),
+        Ok(None) => {}
+        Err(error) => log::warn!("Failed to keep the settings window size: {error}"),
+    }
+}
+
+/// Brings the settings window forward, building it first when a close
+/// destroyed it.
 fn show_main_window(app: &AppHandle) {
+    // WebView2 deadlocks a window built inside an event handler on Windows,
+    // such as the tray menu or the second launch's callback: the build waits
+    // on a thread of its own, which the event loop can serve.
+    #[cfg(target_os = "windows")]
+    if app
+        .get_webview_window(settings_window::MAIN_WINDOW)
+        .is_none()
+    {
+        let app = app.clone();
+        std::thread::spawn(move || show_or_build_main_window(&app));
+        return;
+    }
+    show_or_build_main_window(app);
+}
+
+fn show_or_build_main_window(app: &AppHandle) {
     let main_window = match app.get_webview_window(settings_window::MAIN_WINDOW) {
         Some(window) => Some(window),
-        None => build_main_window(app)
-            .inspect_err(|e| log::error!("Failed to build the settings window: {}", e))
-            .ok(),
+        None => {
+            let built = build_main_window(app);
+            // Two opens in a row may build at once: the loser finds the
+            // winner's.
+            #[cfg(target_os = "windows")]
+            let built = built.or_else(|error| {
+                app.get_webview_window(settings_window::MAIN_WINDOW)
+                    .ok_or(error)
+            });
+            built
+                .inspect_err(|e| log::error!("Failed to build the settings window: {}", e))
+                .ok()
+        }
     };
     if let Some(main_window) = main_window {
         let app = app.clone();
@@ -575,17 +637,34 @@ fn take_update_relaunch_marker(app_data_dir: &std::path::Path) -> bool {
     std::fs::remove_file(app_data_dir.join(UPDATE_RELAUNCH_MARKER)).is_ok()
 }
 
-/// Restarts into the installed update and shows the settings window again.
-#[tauri::command]
-#[specta::specta]
-fn relaunch_after_update(app: AppHandle) -> Result<(), String> {
+fn mark_update_relaunch(app: &AppHandle) -> Result<(), String> {
     let app_data_dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
     if let Err(e) = leave_update_relaunch_marker(&app_data_dir) {
         // The update is installed either way; only the window stays hidden.
         log::warn!("Failed to mark the update relaunch: {e}");
     }
+    Ok(())
+}
+
+/// Restarts into the installed update and shows the settings window again.
+#[tauri::command]
+#[specta::specta]
+fn relaunch_after_update(app: AppHandle) -> Result<(), String> {
+    mark_update_relaunch(&app)?;
     app.request_restart();
     Ok(())
+}
+
+/// Run before an update installs: on Windows the updater plugin ends the
+/// process once the installer starts, so the exit sequence never runs.
+/// Leaves the relaunch marker and writes the settings kept in memory.
+#[tauri::command]
+#[specta::specta]
+fn prepare_update_install(app: AppHandle) {
+    if let Err(e) = mark_update_relaunch(&app) {
+        log::warn!("Failed to prepare the update install: {e}");
+    }
+    settings::flush_pending_save(&app);
 }
 
 /// Convert an unexpected panic on the headless worker into a normal CLI
@@ -745,6 +824,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             settings_window::take_main_action,
             settings_window::take_meetings_action,
             relaunch_after_update,
+            prepare_update_install,
             updates::get_update_status,
             updates::check_for_updates,
             commands::cancel_operation,
@@ -1074,6 +1154,10 @@ pub fn run(cli_args: CliArgs) {
                     api.prevent_close();
                     let _res = window.hide();
                 }
+                #[cfg(target_os = "windows")]
+                if destroy {
+                    remember_settings_window_size(window);
+                }
 
                 #[cfg(target_os = "macos")]
                 if settings_window::tray_visible(app) {
@@ -1082,6 +1166,14 @@ pub fn run(cli_args: CliArgs) {
             }
             tauri::WindowEvent::Destroyed if window.label() == settings_window::MAIN_WINDOW => {
                 settings_window::on_destroyed(window.app_handle());
+                // A page closed while a field captured keys cannot resume the
+                // hotkeys it suspended. The registrations wait on the main
+                // thread, which runs this handler.
+                #[cfg(target_os = "windows")]
+                {
+                    let app = window.app_handle().clone();
+                    std::thread::spawn(move || shortcut::resume_bindings_if_suspended(&app));
+                }
             }
             tauri::WindowEvent::ThemeChanged(theme) => {
                 log::info!("Theme changed to: {:?}", theme);
@@ -1291,6 +1383,17 @@ mod headless_guard_tests {
         assert!(take_update_relaunch_marker(&app_data_dir));
         // The next start, at login for instance, follows "Start hidden" again.
         assert!(!take_update_relaunch_marker(&app_data_dir));
+    }
+
+    #[test]
+    fn marking_an_update_relaunch_twice_still_shows_the_window_once() {
+        // `prepare_update_install` marks before the install and
+        // `relaunch_after_update` marks again on macOS.
+        let dir = tempfile::tempdir().unwrap();
+        leave_update_relaunch_marker(dir.path()).unwrap();
+        leave_update_relaunch_marker(dir.path()).unwrap();
+        assert!(take_update_relaunch_marker(dir.path()));
+        assert!(!take_update_relaunch_marker(dir.path()));
     }
 
     /// `MURMUR_WRITE_BINDINGS=1 cargo test bindings_are_current` rewrites the

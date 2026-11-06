@@ -607,11 +607,69 @@ export const windowsRequiredPaths: string[] = [
   "src-tauri/src/input/win32.rs",
   "src-tauri/src/durable/windows.rs",
   "src-tauri/src/mcp/setup.rs",
+  "src-tauri/updater-artifacts.conf.json",
+  ".github/scripts/minisign.mjs",
+  ".github/scripts/windows-updater-manifest.mjs",
+  ".github/scripts/windows-updater-manifest.test.mjs",
+  ".github/scripts/fixtures/windows-updater/signer.pub",
+  ".github/scripts/fixtures/windows-updater/other-signer.pub",
+  ".github/scripts/fixtures/windows-updater/Murmur_1.9.0-beta.7_x64-setup.exe",
+  ".github/scripts/fixtures/windows-updater/Murmur_1.9.0-beta.7_x64-setup.exe.sig",
   ".github/scripts/check-nextest-timeout.ps1",
   ".github/scripts/windows-smoke.ps1",
   ".github/scripts/windows-vc-runtime.ps1",
   ".github/workflows/windows.yml",
 ];
+
+// Until the unified release removes the override, a Windows install reads its
+// own feed; the macOS endpoint and the shared public key stay in the base
+// config (the macOS contract pins them).
+export const windowsUpdateFeed =
+  "https://github.com/DailyXplorer/Murmur/releases/download/windows-beta/latest.json";
+
+interface WindowsOverlay {
+  bundle?: { createUpdaterArtifacts?: boolean };
+  plugins?: {
+    updater?: {
+      pubkey?: string;
+      endpoints?: string[];
+      windows?: { installMode?: string };
+    };
+  };
+}
+
+/** The Windows updater rules: its own feed, passive installs, no signing by default. */
+export function windowsUpdaterProblems(root: string): string[] {
+  const overlay = JSON.parse(read(root, windowsOverlayPath)) as WindowsOverlay;
+  const updater = overlay.plugins?.updater;
+  const problems: string[] = [];
+  if (overlay.bundle?.createUpdaterArtifacts !== false) {
+    problems.push(
+      "the Windows config builds updater artifacts: a release build turns them on",
+    );
+  }
+  if ((updater?.endpoints ?? []).join("\n") !== windowsUpdateFeed) {
+    problems.push(
+      "the Windows updater does not read exactly the windows-beta feed",
+    );
+  }
+  if (updater?.windows?.installMode !== "passive") {
+    problems.push("the Windows updater does not install in passive mode");
+  }
+  if (updater?.pubkey !== undefined) {
+    problems.push(
+      "the Windows config sets its own updater pubkey: it shares the base one",
+    );
+  }
+  const artifactsPath = "src-tauri/updater-artifacts.conf.json";
+  if (existsSync(path.join(root, artifactsPath))) {
+    const artifacts = JSON.parse(read(root, artifactsPath)) as WindowsOverlay;
+    if (artifacts.bundle?.createUpdaterArtifacts !== true) {
+      problems.push(`${artifactsPath} does not turn the artifacts on`);
+    }
+  }
+  return problems;
+}
 
 export function checkWindows(
   root: string = defaultRoot,
@@ -622,6 +680,9 @@ export function checkWindows(
     if (!existsSync(path.join(root, relativePath))) {
       failures.push(`required Windows asset is missing: ${relativePath}`);
     }
+  }
+  if (required === windowsRequiredPaths) {
+    failures.push(...windowsUpdaterProblems(root));
   }
   return { failures, summary: `${required.length} required paths` };
 }

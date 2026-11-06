@@ -86,10 +86,16 @@ export function versionProblems(sources: VersionSources): string[] {
     );
   }
 
+  // A pre-release (1.9.0-beta.7) has no notes of its own: it uses the notes
+  // of the release it leads up to (1.9.0).
   const version = npmVersion ?? cargo ?? tauriVersion;
-  if (version && !sources.releaseNoteNames.includes(`${version}.md`)) {
+  const notesVersion = version?.split(/[-+]/)[0];
+  if (
+    notesVersion &&
+    !sources.releaseNoteNames.includes(`${notesVersion}.md`)
+  ) {
     problems.push(
-      `missing release notes src/content/release-notes/${version}.md`,
+      `missing release notes src/content/release-notes/${notesVersion}.md`,
     );
   }
   return problems;

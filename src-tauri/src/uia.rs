@@ -504,8 +504,10 @@ pub mod test_fields;
 /// own as an app serves its windows.
 #[cfg(test)]
 pub mod test_window {
+    use super::Automation;
     use std::sync::{mpsc, Mutex, MutexGuard, Once, PoisonError};
     use std::thread::JoinHandle;
+    use std::time::{Duration, Instant};
     use windows::core::{w, HSTRING, PCWSTR};
     use windows::Win32::Foundation::{HINSTANCE, HWND, LPARAM, LRESULT, WPARAM};
     use windows::Win32::System::LibraryLoader::GetModuleHandleW;
@@ -556,9 +558,37 @@ pub mod test_window {
         .unwrap()
     }
 
-    /// Test windows take turns: reads have budgets of a few hundred
-    /// milliseconds, which another test building a large window can use up.
+    /// Test windows of one test process take turns: reads have budgets of a
+    /// few hundred milliseconds, which another test building a large window
+    /// can use up. Test processes do not: nextest runs each test in a
+    /// process of its own, so every process starts UI Automation cold.
     static OPEN: Mutex<()> = Mutex::new(());
+
+    /// How long UI Automation may take to show a new window's controls.
+    const EXPOSED_WITHIN: Duration = Duration::from_secs(20);
+
+    /// Returns once UI Automation lists the controls of `window`, which
+    /// needs the window's message loop to run and the first call into a
+    /// process to load UI Automation and its providers. A test then reads a
+    /// window that is ready, and its own few-hundred-millisecond budgets
+    /// measure the read alone.
+    fn wait_until_exposed(window: isize) -> Automation {
+        let automation = Automation::new().expect("UI Automation client");
+        let started = Instant::now();
+        loop {
+            let exposed = automation
+                .window(window)
+                .is_some_and(|root| !automation.children(&root).is_empty());
+            if exposed {
+                return automation;
+            }
+            assert!(
+                started.elapsed() < EXPOSED_WITHIN,
+                "UI Automation did not list the controls of the test window within {EXPOSED_WITHIN:?}"
+            );
+            std::thread::sleep(Duration::from_millis(25));
+        }
+    }
 
     pub struct TestWindow {
         pub window: isize,
@@ -566,6 +596,9 @@ pub mod test_window {
         pub handles: Vec<isize>,
         thread_id: u32,
         thread: Option<JoinHandle<()>>,
+        // The client that waited, kept until the window closes. Declared
+        // before `_turn`, so it is gone when the next window may open.
+        _client: Automation,
         _turn: MutexGuard<'static, ()>,
     }
 
@@ -616,11 +649,13 @@ pub mod test_window {
                 }
             });
             let (window, handles, thread_id) = receiver.recv().unwrap();
+            let client = wait_until_exposed(window);
             Self {
                 window,
                 handles,
                 thread_id,
                 thread: Some(thread),
+                _client: client,
                 _turn: turn,
             }
         }
