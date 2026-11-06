@@ -381,7 +381,8 @@
       },
       "meetingCallPrompt": {
         "label": "Proponi di registrare le chiamate",
-        "description": "Quando Zoom, Google Meet, Teams, Slack, FaceTime, Webex o Discord avvia una chiamata, chiedi se registrarla. La domanda resta finché non rispondi o la chiamata finisce. Murmur non registra mai senza un clic. Durante la registrazione di una riunione, chiedi anche se interromperla quando la chiamata finisce. Murmur non la interrompe mai senza un clic."
+        "description": "Quando Zoom, Google Meet, Teams, Slack, FaceTime, Webex o Discord avvia una chiamata, chiedi se registrarla. La domanda resta finché non rispondi o la chiamata finisce. Murmur non registra mai senza un clic. Durante la registrazione di una riunione, chiedi anche se interromperla quando la chiamata finisce. Murmur non la interrompe mai senza un clic.",
+        "descriptionWindows": "Quando Zoom, Google Meet, Teams, Slack, Webex o Discord avvia una chiamata, chiedi se registrarla. La domanda resta finché non rispondi o la chiamata finisce. Murmur non registra mai senza un clic. Durante la registrazione di una riunione, chiedi anche se interromperla quando la chiamata finisce. Murmur non la interrompe mai senza un clic."
       },
       "meetingLiveTranscript": {
         "label": "Trascrizione dal vivo delle riunioni",
@@ -800,7 +801,8 @@
       "licence": {
         "parakeet": "Riconoscimento vocale: Parakeet Ultra di Moondream, basato su Parakeet TDT 0.6B v3 di NVIDIA, CC BY 4.0. Convertito in Core ML da Fluid Inference (Apple silicon) e in GGUF a 8 bit da handy-computer (Mac Intel).",
         "diarization": "Diarizzazione Community-1: pyannote, CC BY 4.0, con WeSpeaker e BUT Speech@FIT. Conversione Core ML modificata di Fluid Inference.",
-        "fluidaudio": "FluidAudio: Fluid Inference, licenza Apache 2.0."
+        "fluidaudio": "FluidAudio: Fluid Inference, licenza Apache 2.0.",
+        "sortformer": "Rilevamento dei parlanti su Windows: Sortformer v2.1 di NVIDIA, NVIDIA Open Model License. Convertito in GGUF a 8 bit da handy-computer."
       }
     },
     "transcript": {

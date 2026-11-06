@@ -207,6 +207,127 @@ jobs:
             2>&1 | tee "$RUNNER_TEMP/cpu-model.txt"
           grep -q "2 tests run: 2 passed" "$RUNNER_TEMP/cpu-model.txt"
 
+      # Two of Windows' own voices speak three utterances in turn, 16 kHz
+      # mono as the app records. A voice of each gender when the runner has
+      # both; with one voice the speakers are not checked. ASCII text:
+      # Windows PowerShell reads the script as ANSI.
+      - name: Record the dialogue
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          Add-Type -AssemblyName System.Speech
+          $dialogue = Join-Path $env:RUNNER_TEMP "dialogue"
+          New-Item -ItemType Directory -Force $dialogue | Out-Null
+          $voices = @((New-Object System.Speech.Synthesis.SpeechSynthesizer).GetInstalledVoices() | Where-Object { $_.Enabled -and $_.VoiceInfo.Culture.Name -eq "en-US" })
+          $voices | ForEach-Object { Write-Output "voice: $($_.VoiceInfo.Name) ($($_.VoiceInfo.Gender))" }
+          if ($voices.Count -eq 0) { throw "no en-US voice to record the dialogue with" }
+          $first = $voices[0]
+          $second = $voices | Where-Object { $_.VoiceInfo.Gender -ne $first.VoiceInfo.Gender } | Select-Object -First 1
+          if (-not $second) { $second = $voices | Where-Object { $_.VoiceInfo.Name -ne $first.VoiceInfo.Name } | Select-Object -First 1 }
+          if (-not $second) {
+            $second = $first
+            New-Item -ItemType File -Force (Join-Path $dialogue "one-voice") | Out-Null
+          }
+          $utterances = @(
+            @{ Voice = $first; Text = "Good morning everyone, thank you for joining the planning meeting today."; Words = "morning`neveryone`nthank`njoining`nplanning`nmeeting`ntoday`n" },
+            @{ Voice = $second; Text = "Thanks, I reviewed the budget yesterday and the numbers look quite reasonable."; Words = "thanks`nreviewed`nbudget`nyesterday`nnumbers`nlook`nquite`nreasonable`n" },
+            @{ Voice = $first; Text = "Great, then let us schedule the next review for Thursday afternoon."; Words = "great`nschedule`nnext`nreview`nthursday`nafternoon`n" }
+          )
+          $format = New-Object System.Speech.AudioFormat.SpeechAudioFormatInfo(16000, [System.Speech.AudioFormat.AudioBitsPerSample]::Sixteen, [System.Speech.AudioFormat.AudioChannel]::Mono)
+          $number = 0
+          foreach ($utterance in $utterances) {
+            $number++
+            $synth = New-Object System.Speech.Synthesis.SpeechSynthesizer
+            $synth.SelectVoice($utterance.Voice.VoiceInfo.Name)
+            $synth.SetOutputToWaveFile((Join-Path $dialogue "u$number.wav"), $format)
+            $synth.Speak($utterance.Text)
+            $synth.Dispose()
+            [System.IO.File]::WriteAllText((Join-Path $dialogue "u$number.txt"), $utterance.Words)
+          }
+
+      # The analysis the app runs after a meeting, on that dialogue: word
+      # times in order and inside the clip, most words timed, two speakers
+      # with the change near the splice. The second test opens a folder
+      # with no model, which needs the CPU modules.
+      - name: Time the words and tell the voices apart
+        working-directory: src-tauri
+        shell: bash
+        env:
+          MURMUR_SMOKE_MODELS: ${{ runner.temp }}/models
+          MURMUR_SMOKE_DIALOGUE: ${{ runner.temp }}/dialogue
+        run: |
+          set -euo pipefail
+          cargo nextest run --locked --lib --profile ci --color never \
+            --run-ignored only --no-capture \
+            -E 'test(=meetings::analysis_cpp::tests::two_voices_are_timed_and_told_apart) | test(=meetings::analysis_cpp::tests::a_folder_without_the_speech_model_ends_the_analysis_without_a_panic)' \
+            2>&1 | tee "$RUNNER_TEMP/analysis.txt"
+          grep -q "2 tests run: 2 passed" "$RUNNER_TEMP/analysis.txt"
+
+  # Meeting system audio against a real sound output: a tone is played and
+  # the WASAPI loopback must hear it, and the process loopback must not hear
+  # the test process's own tone. A hosted runner usually has no audio device
+  # and installs none here, so the tests skip with a logged reason and the
+  # job ends with a warning: not proven in CI. It cannot fail a push until it
+  # has been green on a runner that has an output.
+  meetings-audio:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    continue-on-error: true
+    steps:
+      - name: Keep line endings as committed
+        run: git config --global core.autocrlf false
+
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+
+      - name: Install pinned Rust toolchain
+        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # v1
+        with:
+          toolchain: 1.96.0
+
+      - uses: swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          workspaces: "./src-tauri -> target"
+          key: meetings-audio
+
+      # Windows Audio is off on a hosted runner. Turning it on gives an
+      # output only when the image has an audio device.
+      - name: Start the Windows Audio service
+        shell: powershell
+        run: |
+          foreach ($name in "AudioEndpointBuilder", "Audiosrv") {
+            try {
+              Set-Service -Name $name -StartupType Automatic
+              Start-Service -Name $name
+            } catch {
+              Write-Output "$name did not start: $($_.Exception.Message)"
+            }
+          }
+          Get-Service AudioEndpointBuilder, Audiosrv | Format-Table Name, Status
+          $devices = @(Get-CimInstance Win32_SoundDevice)
+          Write-Output "sound devices: $($devices.Count)"
+          $devices | ForEach-Object { Write-Output "  $($_.Name)" }
+
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@1919c4a95903d2c33e4a221102edca87309fc14b # v2.89.0
+        with:
+          tool: cargo-nextest
+
+      - name: Play a tone and record it back
+        working-directory: src-tauri
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo nextest run --locked --lib --profile ci --color never \
+            --run-ignored only --no-capture \
+            -E 'test(=meetings::capture::wasapi::tests::wasapi_loopback_hears_a_tone) | test(=meetings::capture::wasapi::tests::wasapi_process_loopback_leaves_out_the_own_process)' \
+            2>&1 | tee "$RUNNER_TEMP/meetings-audio.txt"
+          grep -q "2 tests run: 2 passed" "$RUNNER_TEMP/meetings-audio.txt"
+          if grep -q "skipped:" "$RUNNER_TEMP/meetings-audio.txt"; then
+            echo "::warning::not proven in CI: $(grep -h 'skipped:' "$RUNNER_TEMP/meetings-audio.txt" | sort -u | head -n 3 | tr '\n' ' ')"
+          fi
+
   installer:
     runs-on: windows-latest
     steps:

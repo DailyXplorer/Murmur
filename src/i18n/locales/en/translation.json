@@ -381,7 +381,8 @@
       },
       "meetingCallPrompt": {
         "label": "Offer to record calls",
-        "description": "When Zoom, Google Meet, Teams, Slack, FaceTime, Webex or Discord starts a call, ask whether to record it. The question stays until you answer it or the call ends. Murmur never records without a click. While a meeting records, also ask whether to stop it once the call ends. Murmur never stops it without a click."
+        "description": "When Zoom, Google Meet, Teams, Slack, FaceTime, Webex or Discord starts a call, ask whether to record it. The question stays until you answer it or the call ends. Murmur never records without a click. While a meeting records, also ask whether to stop it once the call ends. Murmur never stops it without a click.",
+        "descriptionWindows": "When Zoom, Google Meet, Teams, Slack, Webex or Discord starts a call, ask whether to record it. The question stays until you answer it or the call ends. Murmur never records without a click. While a meeting records, also ask whether to stop it once the call ends. Murmur never stops it without a click."
       },
       "meetingLiveTranscript": {
         "label": "Live meeting transcript",
@@ -800,7 +801,8 @@
       "licence": {
         "parakeet": "Speech recognition: Parakeet Ultra by Moondream, from Parakeet TDT 0.6B v3 by NVIDIA, CC BY 4.0. Converted to Core ML by Fluid Inference (Apple silicon) and to 8-bit GGUF by handy-computer (Intel Macs).",
         "diarization": "Speaker diarization Community-1: pyannote, CC BY 4.0, with WeSpeaker and BUT Speech@FIT. Modified Core ML conversion by Fluid Inference.",
-        "fluidaudio": "FluidAudio: Fluid Inference, Apache License 2.0."
+        "fluidaudio": "FluidAudio: Fluid Inference, Apache License 2.0.",
+        "sortformer": "Speaker detection on Windows: Sortformer v2.1 by NVIDIA, NVIDIA Open Model License. Converted to 8-bit GGUF by handy-computer."
       }
     },
     "transcript": {

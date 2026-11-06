@@ -56,6 +56,17 @@ test("turning call prompts off saves it", async ({ page }) => {
   });
 });
 
+test("the Mac text lists FaceTime", async ({ page }) => {
+  await openAdvanced(page);
+
+  await page
+    .getByRole("button", {
+      name: /^When Zoom, Google Meet, Teams, Slack, FaceTime/,
+    })
+    .click();
+  await expect(page.getByRole("tooltip")).toContainText("FaceTime");
+});
+
 test("the setting is hidden while meetings are off", async ({ page }) => {
   await openAdvanced(page, "?meetings=0");
   await expect(

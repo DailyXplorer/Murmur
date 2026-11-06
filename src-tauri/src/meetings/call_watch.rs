@@ -1,7 +1,8 @@
 //! Looks for calls once a second while meetings and call prompts are on,
-//! and shows the prompt `calls.rs` decides on. Core Audio tells which
-//! processes use the microphone from macOS 14, on Apple silicon builds,
-//! which have the bridge; elsewhere there is no detection and no setting.
+//! and shows the prompt `calls.rs` decides on. On a Mac, Core Audio tells
+//! which processes use the microphone from macOS 14, on Apple silicon builds,
+//! which have the bridge. On Windows, the microphone consent store does
+//! (`call_probe_windows.rs`). Elsewhere there is no detection and no setting.
 
 use std::collections::BTreeMap;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -12,6 +13,8 @@ use log::{debug, error, info};
 use once_cell::sync::Lazy;
 use tauri::{AppHandle, Manager};
 
+#[cfg(target_os = "windows")]
+use super::call_probe_windows;
 use super::calls::{
     self, Action, Browser, CallAnswer, CallApp, CallWatch, MicUser, PromptKind, Snapshot,
 };
@@ -36,7 +39,7 @@ fn watch() -> MutexGuard<'static, CallWatch> {
         .unwrap_or_else(|poisoned| poisoned.into_inner())
 }
 
-#[cfg(target_arch = "aarch64")]
+#[cfg(all(target_os = "macos", target_arch = "aarch64"))]
 extern "C" {
     /// Writes "pid<TAB>bundle id" lines into `buffer` when they fit, and
     /// returns their length, or -1 before macOS 14.
@@ -44,9 +47,9 @@ extern "C" {
 }
 
 /// The processes other than Murmur using the microphone, or `None` where
-/// macOS does not tell.
+/// the system does not tell.
 fn mic_users() -> Option<Vec<MicUser>> {
-    #[cfg(target_arch = "aarch64")]
+    #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
     {
         let mut buffer = vec![0u8; 4096];
         loop {
@@ -63,13 +66,27 @@ fn mic_users() -> Option<Vec<MicUser>> {
             buffer.resize(len + 1, 0);
         }
     }
-    #[cfg(not(target_arch = "aarch64"))]
+    #[cfg(target_os = "windows")]
+    {
+        call_probe_windows::mic_users_now()
+    }
+    #[cfg(not(any(
+        all(target_os = "macos", target_arch = "aarch64"),
+        target_os = "windows"
+    )))]
     None
 }
 
-/// Whether this Mac can tell that a call started.
+/// Whether this computer can tell that a call started.
 pub fn supported() -> bool {
-    mic_users().is_some()
+    #[cfg(target_os = "windows")]
+    {
+        call_probe_windows::supported()
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        mic_users().is_some()
+    }
 }
 
 fn watching(settings: &AppSettings) -> bool {
@@ -175,10 +192,15 @@ fn browser_call(browser: Browser) -> Option<CallApp> {
     })
 }
 
-/// Windows has no call detection: `mic_users` never answers there.
+/// The meeting `browser` shows on Windows: a window title, or now and then
+/// the address bar. The reader remembers when it last read each address.
 #[cfg(target_os = "windows")]
-fn browser_call(_browser: Browser) -> Option<CallApp> {
-    None
+fn browser_call(browser: Browser) -> Option<CallApp> {
+    static PAGES: Lazy<Mutex<call_probe_windows::PageReader>> = Lazy::new(Mutex::default);
+    PAGES
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .browser_call(browser, Instant::now())
 }
 
 /// Starts the meeting for a call, or tells why it did not.
@@ -251,6 +273,63 @@ mod tests {
             &MeetingError::NoSource("no microphone".into()).to_string()
         ));
         assert!(!lost_a_start_race("Meetings are turned off"));
+    }
+
+    /// Windows names the app on the microphone by its executable, with no
+    /// process: the same decisions run on every host.
+    fn app(id: &str) -> MicUser {
+        MicUser {
+            pid: 0,
+            bundle_id: id.to_string(),
+        }
+    }
+
+    #[test]
+    fn a_browser_is_read_once_while_it_holds_the_microphone_and_shows_its_call() {
+        let mut browser_calls = BTreeMap::new();
+        let mut reads = Vec::new();
+        let mut on_mic = |ids: &[&str], reads: &mut Vec<Browser>| {
+            let users: Vec<MicUser> = ids.iter().map(|id| app(id)).collect();
+            calls::calls_on_mic(&users, 4242, &mut browser_calls, |browser| {
+                reads.push(browser);
+                Some(CallApp::GoogleMeet)
+            })
+        };
+        assert_eq!(on_mic(&["chrome.exe"], &mut reads), [CallApp::GoogleMeet]);
+        assert_eq!(on_mic(&["chrome.exe"], &mut reads), [CallApp::GoogleMeet]);
+        assert_eq!(reads, [Browser::Chrome]);
+
+        assert_eq!(on_mic(&[], &mut reads), []);
+        assert_eq!(on_mic(&["chrome.exe"], &mut reads), [CallApp::GoogleMeet]);
+        assert_eq!(
+            reads,
+            [Browser::Chrome, Browser::Chrome],
+            "a browser that left the microphone is read again"
+        );
+    }
+
+    #[test]
+    fn apps_the_tables_do_not_know_are_no_call_and_read_nothing() {
+        let users = [app("voicerecorder.exe"), app("Contoso.App_abc")];
+        let mut reads = 0;
+        let found = calls::calls_on_mic(&users, 4242, &mut BTreeMap::new(), |_| {
+            reads += 1;
+            None
+        });
+        assert_eq!(found, []);
+        assert_eq!(reads, 0);
+    }
+
+    #[test]
+    fn the_process_murmur_runs_as_is_never_a_call() {
+        let own = MicUser {
+            pid: 4242,
+            bundle_id: "zoom.exe".into(),
+        };
+        let found = calls::calls_on_mic(&[own], 4242, &mut BTreeMap::new(), |_| None);
+        assert_eq!(found, []);
+        let found = calls::calls_on_mic(&[app("zoom.exe")], 4242, &mut BTreeMap::new(), |_| None);
+        assert_eq!(found, [CallApp::Zoom]);
     }
 
     #[test]

@@ -5,12 +5,23 @@
 
 pub mod align;
 pub mod analysis;
+#[cfg(all(target_os = "windows", target_arch = "x86_64"))]
+mod analysis_cpp;
 pub mod announce;
+// The logic needs no Windows API, so macOS compiles it for its tests only.
+#[cfg(any(all(target_os = "windows", target_arch = "x86_64"), test))]
+#[cfg_attr(
+    not(all(target_os = "windows", target_arch = "x86_64")),
+    allow(dead_code)
+)]
+pub mod analysis_local;
 pub mod archive;
 pub mod bleed;
+// What Windows tells about calls; its parsers and decisions are tested on
+// every host, only the reads of the system are Windows-only.
+#[cfg(any(target_os = "windows", test))]
+pub mod call_probe_windows;
 pub mod call_watch;
-// Windows detects no calls (see `call_watch`).
-#[cfg_attr(target_os = "windows", allow(dead_code))]
 pub mod calls;
 pub mod cap;
 pub mod capture;
@@ -24,6 +35,10 @@ pub mod models;
 pub mod offline;
 pub mod paths;
 #[cfg(target_os = "macos")]
+pub mod power;
+// Kept apart from `power.rs` so that file stays what `main` has.
+#[cfg(target_os = "windows")]
+#[path = "power_windows.rs"]
 pub mod power;
 pub mod processor;
 pub mod protocol;
@@ -59,7 +74,6 @@ use crate::managers::history::DatabaseStartup;
 use crate::settings::{get_settings, AppSettings, MeetingAudioRetention};
 use crate::user_alert::{self, Alert};
 use crate::{OperationId, ProcessingOperation};
-use analysis::HelperAnalyzer;
 use capture::system::SystemAudioSupport;
 use capture::DeviceCapture;
 use coordinator::{Clock, Coordinator, MeetingAlert, MeetingRuntime, Notifier};
@@ -534,10 +548,7 @@ fn spawn_processing(
                     .map(|engine| {
                         Arc::new(LocalTranscriber(Arc::new(engine))) as Arc<dyn Transcriber>
                     }),
-                analyzer: Arc::new(HelperAnalyzer {
-                    models: Arc::clone(&models),
-                    support: helper::support(),
-                }),
+                analyzer: analysis::platform_analyzer(Arc::clone(&models)),
                 summarizer: Arc::new(CodexSummarizer {
                     url: crate::cleanup::responses::RESPONSES_URL.to_string(),
                     auth_path: None,

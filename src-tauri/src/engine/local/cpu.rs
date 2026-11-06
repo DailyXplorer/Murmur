@@ -5,7 +5,7 @@
 //! The language is not passed either, and no word times come back, so a
 //! piece is never transcribed a second time.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use transcribe_cpp::{Backend, CancelToken, Model, ModelOptions, RunOptions, Session};
@@ -22,25 +22,7 @@ impl Runtime for CpuRuntime {
         let models = self.models.clone();
         Box::pin(async move {
             let model = tokio::task::spawn_blocking(move || -> anyhow::Result<CpuModel> {
-                #[cfg(target_os = "windows")]
-                load_cpu_modules()?;
-                let options = ModelOptions {
-                    backend: Backend::Cpu,
-                    device: None,
-                    // Mapped from the file: the model is never rewritten in
-                    // place, only replaced by a rename.
-                    no_mmap: false,
-                };
-                let asr = crate::local_models::asr_in_use(&models);
-                let model = match Model::load_with(models.join(asr.gguf_path()), &options) {
-                    // The switch to the current model deleted the previous
-                    // one between the choice and the open.
-                    Err(_) if crate::local_models::asr_in_use(&models) != asr => {
-                        let asr = crate::local_models::asr_in_use(&models);
-                        Model::load_with(models.join(asr.gguf_path()), &options)?
-                    }
-                    loaded => loaded?,
-                };
+                let model = load_model(&models)?;
                 let mut session = model.session()?;
                 let cancel = CancelToken::new();
                 session.set_cancel_token(&cancel);
@@ -55,11 +37,36 @@ impl Runtime for CpuRuntime {
     }
 }
 
+/// The speech model the models folder names, loaded on the CPU. Blocking.
+pub(crate) fn load_model(models: &Path) -> anyhow::Result<Model> {
+    #[cfg(target_os = "windows")]
+    load_cpu_modules()?;
+    let options = ModelOptions {
+        backend: Backend::Cpu,
+        device: None,
+        // Mapped from the file: the model is never rewritten in
+        // place, only replaced by a rename.
+        no_mmap: false,
+    };
+    let asr = crate::local_models::asr_in_use(models);
+    Ok(
+        match Model::load_with(models.join(asr.gguf_path()), &options) {
+            // The switch to the current model deleted the previous
+            // one between the choice and the open.
+            Err(_) if crate::local_models::asr_in_use(models) != asr => {
+                let asr = crate::local_models::asr_in_use(models);
+                Model::load_with(models.join(asr.gguf_path()), &options)?
+            }
+            loaded => loaded?,
+        },
+    )
+}
+
 /// Windows ships the CPU code as one module per instruction set, beside the
 /// app (see `build.rs`); transcribe.cpp loads the fastest this processor
 /// runs. Once per process, before the first model load: it cannot be retried.
 #[cfg(target_os = "windows")]
-fn load_cpu_modules() -> anyhow::Result<()> {
+pub(crate) fn load_cpu_modules() -> anyhow::Result<()> {
     static LOADED: std::sync::OnceLock<Result<(), String>> = std::sync::OnceLock::new();
     LOADED
         .get_or_init(|| transcribe_cpp::init_backends_default().map_err(|error| error.to_string()))

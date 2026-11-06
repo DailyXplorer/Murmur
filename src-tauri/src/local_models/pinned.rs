@@ -324,3 +324,30 @@ pub const X86_64: &[Source] = &[Source {
         sha256: "007a59761e9258779f189df396b50d12b83bb5b79e66df4b955c230d2f2a0a59",
     }],
 }];
+
+pub const WINDOWS: &[Source] = &[
+    Source {
+        repo: "handy-computer/parakeet-ultra-gguf",
+        commit: "a1539be1b849ea7463b88343e5277b373d0c4ea9",
+        folder: "parakeet-ultra",
+        fluid_revision_marker: false,
+        optional: false,
+        files: &[ModelFile {
+            path: "parakeet-ultra-Q8_0.gguf",
+            size: 740363168,
+            sha256: "007a59761e9258779f189df396b50d12b83bb5b79e66df4b955c230d2f2a0a59",
+        }],
+    },
+    Source {
+        repo: "handy-computer/diar_streaming_sortformer_4spk-v2.1-gguf",
+        commit: "60ebab3ef7cae9869be0abcde13360347e96ba03",
+        folder: "sortformer",
+        fluid_revision_marker: false,
+        optional: true,
+        files: &[ModelFile {
+            path: "diar_streaming_sortformer_4spk-v2.1-Q8_0.gguf",
+            size: 139310336,
+            sha256: "a5dacdc650790266c7a362e54e6bf51952015487edaa606c4e11632bc32442a9",
+        }],
+    },
+];

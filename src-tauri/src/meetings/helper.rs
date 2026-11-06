@@ -26,7 +26,7 @@ pub enum AnalysisSupport {
     #[cfg_attr(not(target_arch = "aarch64"), allow(dead_code))]
     OsTooOld,
     /// Intel Macs: one speaker per track.
-    #[cfg_attr(target_arch = "aarch64", allow(dead_code))]
+    #[cfg_attr(any(target_arch = "aarch64", target_os = "windows"), allow(dead_code))]
     Unsupported,
 }
 
@@ -44,7 +44,12 @@ pub fn support() -> AnalysisSupport {
             _ => AnalysisSupport::OsTooOld,
         }
     }
-    #[cfg(not(target_arch = "aarch64"))]
+    // Windows runs the analysis in the app, on the CPU (`analysis_cpp`).
+    #[cfg(all(not(target_arch = "aarch64"), target_os = "windows"))]
+    {
+        AnalysisSupport::Available
+    }
+    #[cfg(all(not(target_arch = "aarch64"), not(target_os = "windows")))]
     {
         AnalysisSupport::Unsupported
     }
