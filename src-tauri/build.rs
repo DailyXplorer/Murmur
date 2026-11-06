@@ -51,6 +51,7 @@ const APP_COMMANDS: &[&str] = &[
     "take_main_action",
     "take_meetings_action",
     "relaunch_after_update",
+    "prepare_update_install",
     "get_update_status",
     "check_for_updates",
     "cancel_operation",

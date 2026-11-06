@@ -42,6 +42,9 @@ jobs:
       - name: Check platform invariants
         run: bun run check:platforms
 
+      - name: Test the Windows update feed
+        run: bun run test:windows-updater
+
       - name: Run ESLint
         run: bun run lint
 

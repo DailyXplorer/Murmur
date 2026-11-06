@@ -17,6 +17,8 @@ use log::{debug, warn};
 use serde::Serialize;
 use specta::Type;
 use std::collections::HashMap;
+#[cfg(target_os = "windows")]
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, MutexGuard, PoisonError};
 use tauri::{AppHandle, Emitter, Manager};
 
@@ -381,11 +383,18 @@ pub fn resume_all_shortcuts(app: &AppHandle) {
     }
 }
 
+/// True from the settings page's suspend to its resume: a field captures keys
+/// and every hotkey is off. A page destroyed in between never resumes them.
+#[cfg(target_os = "windows")]
+static BINDINGS_SUSPENDED: AtomicBool = AtomicBool::new(false);
+
 #[tauri::command(async)]
 #[specta::specta]
 pub fn suspend_all_bindings(app: AppHandle) -> Result<(), String> {
     let _registrations = hold_registrations();
     suspend_all_shortcuts(&app);
+    #[cfg(target_os = "windows")]
+    BINDINGS_SUSPENDED.store(true, Ordering::SeqCst);
     Ok(())
 }
 
@@ -393,8 +402,19 @@ pub fn suspend_all_bindings(app: AppHandle) -> Result<(), String> {
 #[specta::specta]
 pub fn resume_all_bindings(app: AppHandle) -> Result<(), String> {
     let _registrations = hold_registrations();
+    #[cfg(target_os = "windows")]
+    BINDINGS_SUSPENDED.store(false, Ordering::SeqCst);
     resume_all_shortcuts(&app);
     Ok(())
+}
+
+/// Puts the hotkeys back if the page that suspended them is gone. Takes the
+/// registration lock, so it runs off the main thread.
+#[cfg(target_os = "windows")]
+pub fn resume_bindings_if_suspended(app: &AppHandle) {
+    if BINDINGS_SUSPENDED.load(Ordering::SeqCst) {
+        let _ = resume_all_bindings(app.clone());
+    }
 }
 
 #[tauri::command]

@@ -278,12 +278,18 @@ impl WindowNode for Element {
 /// budget that started at `started` runs out. A secure field is skipped
 /// with everything inside it.
 fn window_text(window: impl WindowNode, started: Instant) -> String {
+    window_text_until(window, || started.elapsed() > READ_BUDGET)
+}
+
+/// `window_text` with the budget as a question, asked before each element:
+/// has the read budget run out?
+fn window_text_until(window: impl WindowNode, mut spent: impl FnMut() -> bool) -> String {
     let mut text = String::new();
     let mut queue = VecDeque::from([window]);
     let mut visited = 0;
     while let Some(element) = queue.pop_front() {
         visited += 1;
-        if visited > MAX_NODES || text.len() > MAX_TEXT_CHARS || started.elapsed() > READ_BUDGET {
+        if visited > MAX_NODES || text.len() > MAX_TEXT_CHARS || spent() {
             break;
         }
         if element.is_secure() {
@@ -673,7 +679,7 @@ mod tests {
             });
             let started = Instant::now();
             while !asked.lock().unwrap().contains(&"done")
-                && started.elapsed() < Duration::from_millis(200)
+                && started.elapsed() < Duration::from_secs(10)
             {
                 std::thread::sleep(Duration::from_millis(5));
             }
@@ -964,12 +970,11 @@ mod tests {
         );
     }
 
-    /// A window's tree; reading a node's text takes `delay`, as in a slow app.
+    /// A window's tree.
     #[derive(Clone, Default)]
     struct Node {
         text: &'static str,
         secure: bool,
-        delay: Duration,
         children: Vec<Node>,
     }
 
@@ -979,7 +984,6 @@ mod tests {
         }
 
         fn texts(&self) -> Vec<String> {
-            std::thread::sleep(self.delay);
             vec![self.text.to_string()]
         }
 
@@ -1022,17 +1026,27 @@ mod tests {
         assert_eq!(text.lines().count(), MAX_NODES);
     }
 
+    /// The budget is a question to the clock, so a step clock that says
+    /// "spent" at its ninth look stands for a slow app without sleeping.
     #[test]
     fn the_window_read_stops_when_the_budget_is_spent() {
-        let slow = Node {
-            delay: Duration::from_millis(50),
-            ..node("Item", vec![])
-        };
-        let window = node("Window", vec![slow; 40]);
-        let started = Instant::now();
-        let text = window_text(window, started);
-        assert!(started.elapsed() < READ_BUDGET + Duration::from_millis(150));
-        assert!(text.lines().count() < 20, "{} lines", text.lines().count());
+        let window = node("Window", vec![node("Item", vec![]); 40]);
+        let mut looks = 0;
+        let text = window_text_until(window, || {
+            looks += 1;
+            looks > 8
+        });
+        assert_eq!(text.lines().count(), 8, "{text:?}");
+        assert_eq!(looks, 9, "the read looks once per element, then stops");
+    }
+
+    #[test]
+    fn a_read_budget_spent_before_the_start_reads_nothing() {
+        let window = node("Window", vec![node("Item", vec![]); 4]);
+        let long_ago = Instant::now()
+            .checked_sub(READ_BUDGET + Duration::from_secs(1))
+            .expect("a clock that has run for more than a second");
+        assert_eq!(window_text(window, long_ago), "");
     }
 
     /// The production reads on real Win32 controls, in windows this test

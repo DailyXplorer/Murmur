@@ -5,6 +5,7 @@ import { listen } from "@tauri-apps/api/event";
 import { toast } from "sonner";
 import { commands, events } from "@/bindings";
 import { holdSettingsWindow } from "@/lib/holdSettingsWindow";
+import { isWindows } from "@/lib/platform";
 import { ProgressBar } from "../shared";
 import { useSettings } from "../../hooks/useSettings";
 
@@ -120,6 +121,9 @@ const UpdateChecker: React.FC<UpdateCheckerProps> = ({ className = "" }) => {
         return;
       }
 
+      // Windows ends the process once the installer starts, past the exit
+      // sequence that saves settings: do that first.
+      if (isWindows) await commands.prepareUpdateInstall();
       await update.downloadAndInstall((event) => {
         switch (event.event) {
           case "Started":

@@ -313,6 +313,24 @@ describe("Windows section", () => {
     expect(checkWindows(repoRoot).failures).toEqual([]);
   });
 
+  test("the Windows updater reads its own feed in passive mode", () => {
+    const root = cloneRepo();
+    rewrite(root, "src-tauri/tauri.windows.conf.json", (text) =>
+      text
+        .replace("windows-beta/latest.json", "latest/download/latest.json")
+        .replace('"passive"', '"basicUi"')
+        .replace(
+          '"createUpdaterArtifacts": false',
+          '"createUpdaterArtifacts": true',
+        ),
+    );
+    expect(checkWindows(root).failures).toEqual([
+      "the Windows config builds updater artifacts: a release build turns them on",
+      "the Windows updater does not read exactly the windows-beta feed",
+      "the Windows updater does not install in passive mode",
+    ]);
+  });
+
   test("a tree without the Windows workflow fails", () => {
     expect(checkWindows(fixture(true)).failures).toContain(
       "required Windows asset is missing: .github/workflows/windows.yml",

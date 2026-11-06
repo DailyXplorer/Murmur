@@ -95,6 +95,12 @@ does not store anything in the keychain.
 
 Windows is a beta: it shares this repository and its version number with the Mac app.
 
+Murmur for Windows updates itself: the footer offers each new version, which
+installs with a progress bar and no administrator prompt, and Murmur comes back
+by itself. **Check for updates** in the footer or the tray menu looks right
+away, and Settings, Advanced, Updates turns the automatic checks off. Beta 6
+and older have no updater, so install a newer build by hand once, as above.
+
 ## Features
 
 - One recording shortcut (Option+Space by default, Ctrl+Win on Windows): hold it to talk, or double-tap it to record hands-free and press it once to stop
@@ -157,8 +163,8 @@ The Windows beta has dictation, transcription on the PC or in the cloud, AI
 cleanup with styles, names read from the active window, history you can search
 by words, Insights, custom words, a space added after a word, shortcut keys
 shown for your keyboard layout, sounds, launch at login, and read-only access to
-your dictation history for AI assistants. It does not have Meetings or automatic
-updates yet.
+your dictation history for AI assistants, and it updates itself. It does not
+have Meetings yet.
 
 ## Getting started
 

@@ -178,6 +178,25 @@ One `latest.json` on the latest release serves every client
   `--verify-public-legacy` checks a downloaded copy.
 - Tests: `bun run test:updater-manifest`.
 
+### Windows update feed
+
+The Windows installs in the field read the `windows-beta` feed, set in
+`src-tauri/tauri.windows.conf.json` (see `AGENTS.md`, "Windows updates"). The
+feed tooling is `.github/scripts/windows-updater-manifest.mjs` with
+`minisign.mjs`; its tests are `bun run test:windows-updater`. No workflow on
+`main` publishes to it yet: `beta-release.yml` is gone, and the unified release
+workflow takes over its job.
+
+**Rollback.** A bad build cannot be taken back from the PCs that installed it:
+ship the next number. To stop offering it, upload the previous release's
+`latest.json` (it is an asset of that release) to the feed with
+`gh release upload windows-beta latest.json --clobber`, and delete the bad
+versioned release if needed.
+
+**The first update.** Beta 6 and older have no updater, so a build with one is
+installed by hand once. The installer has no Authenticode certificate, so
+SmartScreen still asks on an install by hand.
+
 ## Troubleshooting
 
 ### macOS Accessibility remains enabled after a local rebuild

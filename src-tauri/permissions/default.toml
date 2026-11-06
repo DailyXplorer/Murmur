@@ -55,6 +55,7 @@ permissions = [
   "allow-take-main-action",
   "allow-take-meetings-action",
   "allow-relaunch-after-update",
+  "allow-prepare-update-install",
   "allow-get-update-status",
   "allow-check-for-updates",
   "allow-cancel-operation",

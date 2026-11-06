@@ -21,6 +21,25 @@ const SCREENS: { file: string; label: string; query: string }[] = [
   },
   { file: "history", label: "History", query: "" },
   { file: "about", label: "About", query: "" },
+  { file: "windows-general", label: "General", query: "platform=windows" },
+  {
+    file: "windows-transcription",
+    label: "Transcription",
+    query: "platform=windows&engine=local",
+  },
+  {
+    file: "windows-transcription-no-account",
+    label: "Transcription",
+    query: "platform=windows&engine=local&account=none&models=missing",
+  },
+  { file: "windows-advanced", label: "Advanced", query: "platform=windows" },
+  {
+    file: "windows-advanced-mcp",
+    label: "Advanced",
+    query: "platform=windows&mcp=1&mcpDictations=1",
+  },
+  { file: "windows-history", label: "History", query: "platform=windows" },
+  { file: "windows-about", label: "About", query: "platform=windows" },
 ];
 
 const open = async (page: Page, label: string, query: string) => {
