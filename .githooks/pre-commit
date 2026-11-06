@@ -13,7 +13,7 @@ fi
 bun run lint
 bunx prettier --check .
 bun run check:translations
-bun run check:macos-only
+bun run check:platforms
 bun run check:versions
 
 staged=$(git diff --cached --name-only --diff-filter=ACMR)

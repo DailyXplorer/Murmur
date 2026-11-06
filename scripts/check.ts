@@ -19,9 +19,14 @@ export const ciSteps: CheckStep[] = [
     args: ["run", "check:translations"],
   },
   {
-    name: "macOS-only invariants",
+    name: "platform rules",
     command: "bun",
-    args: ["run", "check:macos-only"],
+    args: ["run", "check:platforms"],
+  },
+  {
+    name: "platform check tests",
+    command: "bun",
+    args: ["run", "test:platforms"],
   },
   {
     name: "updater manifest",
