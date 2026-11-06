@@ -1,6 +1,6 @@
 [package]
 name = "murmur"
-version = "1.9.0-beta.7"
+version = "1.9.0-beta.8"
 description = "Murmur"
 authors = ["DailyXplorer"]
 edition = "2021"
