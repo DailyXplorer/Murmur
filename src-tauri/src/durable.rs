@@ -1,8 +1,9 @@
 //! Crash-safe file writes. A crash, force quit or power cut during a write
 //! leaves the old file or the new one at `path`, never part of either.
 
-use std::fs::{self, File, OpenOptions};
+use std::fs::{self, OpenOptions};
 use std::io::{self, Write};
+#[cfg(unix)]
 use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -11,11 +12,15 @@ use std::sync::atomic::{AtomicU64, Ordering};
 /// a symlink stays a link, and the file it points to is replaced.
 pub fn write(path: &Path, bytes: &[u8]) -> io::Result<()> {
     let target = resolve_links(path)?;
+    #[cfg(unix)]
     let mode = match fs::metadata(&target) {
         Ok(metadata) => Some(metadata.permissions().mode() & 0o7777),
         Err(error) if error.kind() == io::ErrorKind::NotFound => None,
         Err(error) => return Err(error),
     };
+    // Windows files take the access rules of their folder, not a POSIX mode.
+    #[cfg(not(unix))]
+    let mode: Option<u32> = None;
     let staged = stage(&target, bytes, mode)?;
     finish(&target, &staged, fs::rename(&staged, &target))
 }
@@ -50,11 +55,15 @@ fn stage(target: &Path, bytes: &[u8], mode: Option<u32>) -> io::Result<PathBuf> 
     let staged = target.with_file_name(staged_name);
     let mut options = OpenOptions::new();
     options.write(true).create_new(true);
+    #[cfg(unix)]
     if let Some(mode) = mode {
         options.mode(mode);
     }
+    #[cfg(not(unix))]
+    let _ = mode;
     let mut file = options.open(&staged)?;
     let result = (|| {
+        #[cfg(unix)]
         if let Some(mode) = mode {
             // The umask applies at creation; the copy must match exactly.
             file.set_permissions(fs::Permissions::from_mode(mode))?;
@@ -78,12 +87,20 @@ fn finish(target: &Path, staged: &Path, result: io::Result<()>) -> io::Result<()
 }
 
 /// A rename is durable only once the directory holding it is synced.
+#[cfg(unix)]
 fn sync_parent(path: &Path) -> io::Result<()> {
     let parent = match path.parent() {
         Some(parent) if !parent.as_os_str().is_empty() => parent,
         _ => Path::new("."),
     };
-    File::open(parent)?.sync_all()
+    fs::File::open(parent)?.sync_all()
+}
+
+/// Windows cannot open a folder to sync it through `std`; the staged file was
+/// synced before the rename.
+#[cfg(not(unix))]
+fn sync_parent(_path: &Path) -> io::Result<()> {
+    Ok(())
 }
 
 /// The file `path` finally names, following symlinks even when the last one
@@ -158,6 +175,7 @@ mod tests {
         assert_eq!(entries(dir.path()), ["settings_store.json"]);
     }
 
+    #[cfg(unix)]
     #[test]
     fn durable_write_keeps_symlink() {
         let dir = tempfile::tempdir().unwrap();

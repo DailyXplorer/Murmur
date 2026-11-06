@@ -93,6 +93,7 @@ impl Host for AppHost {
 }
 
 /// `kern.osversion`, such as "24F74": it changes with every macOS update.
+#[cfg(target_os = "macos")]
 fn kern_osversion() -> Option<String> {
     let name = c"kern.osversion";
     let mut buffer = [0u8; 64];
@@ -116,6 +117,12 @@ fn kern_osversion() -> Option<String> {
         .to_str()
         .ok()?;
     (!build.is_empty()).then(|| build.to_string())
+}
+
+/// Windows has no Core ML to compile for.
+#[cfg(not(target_os = "macos"))]
+fn kern_osversion() -> Option<String> {
+    None
 }
 
 /// Moves dictation to this Mac if the user asked for it once the model is

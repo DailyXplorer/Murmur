@@ -191,6 +191,7 @@ fn suppress_meeting_notice(
 }
 
 /// Main thread only, like `prepare_settings_window_for_active_space`.
+#[cfg(target_os = "macos")]
 pub fn viewed_meeting(app: &AppHandle) -> Option<i64> {
     let window = app.get_webview_window(MAIN_WINDOW)?;
     let native_window = window.ns_window().ok()?.cast::<objc2_app_kit::NSWindow>();
@@ -202,6 +203,12 @@ pub fn viewed_meeting(app: &AppHandle) -> Option<i64> {
             native_window.isMiniaturized(),
         )
     })
+}
+
+/// Meetings are off on Windows, so none is viewed.
+#[cfg(target_os = "windows")]
+pub fn viewed_meeting(_app: &AppHandle) -> Option<i64> {
+    None
 }
 
 pub fn tray_visible(app: &AppHandle) -> bool {

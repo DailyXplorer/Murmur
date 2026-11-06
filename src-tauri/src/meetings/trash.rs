@@ -28,6 +28,7 @@ pub trait Trash {
 /// The user's Trash, through `NSFileManager`.
 pub struct SystemTrash;
 
+#[cfg(target_os = "macos")]
 impl Trash for SystemTrash {
     fn trash(&self, path: &Path) -> io::Result<()> {
         use objc2_foundation::{NSFileManager, NSString, NSURL};
@@ -37,6 +38,17 @@ impl Trash for SystemTrash {
         NSFileManager::defaultManager()
             .trashItemAtURL_resultingItemURL_error(&url, None)
             .map_err(|error| io::Error::other(error.localizedDescription().to_string()))
+    }
+}
+
+/// Meetings are off on Windows, so nothing reaches the Recycle Bin yet.
+#[cfg(target_os = "windows")]
+impl Trash for SystemTrash {
+    fn trash(&self, _path: &Path) -> io::Result<()> {
+        Err(io::Error::new(
+            io::ErrorKind::Unsupported,
+            "Meetings are not available on Windows",
+        ))
     }
 }
 
@@ -297,6 +309,7 @@ pub mod tests {
         assert!(names(&root).is_empty());
     }
 
+    #[cfg(unix)]
     #[test]
     fn a_folder_that_is_a_link_is_never_trashed() {
         let tmp = tempfile::tempdir().unwrap();
