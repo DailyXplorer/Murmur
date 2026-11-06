@@ -133,20 +133,18 @@ jobs:
         # Release builds skip the cache (no-cache: true) so the artifact is
         # always compiled clean — no risk of a stale cached native lib being
         # linked. PR/test builds keep caching for speed.
-        #
-        # This job can check out a caller-supplied ref (inputs.ref, e.g. a PR
-        # merge ref from a manual run), so it must never write the cache of the
-        # default branch from untrusted code: only a push to main saves, every
-        # other run restores. The meetings helper's SwiftPM build directory is
-        # cached here too (macOS arm64 only) rather than by a separate
-        # actions/cache step, which CodeQL flags as cache poisoning.
         if: ${{ !inputs.no-cache }}
         uses: swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
         with:
           workspaces: "./src-tauri -> target"
-          key: ${{ inputs.platform }}-${{ inputs.target }}-${{ hashFiles('src-tauri/swift/MurmurMeetingsHelper/Package.resolved') }}
-          cache-directories: ${{ inputs.target == 'aarch64-apple-darwin' && 'src-tauri/swift/MurmurMeetingsHelper/.build' || '' }}
-          save-if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+          key: ${{ inputs.platform }}-${{ inputs.target }}
+
+      - name: Cache the meetings helper build
+        if: ${{ !inputs.no-cache && inputs.target == 'aarch64-apple-darwin' }}
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: src-tauri/swift/MurmurMeetingsHelper/.build
+          key: meetings-helper-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('src-tauri/swift/MurmurMeetingsHelper/Package.resolved') }}
 
       - name: install frontend dependencies
         run: bun install --frozen-lockfile
