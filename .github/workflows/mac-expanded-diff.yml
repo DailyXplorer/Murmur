@@ -1,0 +1,95 @@
+name: "mac expanded diff"
+
+# Manual only. Prints what changed in the macro-expanded macOS crate between two
+# commits (scripts/macos-expanded-diff.sh), to prove a change is a no-op on macOS.
+on:
+  workflow_dispatch:
+    inputs:
+      base:
+        description: "Base ref (branch, tag or commit)"
+        required: true
+        default: "main"
+      head:
+        description: "Head ref (branch, tag or commit)"
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  expanded-diff:
+    runs-on: macos-26
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: latest
+
+      - name: Install pinned Rust toolchain
+        uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # v1
+        with:
+          toolchain: 1.96.0
+          components: clippy
+
+      # build.rs builds the meetings helper with SwiftPM (FluidAudio); the
+      # script keeps its build folder in $MAC_DIFF_WORK/swift-build.
+      - name: Cache the meetings helper build
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/mac-diff/swift-build
+          key: mac-diff-swift-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('src-tauri/swift/MurmurMeetingsHelper/Package.resolved') }}
+
+      - name: Expand both commits and diff them
+        id: diff
+        env:
+          BASE: ${{ inputs.base }}
+          HEAD: ${{ inputs.head }}
+          MAC_DIFF_WORK: ${{ runner.temp }}/mac-diff
+        shell: bash
+        run: |
+          set -uo pipefail
+          resolve() {
+            git rev-parse --verify --quiet "$1^{commit}" || git rev-parse --verify --quiet "origin/$1^{commit}"
+          }
+          base_sha=$(resolve "$BASE") || { echo "base $BASE is not a commit" >&2; exit 2; }
+          head_sha=$(resolve "$HEAD") || { echo "head $HEAD is not a commit" >&2; exit 2; }
+          mkdir -p "$RUNNER_TEMP/report"
+          set +e
+          scripts/macos-expanded-diff.sh "$base_sha" "$head_sha" | tee "$RUNNER_TEMP/report/result.txt"
+          status=${PIPESTATUS[0]}
+          set -e
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+          cp "$MAC_DIFF_WORK/out/expanded.diff" "$RUNNER_TEMP/report/" 2>/dev/null || true
+          # 1 means "different": the diff is the result, not a failure.
+          [ "$status" -le 1 ]
+
+      - name: Summary
+        if: always()
+        env:
+          BASE: ${{ inputs.base }}
+          HEAD: ${{ inputs.head }}
+          STATUS: ${{ steps.diff.outputs.status }}
+        shell: bash
+        run: |
+          {
+            echo "## Expanded macOS crate: $BASE vs $HEAD"
+            echo
+            case "$STATUS" in
+              0) echo "Identical." ;;
+              1) echo "Different. Summary (full diff in the artifact):"; echo; echo '```'; grep -A 100 '^summary:' "$RUNNER_TEMP/report/result.txt" | head -n 60; echo '```' ;;
+              *) echo "The tool failed." ;;
+            esac
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload the diff
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: mac-expanded-diff
+          path: ${{ runner.temp }}/report
+          if-no-files-found: ignore

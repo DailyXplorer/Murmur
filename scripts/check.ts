@@ -39,6 +39,11 @@ export const ciSteps: CheckStep[] = [
     args: ["run", "test:versions"],
   },
   {
+    name: "macOS expanded diff tests",
+    command: "bun",
+    args: ["run", "test:macos-expanded"],
+  },
+  {
     name: "release versions",
     command: "bun",
     args: ["run", "check:versions"],
