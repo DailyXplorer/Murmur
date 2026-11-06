@@ -76,6 +76,7 @@ impl LocalEngine {
     /// Releases the model, once the dictation running, if any, is done. The
     /// CPU model maps its file, so deleted models keep their disk space
     /// until then.
+    #[cfg(not(target_os = "windows"))]
     pub async fn release(&self) {
         self.session.release().await;
     }

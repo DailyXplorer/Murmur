@@ -39,12 +39,22 @@ fn record(info: &PanicHookInfo<'_>) -> String {
 }
 
 /// Where the executable's image starts in memory.
+#[cfg(target_os = "macos")]
 fn load_address() -> usize {
     unsafe extern "C" {
         fn _dyld_get_image_header(image_index: u32) -> *const std::ffi::c_void;
     }
     // SAFETY: dyld always has image 0, the main executable.
     unsafe { _dyld_get_image_header(0) as usize }
+}
+
+/// Where the executable's image starts in memory: its module handle.
+#[cfg(target_os = "windows")]
+fn load_address() -> usize {
+    use windows::core::PCWSTR;
+    use windows::Win32::System::LibraryLoader::GetModuleHandleW;
+    // SAFETY: a null name asks for the module of the calling process.
+    unsafe { GetModuleHandleW(PCWSTR::null()) }.map_or(0, |module| module.0 as usize)
 }
 
 #[cfg(test)]

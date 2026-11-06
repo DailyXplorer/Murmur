@@ -25,6 +25,7 @@ mod foreground;
 mod helpers;
 mod input;
 mod insights;
+#[cfg(target_os = "macos")]
 mod leading_space;
 pub mod local_models;
 mod managers;

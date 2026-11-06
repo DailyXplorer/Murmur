@@ -107,6 +107,7 @@ impl SettingsWindow {
         self.lock().opened_meeting = id;
     }
 
+    #[cfg(any(target_os = "macos", test))]
     fn viewed_meeting(&self, visible: bool, on_active_space: bool, minimized: bool) -> Option<i64> {
         let inner = self.lock();
         if inner.view != SettingsView::Section("meetings".to_string()) {
@@ -180,6 +181,7 @@ impl SettingsWindow {
     }
 }
 
+#[cfg(any(target_os = "macos", test))]
 fn suppress_meeting_notice(
     visible: bool,
     on_active_space: bool,
