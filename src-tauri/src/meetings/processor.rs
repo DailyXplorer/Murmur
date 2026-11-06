@@ -1551,6 +1551,7 @@ mod tests {
             policy: RetryPolicy::default(),
             language: None,
             events: Arc::clone(&h.events) as Arc<dyn ProcessEvents>,
+            compress_audio: false,
         };
         let mut expected = Vec::new();
         for error in [
