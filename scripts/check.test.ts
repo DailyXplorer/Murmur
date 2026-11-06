@@ -6,7 +6,8 @@ assert.deepEqual(
   [
     "bun audit",
     "bun run check:translations",
-    "bun run check:macos-only",
+    "bun run check:platforms",
+    "bun run test:platforms",
     "bun run test:updater-manifest",
     "bun run test:versions",
     "bun run check:versions",

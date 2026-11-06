@@ -1,0 +1,159 @@
+{
+  "tauriConf": {
+    "identifier": {
+      "value": "com.dailyxplorer.murmur",
+      "why": "the bundle id owns the macOS permissions, the app data folder and the login item; a change orphans all of them"
+    },
+    "productName": {
+      "value": "Murmur",
+      "why": "the .app name; the updater and the DMG layout expect it"
+    },
+    "bundle.targets": {
+      "value": ["app", "dmg"],
+      "why": "the Mac ships an .app (updater archive) and a .dmg, nothing else"
+    },
+    "bundle.macOS": {
+      "value": {
+        "files": {},
+        "hardenedRuntime": true,
+        "minimumSystemVersion": "10.15",
+        "signingIdentity": "-",
+        "entitlements": "Entitlements.plist",
+        "dmg": {
+          "background": "icons/dmg/background.tiff",
+          "windowSize": {
+            "width": 420,
+            "height": 560
+          },
+          "appPosition": {
+            "x": 160,
+            "y": 140
+          },
+          "applicationFolderPosition": {
+            "x": 160,
+            "y": 390
+          }
+        }
+      },
+      "why": "hardened runtime, entitlements, signing identity and the DMG layout decide how macOS treats the app"
+    },
+    "bundle.createUpdaterArtifacts": {
+      "value": true,
+      "why": "without it no .app.tar.gz and no updater signature are built, so the Mac cannot update"
+    },
+    "bundle.externalBin": {
+      "value": ["binaries/murmur-meetings-helper"],
+      "why": "the meetings helper is the only extra executable the Mac bundle carries"
+    },
+    "app.macOSPrivateApi": {
+      "value": true,
+      "why": "the transparent recording overlay needs the private API"
+    },
+    "plugins.updater.pubkey": {
+      "value": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDMxRDM2QUM1NjE3RDIyRkUKUldUK0luMWh4V3JUTWRMTTA3RlREbVBESGs4WDlSYXA0Nk5FekcrdHhoWElPeXAzaVhncHc2N1oK",
+      "why": "installed apps only accept updates signed by this key"
+    },
+    "plugins.updater.endpoints": {
+      "value": [
+        "https://github.com/DailyXplorer/Murmur/releases/latest/download/latest.json"
+      ],
+      "why": "installed Macs read this feed; moving it strands every installed app"
+    }
+  },
+  "fileHashes": {
+    "src-tauri/Entitlements.plist": {
+      "sha256": "02b8dcf945834d91dff3844c3f970fd8e3d66b7431ca39f7f89922fba92bb1d9",
+      "why": "entitlements are part of the signature: a change alters what macOS grants and can reset permissions on update"
+    },
+    "src-tauri/Info.plist": {
+      "sha256": "110b3cf36e30d455da0c1b9bf7ad8e4986fe34237c4f9b3abe71967da64e9de6",
+      "why": "usage descriptions and bundle keys that the permission prompts and Launch Services read"
+    }
+  },
+  "workflows": {
+    "build.yml": [
+      {
+        "text": "environment: ${{ inputs.environment }}",
+        "why": "the release job reads the signing secrets from the protected environment"
+      },
+      {
+        "text": "secrets.APPLE_CERTIFICATE",
+        "why": "a signing input of the Mac build: APPLE_CERTIFICATE"
+      },
+      {
+        "text": "secrets.MACOS_CERT_P12_BASE64",
+        "why": "a signing input of the Mac build: MACOS_CERT_P12_BASE64"
+      },
+      {
+        "text": "secrets.MACOS_SIGNING_IDENTITY",
+        "why": "a signing input of the Mac build: MACOS_SIGNING_IDENTITY"
+      },
+      {
+        "text": "secrets.TAURI_SIGNING_PRIVATE_KEY",
+        "why": "a signing input of the Mac build: TAURI_SIGNING_PRIVATE_KEY"
+      },
+      {
+        "text": "STABLE_SIGNING_IDENTITY",
+        "why": "the stable-certificate path keeps the designated requirement the same across releases, so permissions survive updates"
+      },
+      {
+        "text": "- name: Refuse to release without a signing certificate",
+        "why": "a release must never be signed ad hoc"
+      },
+      {
+        "text": "- name: import Apple Developer Certificate",
+        "why": "the Developer ID signing path"
+      },
+      {
+        "text": "- name: Import stable signing certificate",
+        "why": "the stable signing path the releases use"
+      },
+      {
+        "text": "- name: Verify macOS dylib bundling",
+        "why": "a missing dylib makes the app die at launch"
+      }
+    ],
+    "release.yml": [
+      {
+        "text": "environment: \"release-signing\"",
+        "why": "only the protected environment may hold the signing secrets"
+      },
+      {
+        "text": "uses: ./.github/workflows/build.yml",
+        "why": "the Mac jobs call the shared build workflow"
+      },
+      {
+        "text": "sign-binaries: true",
+        "why": "a release is always built signed"
+      },
+      {
+        "text": "secrets.APPLE_CERTIFICATE",
+        "why": "a signing secret the release passes to the Mac build: APPLE_CERTIFICATE"
+      },
+      {
+        "text": "secrets.MACOS_CERT_P12_BASE64",
+        "why": "a signing secret the release passes to the Mac build: MACOS_CERT_P12_BASE64"
+      },
+      {
+        "text": "secrets.MACOS_SIGNING_IDENTITY",
+        "why": "a signing secret the release passes to the Mac build: MACOS_SIGNING_IDENTITY"
+      },
+      {
+        "text": "secrets.TAURI_SIGNING_PRIVATE_KEY",
+        "why": "a signing secret the release passes to the Mac build: TAURI_SIGNING_PRIVATE_KEY"
+      },
+      {
+        "regex": "platform: \"macos-26\"[^\\n]*\\n\\s*args: \"--target aarch64-apple-darwin\"\\n\\s*target: \"aarch64-apple-darwin\"",
+        "why": "the Apple silicon build"
+      },
+      {
+        "regex": "platform: \"macos-latest\"[^\\n]*\\n\\s*args: \"--target x86_64-apple-darwin\"\\n\\s*target: \"x86_64-apple-darwin\"",
+        "why": "the Intel build"
+      },
+      {
+        "text": "make_latest: 'true'",
+        "why": "the release becomes Latest, which is what the update feed URL resolves to"
+      }
+    ]
+  }
+}
