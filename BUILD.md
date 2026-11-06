@@ -242,7 +242,13 @@ secret and uploads nothing.
 `release.yml` and `build.yml` with
 `scripts/fixtures/release-contract-v1.12.1.json`, taken from the workflows of
 v1.12.1: the Mac jobs, their secrets, environments and matrix, the
-`make_latest` step and `build.yml` itself must not change. The release
+`make_latest` step and the signing steps of `build.yml` must not change. The
+one deliberate difference from v1.12.1 is the cache step of `build.yml`: the
+separate `actions/cache` step for the meetings helper is gone, and the
+SwiftPM `.build` directory is cached by the `swatinem/rust-cache` step
+(`cache-directories`, aarch64 only) which saves only on a push to main. This
+closes a CodeQL cache-poisoning alert (no default-branch cache is written from
+a caller-supplied ref); the macOS build output is unchanged. The release
 workflow may add Windows and test-channel jobs and `if` guards. Changing a pin
 is a deliberate edit of that file, with the reason in the pull request.
 
