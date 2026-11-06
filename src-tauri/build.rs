@@ -3,6 +3,7 @@ const APP_COMMANDS: &[&str] = &[
     "reset_binding",
     "get_shortcut_registration_errors",
     "get_key_labels",
+    "get_recorded_key_names",
     "change_audio_feedback_setting",
     "change_audio_feedback_volume_setting",
     "change_sound_theme_setting",
@@ -142,9 +143,120 @@ fn main() {
     generate_tray_translations();
     build_swift_bridges();
     build_meetings_helper();
+    stage_transcribe_libs();
+    // After stage_transcribe_libs, which empties transcribe-libs/.
+    stage_vc_runtime();
     let attributes = tauri_build::Attributes::new()
         .app_manifest(tauri_build::AppManifest::new().commands(APP_COMMANDS));
+    let attributes = embed_windows_manifest(attributes);
     tauri_build::try_build(attributes).expect("failed to build Tauri application ACL");
+}
+
+/// Tauri puts its Windows manifest (Common Controls 6, which WebView2 and
+/// tauri need) in a resource linked into the app binary only, so the test
+/// binaries fail to start with STATUS_ENTRYPOINT_NOT_FOUND. The linker
+/// embeds the same manifest into every binary instead.
+fn embed_windows_manifest(attributes: tauri_build::Attributes) -> tauri_build::Attributes {
+    if std::env::var("CARGO_CFG_TARGET_OS").as_deref() != Ok("windows") {
+        return attributes;
+    }
+    let manifest = std::path::Path::new(&std::env::var("CARGO_MANIFEST_DIR").unwrap())
+        .join("windows-app-manifest.xml");
+    println!("cargo:rerun-if-changed={}", manifest.display());
+    println!("cargo:rustc-link-arg=/MANIFEST:EMBED");
+    println!("cargo:rustc-link-arg=/MANIFESTINPUT:{}", manifest.display());
+    attributes.windows_attributes(tauri_build::WindowsAttributes::new_without_app_manifest())
+}
+
+/// Copies transcribe.cpp's DLLs, and the CPU modules it picks from for the
+/// user's processor, into `transcribe-libs/`, which the Windows installer
+/// ships beside the app (`tauri.windows.conf.json`). Builds that link it
+/// statically, every Mac, advertise no runtime directory.
+fn stage_transcribe_libs() {
+    use std::path::{Path, PathBuf};
+
+    println!("cargo:rerun-if-env-changed=DEP_TRANSCRIBE_CPP_RUNTIME_DIR");
+    println!("cargo:rerun-if-env-changed=DEP_TRANSCRIBE_CPP_MODULE_DIR");
+    let Some(runtime_dir) = std::env::var_os("DEP_TRANSCRIBE_CPP_RUNTIME_DIR") else {
+        return;
+    };
+    let dest = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap()).join("transcribe-libs");
+    let _ = std::fs::remove_dir_all(&dest);
+    std::fs::create_dir_all(&dest).expect("transcribe-libs/ is writable");
+    let copy_dlls = |source: &Path| -> usize {
+        std::fs::read_dir(source)
+            .unwrap_or_else(|error| panic!("cannot read {}: {error}", source.display()))
+            .map(|entry| entry.expect("the directory entry is readable").path())
+            .filter(|path| path.extension().is_some_and(|extension| extension == "dll"))
+            .map(|path| {
+                std::fs::copy(&path, dest.join(path.file_name().unwrap()))
+                    .expect("the DLL can be copied");
+            })
+            .count()
+    };
+    // An installer without them would ship an app that cannot start.
+    let runtime_dir = PathBuf::from(runtime_dir);
+    assert!(
+        copy_dlls(&runtime_dir) > 0,
+        "no DLLs in {}",
+        runtime_dir.display()
+    );
+    if let Some(module_dir) = std::env::var_os("DEP_TRANSCRIBE_CPP_MODULE_DIR") {
+        let module_dir = PathBuf::from(module_dir);
+        assert!(
+            copy_dlls(&module_dir) > 0,
+            "no backend modules in {}",
+            module_dir.display()
+        );
+    }
+}
+
+/// Copies the Visual C++ runtime DLLs into `transcribe-libs/`, so Murmur
+/// starts on a PC without the Visual C++ Redistributable. The
+/// app and transcribe.cpp link it dynamically, and Windows loads a DLL from
+/// the app's folder first. `MURMUR_VC_REDIST_DIRS` names the redist folders
+/// of the Visual Studio that compiled them (`.github/scripts/windows-vc-runtime.ps1`);
+/// without it, as in a local build, nothing is copied.
+fn stage_vc_runtime() {
+    use std::path::PathBuf;
+
+    println!("cargo:rerun-if-env-changed=MURMUR_VC_REDIST_DIRS");
+    let Some(redist_dirs) = std::env::var_os("MURMUR_VC_REDIST_DIRS") else {
+        return;
+    };
+    if std::env::var("CARGO_CFG_TARGET_OS").as_deref() != Ok("windows") {
+        return;
+    }
+    let dest = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap()).join("transcribe-libs");
+    std::fs::create_dir_all(&dest).expect("transcribe-libs/ is writable");
+    let mut copied = Vec::new();
+    for dir in std::env::split_paths(&redist_dirs) {
+        for path in std::fs::read_dir(&dir)
+            .unwrap_or_else(|error| panic!("cannot read {}: {error}", dir.display()))
+            .map(|entry| entry.expect("the directory entry is readable").path())
+        {
+            let name = path
+                .file_name()
+                .and_then(|name| name.to_str())
+                .unwrap_or_default()
+                .to_ascii_lowercase();
+            let runtime = ["msvcp140", "vcruntime140", "vcomp140"]
+                .iter()
+                .any(|family| name.starts_with(family));
+            if runtime && name.ends_with(".dll") {
+                std::fs::copy(&path, dest.join(&name)).expect("the DLL can be copied");
+                copied.push(name);
+            }
+        }
+    }
+    // An installer without them would ship an app that cannot start on a PC
+    // without the redistributable.
+    for required in ["msvcp140.dll", "vcruntime140.dll", "vcruntime140_1.dll"] {
+        assert!(
+            copied.iter().any(|name| name == required),
+            "no {required} in MURMUR_VC_REDIST_DIRS"
+        );
+    }
 }
 
 fn generate_tray_translations() {

@@ -1,3 +1,4 @@
+import "./macos-os";
 import React from "react";
 import ReactDOM from "react-dom/client";
 import i18n from "i18next";
@@ -54,6 +55,9 @@ mockIPC(
   (command, args) => {
     if (command === "get_shortcut_registration_errors") return {};
     if (command === "get_key_labels") return AZERTY_LABELS;
+    // macOS records the physical key under its own name.
+    if (command === "get_recorded_key_names")
+      return { names: {}, unusable: [] };
     if (
       command === "suspend_all_bindings" ||
       command === "resume_all_bindings"

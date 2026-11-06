@@ -14,6 +14,7 @@ use crate::user_alert::{self, Alert};
 
 /// "Screen & System Audio Recording", where "System Audio Recording Only"
 /// lists the apps allowed to tap system audio.
+#[cfg(target_os = "macos")]
 const SYSTEM_AUDIO_SETTINGS_URL: &str =
     "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture";
 const PAGE_SIZE: usize = 50;
@@ -224,6 +225,7 @@ pub fn get_system_audio_permission() -> meetings::capture::system::SystemAudioPe
     meetings::capture::system::permission()
 }
 
+#[cfg(target_os = "macos")]
 #[tauri::command]
 #[specta::specta]
 pub async fn open_system_audio_privacy_settings() -> Result<(), String> {
@@ -233,6 +235,17 @@ pub async fn open_system_audio_privacy_settings() -> Result<(), String> {
     .await
     .map_err(|error| format!("System audio settings task failed: {error}"))?
 }
+
+#[cfg(target_os = "windows")]
+#[tauri::command]
+#[specta::specta]
+pub async fn open_system_audio_privacy_settings() -> Result<(), String> {
+    Err(MEETINGS_UNAVAILABLE.to_string())
+}
+
+/// Meetings need the macOS system-audio tap and on-device analysis.
+#[cfg(target_os = "windows")]
+const MEETINGS_UNAVAILABLE: &str = "Meetings are not available on Windows";
 
 /// What turning meetings on or off does to the meeting shortcut.
 enum MeetingShortcutChange {
@@ -292,6 +305,10 @@ fn toggle_meetings(mut settings: AppSettings, enabled: bool) -> Option<MeetingsT
 #[tauri::command]
 #[specta::specta]
 pub fn change_meetings_enabled_setting(app: AppHandle, enabled: bool) -> Result<(), String> {
+    #[cfg(target_os = "windows")]
+    if enabled {
+        return Err(MEETINGS_UNAVAILABLE.to_string());
+    }
     let Some(toggle) = toggle_meetings(get_settings(&app), enabled) else {
         return Ok(());
     };

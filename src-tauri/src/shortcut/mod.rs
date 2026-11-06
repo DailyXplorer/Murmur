@@ -2,6 +2,8 @@
 
 mod handler;
 mod key_labels;
+#[cfg(target_os = "windows")]
+mod modifier_chord;
 pub mod tauri_impl;
 
 use crate::accent;
@@ -107,24 +109,42 @@ pub fn get_shortcut_registration_errors(
 #[tauri::command]
 #[specta::specta]
 /// What the active keyboard layout writes on the keys shortcuts name, keyed
-/// by the name, so a shortcut shows the key to press. Empty when macOS cannot
-/// tell, and the names are shown as they are.
+/// by the name, so a shortcut shows the key to press. Empty when the system
+/// cannot tell, and the names are shown as they are.
 pub async fn get_key_labels(app: AppHandle) -> HashMap<String, String> {
+    read_keyboard_layout(&app, key_labels::read).await
+}
+
+#[tauri::command]
+#[specta::specta]
+/// The name to record for a key the user presses, keyed by the name of the
+/// physical key, so the shortcut fires on that key, and the keys no shortcut
+/// can fire on. Only keys whose name changes are listed: none on macOS, which
+/// registers the physical key.
+pub async fn get_recorded_key_names(app: AppHandle) -> key_labels::RecordedKeys {
+    read_keyboard_layout(&app, key_labels::read_names).await
+}
+
+/// Runs `read` on the main thread, where the layout APIs answer. Empty when
+/// the layout cannot be read.
+async fn read_keyboard_layout<T: Default + Send + 'static>(
+    app: &AppHandle,
+    read: fn() -> Result<T, String>,
+) -> T {
     let (sender, receiver) = tokio::sync::oneshot::channel();
-    // The layout APIs answer only on the main thread.
     if let Err(error) = app.run_on_main_thread(move || {
-        let _ = sender.send(crate::input::command_key_chars());
+        let _ = sender.send(read());
     }) {
         warn!("Cannot read the keyboard layout: {error}");
-        return HashMap::new();
+        return T::default();
     }
     match receiver.await {
-        Ok(Ok(chars)) => key_labels::labels(|code| chars.get(usize::from(code)).copied().flatten()),
+        Ok(Ok(keys)) => keys,
         Ok(Err(error)) => {
             warn!("Cannot read the keyboard layout: {error}");
-            HashMap::new()
+            T::default()
         }
-        Err(_) => HashMap::new(),
+        Err(_) => T::default(),
     }
 }
 
@@ -215,7 +235,7 @@ pub fn change_binding(
 ) -> Result<BindingResponse, String> {
     let _registrations = hold_registrations();
     if !(binding.trim().is_empty() && may_be_unbound(&id)) {
-        tauri_impl::parse_shortcut(&binding)?;
+        tauri_impl::validate_binding(&binding)?;
     }
 
     if let Some(other) =

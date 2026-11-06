@@ -34,7 +34,10 @@ fn a_transcribed_meeting_gets_its_summary_title_and_small_audio() {
         assert!(!dir.join(paths::MIC_TRACK).exists());
         assert!(!dir.join(paths::SYSTEM_TRACK).exists());
     }
-    assert!(h.store.waiting_for_processing().unwrap().is_empty());
+    // Windows has no archive bridge: the tracks still wait to be compressed.
+    if cfg!(target_os = "macos") {
+        assert!(h.store.waiting_for_processing().unwrap().is_empty());
+    }
 }
 
 #[test]
@@ -235,7 +238,10 @@ fn an_offline_summary_after_rate_limited_local_fallback_stays_in_the_live_queue(
     assert_eq!(local.calls.lock().unwrap().len(), local_calls);
     let meeting = h.store.get(id).unwrap().unwrap();
     assert_eq!(meeting.summary_status, SummaryStatus::Ready);
-    assert_eq!(meeting.audio, AudioState::Compressed);
+    // Windows has no archive bridge to compress it.
+    if cfg!(target_os = "macos") {
+        assert_eq!(meeting.audio, AudioState::Compressed);
+    }
 }
 
 #[test]
@@ -485,6 +491,8 @@ fn a_meeting_is_transcribed_again_from_its_compressed_audio() {
         .iter()
         .all(|turn| turn.text.contains("Version")));
     assert_eq!(meeting.title.as_deref(), Some("Nouveau"));
-    assert_eq!(meeting.audio, AudioState::Compressed);
-    assert!(!dir.join(paths::MIC_TRACK).exists());
+    if cfg!(target_os = "macos") {
+        assert_eq!(meeting.audio, AudioState::Compressed);
+        assert!(!dir.join(paths::MIC_TRACK).exists());
+    }
 }

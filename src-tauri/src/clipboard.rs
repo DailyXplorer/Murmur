@@ -1,13 +1,19 @@
+#[cfg(target_os = "macos")]
 use crate::accessibility::{Element, FocusedField};
 use crate::input::{self, TargetedModifier};
+#[cfg(target_os = "macos")]
 use crate::leading_space::{needs_leading_space, Before};
 use crate::operation::ProcessingOperation;
+#[cfg(target_os = "macos")]
 use crate::overlay::ClipboardWriter;
 use crate::settings::{get_settings, AutoSubmitKey, ClipboardHandling, PasteMethod};
 use log::{info, warn};
+#[cfg(target_os = "macos")]
 use objc2_app_kit::{NSRunningApplication, NSWorkspace};
 use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant};
+use std::time::Duration;
+#[cfg(target_os = "macos")]
+use std::time::Instant;
 use tauri::AppHandle;
 use tauri_plugin_clipboard_manager::ClipboardExt;
 use tokio::sync::oneshot;
@@ -16,6 +22,7 @@ use tokio::sync::oneshot;
 // is scheduled separately so the macOS main thread never waits for this hold.
 pub(crate) const PASTE_CHORD_HOLD: Duration = Duration::from_millis(100);
 const AUTO_SUBMIT_DELAY: Duration = Duration::from_millis(50);
+#[cfg(target_os = "macos")]
 const LEADING_SPACE_BUDGET: Duration = Duration::from_millis(150);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -30,6 +37,8 @@ pub(crate) enum PasteOutcome {
     IntentionalNone,
     /// No text field had the keyboard focus, so the overlay offers to copy
     /// the text; the clipboard is left alone until the user clicks Copy.
+    /// Only macOS Accessibility tells, so Windows never offers it.
+    #[cfg_attr(target_os = "windows", allow(dead_code))]
     CopyOffered,
 }
 
@@ -75,7 +84,8 @@ fn complete_clipboard_only_output(
 /// of a keystroke going nowhere. `show` gets the text and `write` for the
 /// pill's Copy click; nothing writes the clipboard before that click. With no
 /// pill to show, the offer is `Skipped`, so the caller's recovery keeps the
-/// text.
+/// text. Only macOS Accessibility tells that no text field has the focus.
+#[cfg(target_os = "macos")]
 fn offer_copy(
     operation: &ProcessingOperation,
     text: String,
@@ -94,17 +104,20 @@ fn offer_copy(
 
 /// Puts the text on the clipboard, after any pending guarded paste settles,
 /// so it stays there. Must run on the main thread.
+#[cfg(target_os = "macos")]
 pub(crate) fn copy_to_keep(app_handle: &AppHandle, text: &str) -> Result<(), String> {
     crate::paste_tx::settle_pending();
     write_text_to_clipboard(app_handle, text)
 }
 
+#[cfg(target_os = "macos")]
 async fn keyboard_focus() -> FocusedField {
     tauri::async_runtime::spawn_blocking(crate::accessibility::keyboard_focus)
         .await
         .unwrap_or(FocusedField::Unknown)
 }
 
+#[cfg(target_os = "macos")]
 async fn with_leading_space(
     text: String,
     enabled: bool,
@@ -132,6 +145,7 @@ async fn with_leading_space(
     }
 }
 
+#[cfg(target_os = "macos")]
 fn read_char_before_caret(app_handle: &AppHandle, deadline: Instant) -> Option<Before> {
     if Instant::now() >= deadline {
         return None;
@@ -166,6 +180,43 @@ pub(crate) struct FrontmostTarget {
     launch_time_bits: Option<u64>,
 }
 
+/// The window a dictation is pasted into. Windows delivers synthesized keys
+/// to the foreground window, so the target is that window, not only its
+/// process.
+#[cfg(target_os = "windows")]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct FrontmostTarget {
+    pid: i32,
+    window: isize,
+    /// Catches a pid reused by another process, when Windows reports it.
+    started_at: Option<u64>,
+}
+
+#[cfg(target_os = "windows")]
+impl FrontmostTarget {
+    fn new(pid: u32, window: isize, started_at: Option<u64>) -> Option<Self> {
+        if pid == 0 || window == 0 || pid == std::process::id() {
+            return None;
+        }
+        Some(Self {
+            pid: i32::try_from(pid).ok()?,
+            window,
+            started_at,
+        })
+    }
+}
+
+#[cfg(target_os = "windows")]
+pub(crate) fn frontmost_target() -> Option<FrontmostTarget> {
+    let foreground = crate::foreground::window()?;
+    FrontmostTarget::new(
+        foreground.pid,
+        foreground.window,
+        crate::foreground::process_start_time(foreground.pid),
+    )
+}
+
+#[cfg(target_os = "macos")]
 impl FrontmostTarget {
     fn new(pid: i32, bundle_identifier: Option<String>, launch_time: Option<f64>) -> Option<Self> {
         if pid <= 0 || u32::try_from(pid).ok() == Some(std::process::id()) {
@@ -183,6 +234,7 @@ impl FrontmostTarget {
 /// while the app behind it stays frontmost, and a pid-targeted event goes to
 /// that app, not to the panel. The keyboard focus wins unless it is Murmur's
 /// own or Accessibility cannot tell.
+#[cfg(target_os = "macos")]
 pub(crate) fn keyboard_target_pid(
     frontmost: Option<i32>,
     focused: Option<i32>,
@@ -196,6 +248,7 @@ pub(crate) fn keyboard_target_pid(
 
 /// The app that holds the keyboard, which every paste, typed text and Return
 /// is posted to.
+#[cfg(target_os = "macos")]
 pub(crate) fn frontmost_target() -> Option<FrontmostTarget> {
     let frontmost = NSWorkspace::sharedWorkspace().frontmostApplication();
     let focused = Element::system_wide()
@@ -455,12 +508,17 @@ pub(crate) async fn paste(
     operation: ProcessingOperation,
     mic_lost: bool,
 ) -> Result<PasteOutcome, String> {
+    // Windows has no Accessibility-based copy pill; its warning is shown by
+    // the dictation pipeline after pasting instead.
+    #[cfg(target_os = "windows")]
+    let _ = mic_lost;
     if operation.cancellation_requested() {
         return Ok(PasteOutcome::Cancelled);
     }
 
     let settings = get_settings(&app_handle);
     let paste_method = settings.paste_method;
+    #[cfg(target_os = "macos")]
     if matches!(paste_method, PasteMethod::CtrlV | PasteMethod::Direct)
         && keyboard_focus().await == FocusedField::NoTextField
     {
@@ -473,7 +531,9 @@ pub(crate) async fn paste(
             |text, write| crate::overlay::show_copy_notice(&app_handle, text, write, mic_lost),
         ));
     }
+    #[cfg(target_os = "macos")]
     let app_for_caret = app_handle.clone();
+    #[cfg(target_os = "macos")]
     let text = with_leading_space(
         text,
         settings.leading_space,
@@ -586,8 +646,10 @@ pub(crate) async fn paste(
 mod tests {
     use super::*;
     use crate::operation::OperationId;
+    #[cfg(target_os = "macos")]
     use std::sync::atomic::{AtomicUsize, Ordering};
 
+    #[cfg(target_os = "macos")]
     fn after_word(_: Instant) -> Option<Before> {
         Some(Before {
             last: 'd',
@@ -596,6 +658,7 @@ mod tests {
         })
     }
 
+    #[cfg(target_os = "macos")]
     #[tokio::test]
     async fn leading_space_formats_only_enabled_paste_methods() {
         let reads = Arc::new(AtomicUsize::new(0));
@@ -623,6 +686,7 @@ mod tests {
         assert_eq!(reads.load(Ordering::SeqCst), 2);
     }
 
+    #[cfg(target_os = "macos")]
     #[tokio::test]
     async fn unavailable_or_failed_caret_reads_leave_the_text_unchanged() {
         assert_eq!(
@@ -638,6 +702,7 @@ mod tests {
         );
     }
 
+    #[cfg(target_os = "macos")]
     #[tokio::test]
     async fn a_hung_caret_read_does_not_hold_the_paste() {
         let (release, blocked) = std::sync::mpsc::channel();
@@ -658,6 +723,7 @@ mod tests {
         assert_eq!(result.unwrap().unwrap(), "next");
     }
 
+    #[cfg(target_os = "macos")]
     fn target(pid: i32) -> FrontmostTarget {
         FrontmostTarget::new(
             pid,
@@ -667,6 +733,34 @@ mod tests {
         .unwrap()
     }
 
+    #[cfg(target_os = "windows")]
+    fn target(pid: i32) -> FrontmostTarget {
+        FrontmostTarget::new(pid as u32, pid as isize * 16, Some(pid as u64)).unwrap()
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn a_windows_target_is_one_window_of_one_process() {
+        let window = FrontmostTarget::new(42, 0x1000, Some(7));
+        assert!(window.is_some());
+        // Another window of the same process is another target.
+        assert!(!same_frontmost_target(
+            window.clone(),
+            FrontmostTarget::new(42, 0x2000, Some(7))
+        ));
+        // So is a later process that reused the pid.
+        assert!(!same_frontmost_target(
+            window.clone(),
+            FrontmostTarget::new(42, 0x1000, Some(8))
+        ));
+        // A process whose start time Windows withheld is still a target.
+        assert!(FrontmostTarget::new(42, 0x1000, None).is_some());
+        assert_eq!(FrontmostTarget::new(0, 0x1000, None), None);
+        assert_eq!(FrontmostTarget::new(42, 0, None), None);
+        assert_eq!(FrontmostTarget::new(std::process::id(), 0x1000, None), None);
+    }
+
+    #[cfg(target_os = "macos")]
     #[test]
     fn an_app_without_a_bundle_id_or_launch_date_is_still_a_paste_target() {
         let unbundled = FrontmostTarget::new(42, None, None);
@@ -685,6 +779,7 @@ mod tests {
         assert_eq!(FrontmostTarget::new(own_pid, None, None), None);
     }
 
+    #[cfg(target_os = "macos")]
     #[test]
     fn output_goes_to_the_app_that_holds_the_keyboard() {
         const OWN: u32 = 7;
@@ -769,6 +864,7 @@ mod tests {
         );
     }
 
+    #[cfg(target_os = "macos")]
     #[test]
     fn without_a_text_field_the_clipboard_is_written_only_when_copy_is_clicked() {
         let clipboard = Arc::new(Mutex::new(Vec::<String>::new()));
@@ -794,10 +890,12 @@ mod tests {
         assert_eq!(clipboard.lock().unwrap().as_slice(), ["hello"]);
     }
 
+    #[cfg(target_os = "macos")]
     fn untouchable_clipboard() -> ClipboardWriter {
         Arc::new(|_| panic!("the clipboard must not be written"))
     }
 
+    #[cfg(target_os = "macos")]
     #[test]
     fn without_the_overlay_the_offer_is_skipped_for_recovery() {
         let outcome = offer_copy(
@@ -810,6 +908,7 @@ mod tests {
         assert_eq!(outcome, PasteOutcome::Skipped);
     }
 
+    #[cfg(target_os = "macos")]
     #[test]
     fn a_cancelled_offer_never_shows() {
         let cancelled = ProcessingOperation::new(OperationId(16));

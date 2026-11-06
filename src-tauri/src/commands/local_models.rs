@@ -67,15 +67,39 @@ pub fn cancel_local_model_download(app: AppHandle) -> Result<(), String> {
 #[tauri::command]
 #[specta::specta]
 pub async fn delete_local_model(app: AppHandle) -> Result<(), String> {
-    let models = models(&app)?;
-    // Removing about 500 MB of files takes a moment.
-    tauri::async_runtime::spawn_blocking(move || models.delete())
-        .await
-        .map_err(|error| error.to_string())??;
-    // After the delete, which stops dictation from loading the model again.
-    if let Some(engine) = app.try_state::<Arc<LocalEngine>>() {
-        engine.release().await;
-    }
+    let engine = app
+        .try_state::<Arc<LocalEngine>>()
+        .map(|engine| Arc::clone(&engine));
+    delete(models(&app)?, engine.as_deref()).await?;
     forget_switch(&app);
     Ok(())
+}
+
+/// Deletes the models. On Windows the dictation model is released first and
+/// loads again only after the files are gone, since Windows may refuse to
+/// delete the file of a loaded model; on macOS it is released after the delete.
+pub(crate) async fn delete(
+    models: Arc<LocalModels>,
+    engine: Option<&LocalEngine>,
+) -> Result<(), String> {
+    // Removing about 500 MB of files takes a moment.
+    let delete = async move {
+        tauri::async_runtime::spawn_blocking(move || models.delete())
+            .await
+            .map_err(|error| error.to_string())?
+    };
+    #[cfg(target_os = "windows")]
+    return match engine {
+        Some(engine) => engine.release_then(delete).await,
+        None => delete.await,
+    };
+    #[cfg(not(target_os = "windows"))]
+    {
+        delete.await?;
+        // After the delete, which stops dictation from loading the model again.
+        if let Some(engine) = engine {
+            engine.release().await;
+        }
+        Ok(())
+    }
 }

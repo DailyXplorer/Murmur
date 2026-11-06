@@ -10,6 +10,7 @@ import { MicrophoneIcon } from "@phosphor-icons/react/dist/csr/Microphone";
 import { UsersThreeIcon } from "@phosphor-icons/react/dist/csr/UsersThree";
 import type { Icon } from "@phosphor-icons/react/dist/lib/types";
 import type { AppSettings } from "@/bindings";
+import { isWindows } from "@/lib/platform";
 import MurmurTextLogo from "./icons/MurmurTextLogo";
 import { useSettings } from "../hooks/useSettings";
 import {
@@ -67,7 +68,7 @@ export const SECTIONS_CONFIG = {
     labelKey: "sidebar.meetings",
     icon: UsersThreeIcon,
     component: MeetingsPage,
-    enabled: (settings) => settings?.meetings_enabled ?? false,
+    enabled: (settings) => !isWindows && (settings?.meetings_enabled ?? false),
   },
   insights: {
     labelKey: "sidebar.insights",
@@ -127,10 +128,19 @@ export const Sidebar: React.FC<SidebarProps> = ({
   return (
     <nav
       aria-label={t("tray.settings")}
-      className="flex h-full w-40 flex-col items-center border-e border-mid-gray/20 px-2"
+      className={`flex h-full w-40 flex-col items-center border-e border-mid-gray/20 px-2 ${
+        isWindows ? "shrink-0 overflow-y-auto" : ""
+      }`}
     >
-      <MurmurTextLogo width={120} className="m-4" />
-      <div className="flex w-full flex-col items-center gap-1 border-t border-mid-gray/20 pt-1">
+      <MurmurTextLogo
+        width={120}
+        className={isWindows ? "my-4 shrink-0" : "m-4"}
+      />
+      <div
+        className={`flex w-full flex-col items-center gap-1 border-t border-mid-gray/20 pt-1${
+          isWindows ? " shrink-0" : ""
+        }`}
+      >
         {availableSections.map((sectionId) => {
           const section = SECTIONS_CONFIG[sectionId];
           const Icon = section.icon;

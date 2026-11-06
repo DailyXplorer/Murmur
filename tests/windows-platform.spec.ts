@@ -1,0 +1,455 @@
+import { expect, test, type Locator, type Page } from "@playwright/test";
+
+const openWindows = async (page: Page) => {
+  await page.goto("/tests/fixtures/settings-pages.html?platform=windows");
+  await expect(page.getByRole("navigation")).toBeVisible();
+};
+
+const nav = (page: Page, name: string) =>
+  page.getByRole("navigation").getByRole("button", { name, exact: true });
+
+// Scroll offsets/client dimensions are integer CSS pixels while the app's
+// 15px root font produces fractional row edges. Allow at most one CSS pixel
+// at a scrollport edge, not a percentage that could hide a control's label.
+const expectWithinScrollports = async (control: Locator) => {
+  await expect(control).toBeVisible();
+  await expect
+    .poll(() =>
+      control.evaluate((element) => {
+        const bounds = element.getBoundingClientRect();
+        const clip = {
+          left: 0,
+          top: 0,
+          right: innerWidth,
+          bottom: innerHeight,
+        };
+        for (
+          let parent = element.parentElement;
+          parent;
+          parent = parent.parentElement
+        ) {
+          const style = getComputedStyle(parent);
+          const rect = parent.getBoundingClientRect();
+          if (/(auto|scroll|hidden|clip)/.test(style.overflowX)) {
+            clip.left = Math.max(clip.left, rect.left + parent.clientLeft);
+            clip.right = Math.min(
+              clip.right,
+              rect.left + parent.clientLeft + parent.clientWidth,
+            );
+          }
+          if (/(auto|scroll|hidden|clip)/.test(style.overflowY)) {
+            clip.top = Math.max(clip.top, rect.top + parent.clientTop);
+            clip.bottom = Math.min(
+              clip.bottom,
+              rect.top + parent.clientTop + parent.clientHeight,
+            );
+          }
+        }
+        return Math.max(
+          clip.left - bounds.left,
+          bounds.right - clip.right,
+          clip.top - bounds.top,
+          bounds.bottom - clip.bottom,
+          0,
+        );
+      }),
+    )
+    .toBeLessThanOrEqual(1);
+};
+
+const transcribeShortcut = (page: Page) =>
+  page.getByRole("button", { name: "Transcribe Shortcut: Press keys..." });
+
+test.describe("Windows build", () => {
+  test("offers dictation only", async ({ page }) => {
+    await openWindows(page);
+
+    await expect(nav(page, "General")).toBeVisible();
+    await expect(nav(page, "Meetings")).toHaveCount(0);
+    await expect(page.getByText(/update/i)).toHaveCount(0);
+
+    await nav(page, "Transcription").click();
+    await expect(page.getByText("Cleanup and formatting")).toBeVisible();
+    // The local engine is named after the PC, never a Mac.
+    await expect(page.getByText("On this PC", { exact: true })).toBeVisible();
+    await expect(page.getByText(/\bMac\b/)).toHaveCount(0);
+
+    await nav(page, "Advanced").click();
+    await expect(page.getByText("Show what's new")).toHaveCount(0);
+    await expect(page.getByText("Meetings", { exact: true })).toHaveCount(0);
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+  });
+
+  test("offers context from the active window, read through UI Automation", async ({
+    page,
+  }) => {
+    await openWindows(page);
+    await nav(page, "Transcription").click();
+
+    const context = page.getByRole("checkbox", {
+      name: "Context from the active window",
+    });
+    await expect(context).toBeChecked();
+    await expect(
+      page.getByRole("button", {
+        name: /^When you start dictating, Murmur reads the text of the active window through Windows accessibility \(UI Automation\)/,
+      }),
+    ).toBeVisible();
+    await expect(page.getByText(/through Accessibility/)).toHaveCount(0);
+
+    await context.uncheck({ force: true });
+    await expect
+      .poll(() =>
+        page.evaluate(() =>
+          window.settingsPages.calls
+            .filter((call) => call.command === "change_window_names_setting")
+            .map((call) => call.args),
+        ),
+      )
+      .toEqual([{ enabled: false }]);
+  });
+
+  test("previews no macOS release notes on the Debug page", async ({
+    page,
+  }) => {
+    await openWindows(page);
+    await nav(page, "Debug").click();
+
+    await expect(page.getByText("Log level", { exact: true })).toBeVisible();
+    await expect(page.getByText("Preview what's new")).toHaveCount(0);
+  });
+
+  test("credits only the speech model it downloads", async ({ page }) => {
+    await openWindows(page);
+    await nav(page, "About").click();
+    await page.getByRole("button", { name: "View licences" }).click();
+
+    const dialog = page.getByRole("dialog");
+    await expect(dialog.getByRole("listitem")).toHaveCount(1);
+    await expect(dialog).toContainText("Parakeet TDT 0.6B v3 by NVIDIA");
+    await expect(dialog).not.toContainText("Core ML");
+  });
+
+  test("names the Ctrl+Win default with Windows keys", async ({ page }) => {
+    await openWindows(page);
+    await expect(transcribeShortcut(page)).toHaveText("Ctrl + Win");
+  });
+
+  test("records a chord of modifiers alone once they are released", async ({
+    page,
+  }) => {
+    await openWindows(page);
+    await transcribeShortcut(page).click();
+
+    await page.keyboard.down("Control");
+    await page.keyboard.down("Meta");
+    await page.keyboard.up("Meta");
+    await page.keyboard.up("Control");
+
+    // The fixture rejects the write, so only the first call is the capture.
+    await expect
+      .poll(() =>
+        page.evaluate(
+          () =>
+            window.settingsPages.calls.find(
+              (call) => call.command === "change_binding",
+            )?.args,
+        ),
+      )
+      .toEqual({ id: "transcribe", binding: "ctrl+command" });
+  });
+
+  test("records and shows a shortcut as an AZERTY keyboard prints it", async ({
+    page,
+  }) => {
+    await page.goto(
+      "/tests/fixtures/settings-pages.html?platform=windows&keyboard=azerty",
+    );
+    const pasteLast = page.getByRole("button", {
+      name: "Paste last transcription: Press keys...",
+    });
+
+    // Physical key (its US name), the shortcut saved, the row shown.
+    for (const [code, binding, shown] of [
+      // Windows fires "ctrl+1" on the key printed "&".
+      ["Digit1", "ctrl+1", "Ctrl + &"],
+      // The key a US keyboard calls Q is the A key.
+      ["KeyQ", "ctrl+a", "Ctrl + A"],
+      ["KeyM", "ctrl+,", "Ctrl + ,"],
+      ["Semicolon", "ctrl+m", "Ctrl + M"],
+      ["Period", "ctrl+/", "Ctrl + :"],
+    ]) {
+      await pasteLast.click();
+      await page.keyboard.press(`Control+${code}`);
+
+      await expect(pasteLast).toHaveText(shown);
+      await expect
+        .poll(() =>
+          page.evaluate(() => {
+            const changes = window.settingsPages.calls.filter(
+              (call) => call.command === "change_binding",
+            );
+            return changes[changes.length - 1]?.args;
+          }),
+        )
+        .toEqual({ id: "paste_last", binding });
+    }
+  });
+
+  test("refuses a key no Windows shortcut can fire on", async ({ page }) => {
+    await page.goto(
+      "/tests/fixtures/settings-pages.html?platform=windows&keyboard=azerty",
+    );
+    const pasteLast = page.getByRole("button", {
+      name: "Paste last transcription: Press keys...",
+    });
+    const before = await pasteLast.textContent();
+    const refused = page.getByText(
+      "This key can't be used in a shortcut on Windows. Choose a different one.",
+    );
+
+    // The "!" key.
+    await pasteLast.click();
+    await page.keyboard.press("Control+Slash");
+    await expect(refused).toHaveCount(1);
+    await expect(pasteLast).toHaveText(before ?? "");
+
+    // The "<" key, which Playwright's US keyboard lacks.
+    await pasteLast.click();
+    await page.evaluate(() =>
+      window.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          code: "IntlBackslash",
+          key: "<",
+          ctrlKey: true,
+        }),
+      ),
+    );
+    await expect(refused).toHaveCount(2);
+    await expect(pasteLast).toHaveText(before ?? "");
+    expect(
+      await page.evaluate(() =>
+        window.settingsPages.calls.some(
+          (call) => call.command === "change_binding",
+        ),
+      ),
+    ).toBe(false);
+  });
+
+  test.describe("after a keyboard layout switch with Settings open", () => {
+    const savedBindings = (page: Page) =>
+      page.evaluate(() =>
+        window.settingsPages.calls
+          .filter((call) => call.command === "change_binding")
+          .map((call) => (call.args as { binding: string }).binding),
+      );
+    const pasteLast = (page: Page) =>
+      page.getByRole("button", {
+        name: "Paste last transcription: Press keys...",
+      });
+    const capture = (page: Page) =>
+      page.getByRole("status").filter({ hasText: "Press keys..." });
+    const refused = (page: Page) =>
+      page.getByText(
+        "This key can't be used in a shortcut on Windows. Choose a different one.",
+      );
+
+    test("records the keys of the new layout", async ({ page }) => {
+      await page.goto(
+        "/tests/fixtures/settings-pages.html?platform=windows&keyboard=azerty",
+      );
+
+      await pasteLast(page).click();
+      await page.keyboard.press("Control+KeyQ");
+      await expect(pasteLast(page)).toHaveText("Ctrl + A");
+
+      await page.evaluate(() => window.settingsPages.switchKeyboard("qwerty"));
+      await pasteLast(page).click();
+      await page.keyboard.press("Control+KeyQ");
+      await expect(pasteLast(page)).toHaveText("Ctrl + Q");
+      // The "/" key, which AZERTY refuses as "!".
+      await pasteLast(page).click();
+      await page.keyboard.press("Control+Slash");
+      await expect(pasteLast(page)).toHaveText("Ctrl + /");
+
+      await page.evaluate(() => window.settingsPages.switchKeyboard("azerty"));
+      await pasteLast(page).click();
+      await page.keyboard.press("Control+KeyQ");
+      await expect(pasteLast(page)).toHaveText("Ctrl + A");
+      await pasteLast(page).click();
+      await page.keyboard.press("Control+Slash");
+      await expect(refused(page)).toHaveCount(1);
+      await expect(pasteLast(page)).toHaveText("Ctrl + A");
+
+      expect(await savedBindings(page)).toEqual([
+        "ctrl+a",
+        "ctrl+q",
+        "ctrl+/",
+        "ctrl+a",
+      ]);
+    });
+
+    test("shows the new layout's keys when the window comes back", async ({
+      page,
+    }) => {
+      await page.goto(
+        "/tests/fixtures/settings-pages.html?platform=windows&keyboard=azerty",
+      );
+      await pasteLast(page).click();
+      await page.keyboard.press("Control+Period");
+      await expect(pasteLast(page)).toHaveText("Ctrl + :");
+
+      await page.evaluate(() => {
+        window.settingsPages.switchKeyboard("qwerty");
+        window.dispatchEvent(new Event("focus"));
+      });
+      await expect(pasteLast(page)).toHaveText("Ctrl + /");
+
+      await page.evaluate(() => {
+        window.settingsPages.switchKeyboard("azerty");
+        Object.defineProperty(document, "visibilityState", {
+          configurable: true,
+          value: "visible",
+        });
+        document.dispatchEvent(new Event("visibilitychange"));
+      });
+      await expect(pasteLast(page)).toHaveText("Ctrl + :");
+    });
+
+    test("saves nothing for a key pressed before the layout is read", async ({
+      page,
+    }) => {
+      await page.goto(
+        "/tests/fixtures/settings-pages.html?platform=windows&keyboard=azerty",
+      );
+      await expect(pasteLast(page)).toBeVisible();
+      await page.evaluate(() => {
+        window.settingsPages.switchKeyboard("qwerty");
+        window.settingsPages.holdKeyboard(true);
+      });
+
+      await pasteLast(page).click();
+      await expect(capture(page)).toBeVisible();
+      await page.keyboard.press("Control+KeyQ");
+      // Still capturing: the key was neither saved nor refused.
+      await expect(capture(page)).toBeVisible();
+      expect(await savedBindings(page)).toEqual([]);
+
+      await page.evaluate(() => window.settingsPages.releaseKeyboard());
+      await page.keyboard.press("Control+KeyQ");
+      await expect(pasteLast(page)).toHaveText("Ctrl + Q");
+      expect(await savedBindings(page)).toEqual(["ctrl+q"]);
+    });
+
+    test("keeps the newest layout when an older read answers late", async ({
+      page,
+    }) => {
+      await page.goto(
+        "/tests/fixtures/settings-pages.html?platform=windows&keyboard=azerty",
+      );
+      await expect(pasteLast(page)).toBeVisible();
+
+      // A capture asks for AZERTY, which answers only later, and is left.
+      await page.evaluate(() => window.settingsPages.holdKeyboard(true));
+      await pasteLast(page).click();
+      await expect(capture(page)).toBeVisible();
+      await page
+        .getByRole("heading", { name: "Paste last transcription" })
+        .click();
+      await expect(capture(page)).toHaveCount(0);
+
+      // The next capture reads QWERTY at once.
+      await page.evaluate(() => {
+        window.settingsPages.switchKeyboard("qwerty");
+        window.settingsPages.holdKeyboard(false);
+      });
+      await pasteLast(page).click();
+      await expect(capture(page)).toBeVisible();
+      await page.evaluate(() => window.settingsPages.releaseKeyboard());
+
+      await page.keyboard.press("Control+KeyQ");
+      await expect(pasteLast(page)).toHaveText("Ctrl + Q");
+      expect(await savedBindings(page)).toEqual(["ctrl+q"]);
+    });
+  });
+});
+
+test("leaves a gap between the logo divider and the first tab on Windows", async ({
+  page,
+}) => {
+  await page.goto("/tests/fixtures/settings-pages.html?platform=windows");
+  const tabs = page.locator("nav > div").first();
+  // The tab list's top padding (pt-2) sits between the divider and the
+  // first tab, as on macOS. It was missing on Windows, so the active tab
+  // touched the divider.
+  const { padding, gap } = await tabs.evaluate((list) => {
+    const style = getComputedStyle(list);
+    const first = list.querySelector("button")!;
+    return {
+      padding: parseFloat(style.paddingTop),
+      gap:
+        first.getBoundingClientRect().top -
+        list.getBoundingClientRect().top -
+        parseFloat(style.borderTopWidth),
+    };
+  });
+  expect(padding).toBeGreaterThan(0);
+  expect(gap).toBeCloseTo(padding, 1);
+});
+
+// Logical client sizes derived from physical work areas and native borders.
+// These are browser layout checks, not native Windows DPI tests.
+for (const viewport of [
+  { width: 780, height: 681 }, // 1024x768, 100%
+  { width: 780, height: 527 }, // 1366x768, 125%
+  { width: 780, height: 425 }, // 1366x768, 150%
+  { width: 666, height: 425 }, // 1024x768, 150%
+  { width: 666, height: 313 }, // 1024x600, 150%; sidebar must scroll
+]) {
+  test(`small Windows settings remain reachable at ${viewport.width}x${viewport.height}`, async ({
+    page,
+  }) => {
+    await page.setViewportSize(viewport);
+    await openWindows(page);
+    await expect
+      .poll(() =>
+        page
+          .getByRole("navigation")
+          .evaluate((element) => element.scrollWidth <= element.clientWidth),
+      )
+      .toBe(true);
+    // Scrolling to an off-screen item must bring it inside its scrollport,
+    // not just inside an ancestor whose overflow clips the button.
+    for (const section of ["About", "Debug", "General", "Advanced"]) {
+      const button = nav(page, section);
+      await button.scrollIntoViewIfNeeded();
+      await expectWithinScrollports(button);
+      await expect(button.locator("span")).toBeInViewport({ ratio: 1 });
+      if (section === "About" && viewport.height === 313) {
+        expect(
+          await page
+            .getByRole("navigation")
+            .evaluate((element) => element.scrollTop),
+        ).toBeGreaterThan(0);
+      }
+      await button.click();
+      await expect(button).toHaveAttribute("aria-current", "page");
+    }
+    const lastSetting = page
+      .getByRole("main", { name: "Advanced" })
+      .getByRole("checkbox")
+      .last()
+      .locator("..");
+    await lastSetting.scrollIntoViewIfNeeded();
+    await expectWithinScrollports(lastSetting);
+    await lastSetting.click();
+    await expect(page.getByText("v1.3.7", { exact: true })).toBeInViewport({
+      ratio: 1,
+    });
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= window.innerWidth,
+      ),
+    ).toBe(true);
+  });
+}

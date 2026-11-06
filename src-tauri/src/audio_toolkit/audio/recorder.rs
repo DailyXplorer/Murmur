@@ -863,6 +863,53 @@ mod tests {
         consumer.shut_down();
     }
 
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn a_closed_callback_channel_preserves_the_recording_and_reports_microphone_loss() {
+        let (sample_tx, sample_rx) = mpsc::channel();
+        let (cmd_tx, cmd_rx) = mpsc::channel();
+        let in_callback = Arc::new(std::sync::Barrier::new(2));
+        let resume = Arc::new(std::sync::Barrier::new(2));
+        let level_cb = {
+            let in_callback = Arc::clone(&in_callback);
+            let resume = Arc::clone(&resume);
+            Arc::new(move |_: Vec<f32>| {
+                in_callback.wait();
+                resume.wait();
+            }) as Arc<dyn Fn(Vec<f32>) + Send + Sync>
+        };
+        let worker = thread::spawn(move || {
+            run_consumer(
+                16_000,
+                sample_rx,
+                cmd_rx,
+                Some(level_cb),
+                Arc::new(AtomicBool::new(false)),
+                Instant::now(),
+            );
+        });
+        let (ready_tx, _ready_rx) = mpsc::channel();
+        cmd_tx
+            .send(Cmd::Start(Instant::now(), ready_tx))
+            .expect("start");
+        sample_tx
+            .send(AudioChunk::Samples(vec![0.1; 4_800]))
+            .expect("chunk");
+        in_callback.wait();
+        // WASAPI drops the data callback when its stream thread exits on an
+        // error. Queue Stop while this chunk is still being processed, then
+        // close its producer before the consumer receives again.
+        let reply = stop(&cmd_tx);
+        drop(sample_tx);
+        resume.wait();
+        let capture = reply.recv();
+        let _ = cmd_tx.send(Cmd::Shutdown);
+        worker.join().expect("join consumer");
+        let capture = capture.expect("the closed callback must not discard the recording");
+        assert_eq!(capture.samples.len(), 4_800);
+        assert!(capture.mic_lost);
+    }
+
     #[test]
     fn a_microphone_cpal_reported_gone_before_any_audio_is_reported_lost() {
         let (sample_tx, cmd_tx, _, worker) = spawn_consumer();
@@ -944,6 +991,18 @@ mod tests {
     }
 }
 
+/// The next queued command. Windows keeps the command it waited for after its
+/// data callback closed; macOS only polls the queue.
+#[cfg(target_os = "windows")]
+fn next_command(held: &mut Option<Cmd>, cmd_rx: &mpsc::Receiver<Cmd>) -> Option<Cmd> {
+    held.take().or_else(|| cmd_rx.try_recv().ok())
+}
+
+#[cfg(not(target_os = "windows"))]
+fn next_command(_held: &mut Option<Cmd>, cmd_rx: &mpsc::Receiver<Cmd>) -> Option<Cmd> {
+    cmd_rx.try_recv().ok()
+}
+
 #[allow(clippy::too_many_arguments)]
 fn run_consumer(
     in_sample_rate: u32,
@@ -994,17 +1053,30 @@ fn run_consumer(
     // Poll commands even when a disconnected device stops producing samples
     // without closing its CoreAudio stream.
     loop {
+        let mut disconnected_command: Option<Cmd> = None;
         let mut pending = match sample_rx.recv_timeout(Duration::from_millis(50)) {
             Ok(chunk) => Some(chunk),
             Err(mpsc::RecvTimeoutError::Timeout) => None,
+            #[cfg(not(target_os = "windows"))]
             Err(mpsc::RecvTimeoutError::Disconnected) => break,
+            #[cfg(target_os = "windows")]
+            Err(mpsc::RecvTimeoutError::Disconnected) => {
+                // WASAPI drops its data callback when the stream thread exits
+                // on an error. Keep the captured audio until Stop asks for it.
+                // Block on commands instead of spinning on the closed channel.
+                disconnected_command = cmd_rx.recv().ok();
+                if disconnected_command.is_none() {
+                    break;
+                }
+                None
+            }
         };
 
         // Handle pending commands BEFORE the in-flight chunk so a Start
         // captures it. Polling after processing would silently drop one buffer
         // period of audio (~10ms built-in, up to ~100ms on Bluetooth) at every
         // recording start.
-        while let Ok(cmd) = cmd_rx.try_recv() {
+        while let Some(cmd) = next_command(&mut disconnected_command, &cmd_rx) {
             match cmd {
                 Cmd::Start(sent_at, ready_tx) => {
                     log::debug!(

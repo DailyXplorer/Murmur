@@ -287,6 +287,25 @@ impl Session {
         release(&mut *self.slot.lock().await);
     }
 
+    /// Releases the model once the dictations running end, then runs `then`
+    /// before any request can load it again: Windows may refuse to delete or
+    /// replace the file of a loaded model. The next request loads it again.
+    #[cfg(target_os = "windows")]
+    pub async fn release_then<T>(&self, then: impl Future<Output = T>) -> T {
+        loop {
+            // A dictation counts itself before it takes the lock, so none is
+            // between two pieces once the count reads zero under it.
+            let mut slot = self.slot.lock().await;
+            if self.dictations().running == 0 {
+                release(&mut slot);
+                return then.await;
+            }
+            drop(slot);
+            log::info!("Local model released once the dictation is done");
+            tokio::time::sleep(Duration::from_millis(50)).await;
+        }
+    }
+
     #[cfg(test)]
     pub(super) async fn is_loaded(&self) -> bool {
         self.slot.lock().await.loaded.is_some()

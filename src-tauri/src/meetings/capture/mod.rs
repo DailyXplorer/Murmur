@@ -428,6 +428,13 @@ impl CaptureBackend for DeviceCapture {
         system::permission() == system::SystemAudioPermission::Denied
     }
 
+    /// Windows offers no meetings, so it never records one to keep awake for.
+    #[cfg(target_os = "windows")]
+    fn keep_awake(&self) -> Option<Box<dyn Send>> {
+        None
+    }
+
+    #[cfg(target_os = "macos")]
     fn keep_awake(&self) -> Option<Box<dyn Send>> {
         let guard = super::power::AwakeGuard::hold("Murmur is recording a meeting")?;
         Some(Box::new(guard))
@@ -465,6 +472,7 @@ impl CaptureBackend for DeviceCapture {
 /// The space an unprivileged process may still write on the volume of
 /// `path`. Space macOS could purge on demand is not counted, so this errs on
 /// the low side.
+#[cfg(unix)]
 pub(crate) fn free_bytes(path: &Path) -> Option<u64> {
     use std::os::unix::ffi::OsStrExt;
     let path = std::ffi::CString::new(path.as_os_str().as_bytes()).ok()?;
@@ -477,6 +485,25 @@ pub(crate) fn free_bytes(path: &Path) -> Option<u64> {
     let stats = unsafe { stats.assume_init() };
     #[allow(clippy::unnecessary_cast)]
     Some(stats.f_bavail as u64 * stats.f_frsize as u64)
+}
+
+/// The space this user may still write on the volume of `path`, quotas
+/// included.
+#[cfg(windows)]
+pub(crate) fn free_bytes(path: &Path) -> Option<u64> {
+    use std::os::windows::ffi::OsStrExt;
+    use windows::core::PCWSTR;
+    use windows::Win32::Storage::FileSystem::GetDiskFreeSpaceExW;
+
+    let path: Vec<u16> = path
+        .as_os_str()
+        .encode_wide()
+        .chain(std::iter::once(0))
+        .collect();
+    let mut available = 0u64;
+    // SAFETY: `path` is NUL-terminated and `available` outlives the call.
+    unsafe { GetDiskFreeSpaceExW(PCWSTR(path.as_ptr()), Some(&mut available), None, None) }.ok()?;
+    Some(available)
 }
 
 #[cfg(test)]

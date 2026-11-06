@@ -5,7 +5,9 @@
 //! happens in `swift/meeting_archive.swift`, built for Apple silicon and
 //! Intel alike.
 
-use anyhow::{anyhow, bail, Result};
+#[cfg(target_os = "macos")]
+use anyhow::anyhow;
+use anyhow::{bail, Result};
 use std::path::{Path, PathBuf};
 
 use super::paths::{self, AUDIO_FILE, MIC_TRACK, SYSTEM_TRACK};
@@ -15,6 +17,11 @@ use super::store::{AudioState, MeetingTracks, MeetingsStore};
 /// little longer or shorter than the tracks.
 const DURATION_TOLERANCE_MS: u64 = 1_000;
 
+/// Windows offers no meetings and has no Swift bridge.
+#[cfg(target_os = "windows")]
+const NO_BRIDGE: &str = "Compressed meeting audio needs macOS";
+
+#[cfg(target_os = "macos")]
 mod bridge {
     use std::ffi::c_char;
 
@@ -34,6 +41,7 @@ mod bridge {
 }
 
 /// Mirrors the status codes in `swift/meeting_archive.swift`.
+#[cfg(target_os = "macos")]
 fn status(code: i32) -> Result<()> {
     match code {
         0 => Ok(()),
@@ -45,6 +53,7 @@ fn status(code: i32) -> Result<()> {
     }
 }
 
+#[cfg(target_os = "macos")]
 fn c_path(path: &Path) -> Result<std::ffi::CString> {
     use std::os::unix::ffi::OsStrExt;
     std::ffi::CString::new(path.as_os_str().as_bytes())
@@ -63,6 +72,25 @@ pub fn track_files(tracks: MeetingTracks) -> Vec<&'static str> {
 }
 
 /// The length of an audio file in milliseconds.
+#[cfg(target_os = "windows")]
+pub fn duration_ms(_path: &Path) -> Result<u64> {
+    bail!(NO_BRIDGE)
+}
+
+/// Encodes `inputs` (one or two WAV tracks) into the AAC file `output`.
+#[cfg(target_os = "windows")]
+pub fn encode(_inputs: &[PathBuf], _output: &Path) -> Result<()> {
+    bail!(NO_BRIDGE)
+}
+
+/// Decodes the AAC file `input` into one WAV per channel.
+#[cfg(target_os = "windows")]
+pub fn decode(_input: &Path, _outputs: &[PathBuf]) -> Result<()> {
+    bail!(NO_BRIDGE)
+}
+
+/// The length of an audio file in milliseconds.
+#[cfg(target_os = "macos")]
 pub fn duration_ms(path: &Path) -> Result<u64> {
     let path = c_path(path)?;
     // SAFETY: `path` is a NUL-terminated string alive for the call.
@@ -71,6 +99,7 @@ pub fn duration_ms(path: &Path) -> Result<u64> {
 }
 
 /// Encodes `inputs` (one or two WAV tracks) into the AAC file `output`.
+#[cfg(target_os = "macos")]
 pub fn encode(inputs: &[PathBuf], output: &Path) -> Result<()> {
     if inputs.is_empty() || inputs.len() > 2 {
         bail!("A meeting has one or two tracks");
@@ -93,6 +122,7 @@ pub fn encode(inputs: &[PathBuf], output: &Path) -> Result<()> {
 
 /// Decodes the AAC file `input` into one WAV per channel, `outputs` in
 /// channel order.
+#[cfg(target_os = "macos")]
 pub fn decode(input: &Path, outputs: &[PathBuf]) -> Result<()> {
     if outputs.is_empty() || outputs.len() > 2 {
         bail!("A meeting has one or two tracks");
@@ -246,6 +276,7 @@ mod tests {
 
     /// Intel Macs run these under Rosetta with
     /// `cargo test --target x86_64-apple-darwin`.
+    #[cfg(target_os = "macos")]
     mod on_device {
         use super::*;
         use crate::meetings::store::{MeetingStatus, MeetingTracks};

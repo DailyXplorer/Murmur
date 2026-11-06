@@ -784,7 +784,9 @@ mod tests {
         assert!(quota.codex_spent(start));
         // A parallel upload hitting the same quota does not restart the window.
         assert!(!quota.codex_spent(start + Duration::from_secs(1)));
-        let last = start + CODEX_QUOTA_BACKOFF - Duration::from_nanos(1);
+        // Windows clocks count in 100 ns steps: a nanosecond earlier is
+        // the same instant there.
+        let last = start + CODEX_QUOTA_BACKOFF - Duration::from_micros(1);
         assert_eq!(quota.identity(last), RequestIdentity::ChatGpt);
         assert_eq!(
             quota.identity(start + CODEX_QUOTA_BACKOFF),

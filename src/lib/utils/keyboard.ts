@@ -1,3 +1,5 @@
+import { isWindows } from "@/lib/platform";
+
 export const getKeyName = (e: KeyboardEvent): string => {
   if (e.code) {
     const code = e.code;
@@ -110,7 +112,23 @@ const KEY_LABELS: Record<string, string> = {
   numpadequal: "Numpad =",
 };
 
+// Stored tokens keep their macOS names; Windows reads Option as Alt and
+// Command as the Windows key.
+const WINDOWS_MODIFIER_LABELS: Record<string, string> = {
+  ctrl: "Ctrl",
+  control: "Ctrl",
+  option: "Alt",
+  alt: "Alt",
+  command: "Win",
+  cmd: "Win",
+  super: "Win",
+  meta: "Win",
+};
+
 const capitalizeKey = (key: string): string => {
+  if (isWindows && WINDOWS_MODIFIER_LABELS[key]) {
+    return WINDOWS_MODIFIER_LABELS[key];
+  }
   if (KEY_LABELS[key]) return KEY_LABELS[key];
   const numpadDigit = /^numpad(\d)$/.exec(key);
   if (numpadDigit) return `Numpad ${numpadDigit[1]}`;

@@ -1,3 +1,4 @@
+#[cfg(target_os = "macos")]
 use crate::input;
 use crate::meetings::announce::Batch;
 use crate::meetings::calls::PromptKind;
@@ -5,9 +6,13 @@ use crate::settings;
 use crate::settings::{OverlayPosition, OverlayStyle};
 use crate::tray_i18n::get_tray_translations;
 use crate::ProcessingOperation;
+#[cfg(target_os = "macos")]
 use block2::RcBlock;
+#[cfg(target_os = "macos")]
 use objc2_app_kit::NSEventMask;
+#[cfg(target_os = "macos")]
 use std::cell::RefCell;
+#[cfg(target_os = "macos")]
 use std::ptr::NonNull;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
@@ -16,6 +21,7 @@ use tauri::{AppHandle, Emitter, Manager, PhysicalPosition, PhysicalSize};
 
 use tauri::WebviewUrl;
 
+#[cfg(target_os = "macos")]
 use tauri_nspanel::{
     tauri_panel, CollectionBehavior, ManagerExt, PanelBuilder, PanelLevel, StyleMask,
 };
@@ -24,6 +30,7 @@ pub mod meeting_notice;
 use meeting_notice::MeetingNews;
 pub use meeting_notice::{announce_meeting, meeting_updated, settings_meeting_changed};
 
+#[cfg(target_os = "macos")]
 tauri_panel! {
     panel!(RecordingOverlayPanel {
         config: {
@@ -61,6 +68,7 @@ const COPY_OVERLAY_HEIGHT: f64 = 62.0 + 2.0 * CARD_MARGIN;
 const COPY_DISPLAY_TIME: Duration = Duration::from_secs(8);
 const COPY_HOVER_RECHECK: Duration = Duration::from_secs(1);
 const COPIED_DISPLAY_TIME: Duration = Duration::from_millis(1500);
+#[cfg(target_os = "macos")]
 const ESCAPE_KEY_CODE: u16 = 53;
 
 /// Bumped by every show or hide request, so a delayed hide only applies when
@@ -127,8 +135,10 @@ fn notice_showing() -> bool {
 }
 
 // Paths are spelled out because `tauri_panel!` imports these names itself.
+#[cfg(target_os = "macos")]
 type EscapeMonitor = objc2::rc::Retained<objc2::runtime::AnyObject>;
 
+#[cfg(target_os = "macos")]
 thread_local! {
     /// The fitted pills' Escape monitors, on the main thread.
     static ESCAPE_MONITORS: RefCell<Vec<EscapeMonitor>> = const { RefCell::new(Vec::new()) };
@@ -222,6 +232,12 @@ const EMIT_THROTTLE_MS: u64 = 33; // ~30 FPS
 const OVERLAY_TOP_OFFSET: f64 = 46.0;
 const OVERLAY_BOTTOM_OFFSET: f64 = 16.0;
 
+#[cfg(target_os = "windows")]
+fn get_monitor_with_cursor(app_handle: &AppHandle) -> Option<tauri::Monitor> {
+    crate::window_placement::monitor_under_cursor(app_handle)
+}
+
+#[cfg(target_os = "macos")]
 fn get_monitor_with_cursor(app_handle: &AppHandle) -> Option<tauri::Monitor> {
     if let Some(mouse_location) = input::get_cursor_position(app_handle) {
         if let Ok(monitors) = app_handle.available_monitors() {
@@ -257,9 +273,29 @@ fn is_point_within(
         && y < origin.y + size.height as i32
 }
 
+/// The overlay never takes the focus, so the pointer is read from the system;
+/// the cursor and the window are both in physical pixels.
+#[cfg(target_os = "windows")]
+fn pointer_over_overlay(app_handle: &AppHandle) -> bool {
+    let Some(window) = app_handle.get_webview_window("recording_overlay") else {
+        return false;
+    };
+    match (
+        app_handle.cursor_position(),
+        window.outer_position(),
+        window.outer_size(),
+    ) {
+        (Ok(pointer), Ok(origin), Ok(size)) => {
+            is_point_within((pointer.x as i32, pointer.y as i32), &origin, &size)
+        }
+        _ => false,
+    }
+}
+
 /// The panel never becomes key, so its webview gets no hover events; the
 /// pointer is read from the window server instead. Compared in points: tao
 /// scales the cursor by the primary display and the window by its own.
+#[cfg(target_os = "macos")]
 fn pointer_over_overlay(app_handle: &AppHandle) -> bool {
     let Some(window) = app_handle.get_webview_window("recording_overlay") else {
         return false;
@@ -298,6 +334,7 @@ fn pointer_over_overlay(app_handle: &AppHandle) -> bool {
 /// We must use LogicalPosition (not PhysicalPosition) because Tauri/tao
 /// converts PhysicalPosition using the scale factor of the monitor the window
 /// is *currently* on, which is wrong when moving cross-monitor.
+#[cfg(target_os = "macos")]
 fn calculate_overlay_position(
     app_handle: &AppHandle,
     width: f64,
@@ -324,13 +361,115 @@ fn calculate_overlay_position(
     Some((x, y))
 }
 
+/// Sizes and moves an overlay window in one native call, in the destination
+/// monitor's physical pixels: tao converts logical values with the scale of
+/// the monitor the window is leaving. `extra_gap` moves it further from the
+/// screen edge. Also keeps it above other topmost windows, which Windows may
+/// have raised over it since the last show.
+#[cfg(target_os = "windows")]
+fn place_overlay(
+    app_handle: &AppHandle,
+    window: &tauri::webview::WebviewWindow,
+    width: f64,
+    height: f64,
+    extra_gap: f64,
+) {
+    use windows::Win32::UI::WindowsAndMessaging::{SetWindowPos, HWND_TOPMOST, SWP_NOACTIVATE};
+
+    let Some(monitor) = crate::window_placement::monitor_under_cursor(app_handle) else {
+        return;
+    };
+    let bounds = crate::window_placement::overlay_bounds(
+        monitor.work_area(),
+        monitor.scale_factor(),
+        (width, height),
+        OVERLAY_BOTTOM_OFFSET - CARD_MARGIN + extra_gap,
+        settings::get_settings(app_handle).overlay_position,
+    );
+    let hwnd = match window.hwnd() {
+        Ok(hwnd) => hwnd,
+        Err(e) => {
+            log::error!("Failed to get the overlay window handle: {e}");
+            return;
+        }
+    };
+    // SAFETY: `hwnd` belongs to the live overlay window, on its UI thread.
+    let placed = unsafe {
+        SetWindowPos(
+            hwnd,
+            Some(HWND_TOPMOST),
+            bounds.position.x,
+            bounds.position.y,
+            bounds.size.width as i32,
+            bounds.size.height as i32,
+            SWP_NOACTIVATE,
+        )
+    };
+    if let Err(e) = placed {
+        log::error!("Failed to place the recording overlay: {e}");
+    }
+}
+
 fn current_overlay_logical_size(window: &tauri::webview::WebviewWindow) -> Option<(f64, f64)> {
     let size = window.inner_size().ok()?;
     let scale = window.scale_factor().ok()?;
     Some((size.width as f64 / scale, size.height as f64 / scale))
 }
 
+/// Creates the recording overlay window and keeps it hidden by default. It
+/// never takes focus, so the dictation still lands in the app the user was
+/// in, and clicks go through it.
+#[cfg(target_os = "windows")]
+pub fn create_recording_overlay(app_handle: &AppHandle) {
+    meeting_notice::listen_for_page(app_handle);
+    if app_handle.get_webview_window("recording_overlay").is_some() {
+        return;
+    }
+    meeting_notice::reset_page(app_handle);
+    match tauri::WebviewWindowBuilder::new(
+        app_handle,
+        "recording_overlay",
+        WebviewUrl::App("src/overlay/index.html".into()),
+    )
+    .title("Recording")
+    .inner_size(MEETING_OVERLAY_WIDTH, MEETING_OVERLAY_HEIGHT)
+    .resizable(false)
+    .maximizable(false)
+    .minimizable(false)
+    .closable(false)
+    .decorations(false)
+    .transparent(true)
+    .shadow(false)
+    .always_on_top(true)
+    .skip_taskbar(true)
+    .focusable(false)
+    .focused(false)
+    .visible(false)
+    // A native load hook also runs when the old page cannot send unload IPC.
+    .on_page_load(|window, payload| {
+        if matches!(payload.event(), tauri::webview::PageLoadEvent::Started) {
+            meeting_notice::reset_page(window.app_handle());
+        }
+    })
+    .build()
+    {
+        Ok(window) => {
+            let _ = window.set_ignore_cursor_events(true);
+            let app = app_handle.clone();
+            window.on_window_event(move |event| {
+                if matches!(event, tauri::WindowEvent::Destroyed) {
+                    meeting_notice::reset_page(&app);
+                }
+            });
+        }
+        Err(e) => {
+            log::error!("Failed to create recording overlay window: {}", e);
+        }
+    }
+}
+
 /// Creates the recording overlay panel and keeps it hidden by default.
+#[cfg(target_os = "macos")]
 pub fn create_recording_overlay(app_handle: &AppHandle) {
     meeting_notice::listen_for_page(app_handle);
     if app_handle.get_webview_window("recording_overlay").is_some() {
@@ -484,7 +623,9 @@ pub(crate) fn hold_copy_notice(text: String, write: ClipboardWriter, mic_lost: b
 /// field had the focus. A click hands the text to `write`, Escape dismisses
 /// it. With `mic_lost`, the microphone warning shows once the pill goes, so
 /// the two never share a pill. Returns false when the overlay is disabled,
-/// so there is no pill to click.
+/// so there is no pill to click. Only macOS Accessibility tells that no text
+/// field has the focus, so Windows never shows it.
+#[cfg_attr(target_os = "windows", allow(dead_code))]
 pub fn show_copy_notice(
     app_handle: &AppHandle,
     text: String,
@@ -630,7 +771,9 @@ pub fn show_cancelled_notice(app_handle: &AppHandle, shown: DictationEpoch) {
 }
 
 /// Creates the call prompt's panel, hidden. It takes clicks whenever it
-/// shows. It only lives while a prompt shows.
+/// shows. It only lives while a prompt shows. Windows has no call detection,
+/// so no call prompt.
+#[cfg(target_os = "macos")]
 fn create_call_prompt(app_handle: &AppHandle) {
     if let Err(e) = PanelBuilder::<_, RecordingOverlayPanel>::new(app_handle, CALL_PROMPT_WINDOW)
         .url(WebviewUrl::App("src/overlay/call.html".into()))
@@ -695,6 +838,7 @@ pub fn show_call_prompt(app_handle: &AppHandle, kind: PromptKind) {
     let handle = app_handle.clone();
     let _ = app_handle.run_on_main_thread(move || {
         // A page built here asks for the labels once it listens.
+        #[cfg(target_os = "macos")]
         if handle.get_webview_window(CALL_PROMPT_WINDOW).is_none() {
             create_call_prompt(&handle);
         }
@@ -717,6 +861,7 @@ pub fn hide_call_prompt(app_handle: &AppHandle) {
         // out of the store, or its web process would stay. It marks the
         // window released when closed, but tao releases its windows itself:
         // left on, the window would be freed twice.
+        #[cfg(target_os = "macos")]
         let window = match handle.get_webview_panel(CALL_PROMPT_WINDOW) {
             Ok(panel) => {
                 panel.hide();
@@ -727,6 +872,8 @@ pub fn hide_call_prompt(app_handle: &AppHandle) {
             // Already handed back by an earlier hide, its destroy pending.
             Err(_) => handle.get_webview_window(CALL_PROMPT_WINDOW),
         };
+        #[cfg(target_os = "windows")]
+        let window = handle.get_webview_window(CALL_PROMPT_WINDOW);
         if let Some(window) = window {
             let _ = window.hide();
             if let Err(e) = window.destroy() {
@@ -736,6 +883,17 @@ pub fn hide_call_prompt(app_handle: &AppHandle) {
     });
 }
 
+#[cfg(target_os = "windows")]
+fn place_call_prompt(
+    app_handle: &AppHandle,
+    window: &tauri::webview::WebviewWindow,
+    width: f64,
+    height: f64,
+) {
+    place_overlay(app_handle, window, width, height, CALL_PROMPT_OFFSET);
+}
+
+#[cfg(target_os = "macos")]
 fn place_call_prompt(
     app_handle: &AppHandle,
     window: &tauri::webview::WebviewWindow,
@@ -808,7 +966,11 @@ pub fn fit_copy_notice(app: AppHandle, width: f64, height: f64) {
             return;
         };
         let (width, height) = fitted_window_size(&handle, width, height);
+        #[cfg(target_os = "windows")]
+        place_overlay(&handle, &window, width, height, 0.0);
+        #[cfg(target_os = "macos")]
         let _ = window.set_size(tauri::Size::Logical(tauri::LogicalSize { width, height }));
+        #[cfg(target_os = "macos")]
         if let Some((x, y)) = calculate_overlay_position(&handle, width, height) {
             let _ = window.set_position(tauri::Position::Logical(tauri::LogicalPosition { x, y }));
         }
@@ -919,6 +1081,8 @@ fn dismiss_notice_after(
 #[derive(Clone, Copy)]
 enum Dismissal {
     Timer(u64),
+    /// Windows watches no key, so only its tests dismiss with Escape.
+    #[cfg_attr(target_os = "windows", allow(dead_code))]
     Escape,
 }
 
@@ -990,8 +1154,20 @@ fn notice_after(gone: Option<Notice>) -> Option<Notice> {
     }
 }
 
+/// While a fitted pill shows, the overlay takes clicks; at any other time
+/// the mouse goes through it to the app below.
+#[cfg(target_os = "windows")]
+fn set_interactive(
+    _app_handle: &AppHandle,
+    window: &tauri::webview::WebviewWindow,
+    interactive: bool,
+) {
+    let _ = window.set_ignore_cursor_events(!interactive);
+}
+
 /// While a fitted pill shows, the overlay takes clicks and Escape; at any
 /// other time the mouse goes through it to the app below. Main thread only.
+#[cfg(target_os = "macos")]
 fn set_interactive(
     app_handle: &AppHandle,
     window: &tauri::webview::WebviewWindow,
@@ -1010,10 +1186,12 @@ fn set_interactive(
     });
 }
 
+#[cfg(target_os = "macos")]
 fn escape_dismissal(key_code: u16) -> Option<Dismissal> {
     (key_code == ESCAPE_KEY_CODE).then_some(Dismissal::Escape)
 }
 
+#[cfg(target_os = "macos")]
 fn dismiss_escape_key(app_handle: &AppHandle, key_code: u16) {
     if let Some(dismissal) = escape_dismissal(key_code) {
         // Dismissing removes the monitors, so it runs outside their handlers.
@@ -1024,6 +1202,7 @@ fn dismiss_escape_key(app_handle: &AppHandle, key_code: u16) {
 
 /// Global monitors exclude Murmur's own events. The local monitor leaves those
 /// events unchanged so Escape still reaches the focused Settings control.
+#[cfg(target_os = "macos")]
 fn add_escape_monitors(app_handle: &AppHandle) -> Vec<EscapeMonitor> {
     let app = app_handle.clone();
     let global_handler = RcBlock::new(move |event: NonNull<objc2_app_kit::NSEvent>| {
@@ -1047,6 +1226,27 @@ fn add_escape_monitors(app_handle: &AppHandle) -> Vec<EscapeMonitor> {
     [global, local].into_iter().flatten().collect()
 }
 
+#[cfg(target_os = "windows")]
+fn present_overlay_window(
+    app_handle: &AppHandle,
+    state: &str,
+    width: f64,
+    height: f64,
+    interactive: bool,
+) -> Option<tauri::webview::WebviewWindow> {
+    let overlay_window = app_handle.get_webview_window("recording_overlay")?;
+    let started = std::time::Instant::now();
+    place_overlay(app_handle, &overlay_window, width, height, 0.0);
+    let _ = overlay_window.show();
+    // Showing can move a window that changed monitor back by tao's stale
+    // scale; placing it again settles it.
+    place_overlay(app_handle, &overlay_window, width, height, 0.0);
+    set_interactive(app_handle, &overlay_window, interactive);
+    log::debug!("overlay '{}': place+show={:?}", state, started.elapsed());
+    Some(overlay_window)
+}
+
+#[cfg(target_os = "macos")]
 fn present_overlay_window(
     app_handle: &AppHandle,
     state: &str,
@@ -1129,6 +1329,9 @@ fn update_overlay_position_on_main(app_handle: &AppHandle) {
     if let Some(overlay_window) = app_handle.get_webview_window("recording_overlay") {
         let (width, height) = current_overlay_logical_size(&overlay_window)
             .unwrap_or((ORB_OVERLAY_SIZE, ORB_OVERLAY_SIZE));
+        #[cfg(target_os = "windows")]
+        place_overlay(app_handle, &overlay_window, width, height, 0.0);
+        #[cfg(target_os = "macos")]
         if let Some((x, y)) = calculate_overlay_position(app_handle, width, height) {
             let _ = overlay_window
                 .set_position(tauri::Position::Logical(tauri::LogicalPosition { x, y }));
@@ -1421,6 +1624,7 @@ mod tests {
         assert!(matches!(error, Some(Notice::Error)));
     }
 
+    #[cfg(target_os = "macos")]
     #[test]
     fn escape_monitors_only_dismiss_fitted_notices_for_the_escape_key() {
         for key in [0, 36, 51, ESCAPE_KEY_CODE] {

@@ -25,6 +25,7 @@ import type {
   MeetingStage,
   ProcessingError,
   Snippet,
+  RecordedKeys,
   SpeakerAnalysis,
   OpenTarget,
 } from "../../src/bindings";
@@ -54,9 +55,17 @@ declare global {
       emitUpdateStatus: (available: string | null) => Promise<void>;
       /** The update found is no longer offered by the next check. */
       withdrawUpdate: () => void;
+      /** The user switched to another keyboard layout. */
+      switchKeyboard: (keyboard: Keyboard) => void;
+      /** Keeps the keyboard layout reads asked from now on unanswered. */
+      holdKeyboard: (held: boolean) => void;
+      /** Answers the held reads with the layout as it was when asked. */
+      releaseKeyboard: () => void;
     };
   }
 }
+
+type Keyboard = "azerty" | "qwerty";
 
 const params = new URLSearchParams(window.location.search);
 const language = params.get("lang") ?? "en";
@@ -223,6 +232,37 @@ const modelsStatus: LocalModelStatus =
         },
       };
 const theme = (params.get("theme") ?? "light") as AppSettings["theme"];
+/** `platform=windows` runs the Windows build, with its Ctrl+Win default. */
+const windows = params.get("platform") === "windows";
+const transcribeBinding = windows ? "ctrl+super" : "option+space";
+/**
+ * `keyboard=azerty` reads a French AZERTY layout as Windows reports it, and
+ * saves recorded shortcuts; `keyboard=qwerty` a US one. A test can switch
+ * the layout afterwards.
+ */
+const savesBindings = params.has("keyboard");
+let keyboard: Keyboard =
+  params.get("keyboard") === "azerty" ? "azerty" : "qwerty";
+const KEYBOARDS: Record<
+  Keyboard,
+  { labels: Record<string, string>; recorded: RecordedKeys }
+> = {
+  azerty: {
+    // What the layout types on a few virtual keys, by the name they
+    // register as.
+    labels: { "1": "&", a: "a", q: "q", m: "m", ",": ",", "/": ":" },
+    // The virtual key under a few physical keys, by the physical key's US
+    // name, and the "!" and "<" keys, whose virtual keys no shortcut
+    // registers.
+    recorded: {
+      names: { q: "a", a: "q", ";": "m", m: ",", ".": "/" },
+      unusable: ["/", "intlbackslash"],
+    },
+  },
+  qwerty: { labels: {}, recorded: { names: {}, unusable: [] } },
+};
+let keyboardHeld = false;
+let heldKeyboardReads: (() => void)[] = [];
 
 const APP_DATA_DIR =
   "/Users/user/Library/Application Support/com.dailyxplorer.murmur";
@@ -278,8 +318,8 @@ const SETTINGS: AppSettings = {
       name: "Paste last transcript",
     },
     transcribe: {
-      current_binding: "option+space",
-      default_binding: "option+space",
+      current_binding: transcribeBinding,
+      default_binding: transcribeBinding,
       description: "Record and transcribe",
       id: "transcribe",
       name: "Transcribe",
@@ -872,7 +912,6 @@ const RESPONSES: Record<string, unknown> = {
   get_microphone_authorization_status: 3,
   get_microphone_channels: 1,
   get_shortcut_registration_errors: {},
-  get_key_labels: {},
   initialize_enigo: null,
   initialize_shortcuts: null,
   report_settings_view: null,
@@ -933,6 +972,17 @@ window.settingsPages = {
   withdrawUpdate: () => {
     updateWithdrawn = true;
   },
+  switchKeyboard: (layout) => {
+    keyboard = layout;
+  },
+  holdKeyboard: (held) => {
+    keyboardHeld = held;
+  },
+  releaseKeyboard: () => {
+    const reads = heldKeyboardReads;
+    heldKeyboardReads = [];
+    reads.forEach((answer) => answer());
+  },
 };
 
 mockIPC(
@@ -950,6 +1000,25 @@ mockIPC(
     if (engineCommand.handled) return engineCommand.value;
     const accountCommand = handleAccountCommand(command);
     if (accountCommand.handled) return accountCommand.value;
+    if (command === "get_key_labels" || command === "get_recorded_key_names") {
+      // Read when asked, answered when released.
+      const layout = KEYBOARDS[keyboard];
+      const value =
+        command === "get_key_labels" ? layout.labels : layout.recorded;
+      if (!keyboardHeld) return value;
+      return new Promise((resolve) => {
+        heldKeyboardReads.push(() => resolve(value));
+      });
+    }
+    if (command === "change_binding" && savesBindings) {
+      const { id, binding } = args as { id: string; binding: string };
+      const bindings = SETTINGS.bindings ?? {};
+      return {
+        success: true,
+        binding: { ...bindings[id], current_binding: binding },
+        error: null,
+      };
+    }
     // The backend emits the models' new state before the command returns.
     const models = MODEL_COMMANDS[command];
     if (models) setModel(models);
@@ -1015,15 +1084,25 @@ mockIPC(
 );
 
 Object.assign(window, {
-  __TAURI_OS_PLUGIN_INTERNALS__: {
-    arch: "aarch64",
-    eol: "\n",
-    exe_extension: "",
-    family: "unix",
-    os_type: "macos",
-    platform: "macos",
-    version: "15.0.0",
-  },
+  __TAURI_OS_PLUGIN_INTERNALS__: windows
+    ? {
+        arch: "x86_64",
+        eol: "\r\n",
+        exe_extension: "exe",
+        family: "windows",
+        os_type: "windows",
+        platform: "windows",
+        version: "10.0.26100",
+      }
+    : {
+        arch: "aarch64",
+        eol: "\n",
+        exe_extension: "",
+        family: "unix",
+        os_type: "macos",
+        platform: "macos",
+        version: "15.0.0",
+      },
 });
 
 const renderFixture = async () => {

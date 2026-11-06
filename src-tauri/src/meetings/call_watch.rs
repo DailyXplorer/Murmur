@@ -17,6 +17,7 @@ use super::calls::{
 };
 use super::coordinator::{MeetingAlert, MeetingError};
 use super::MeetingsManager;
+#[cfg(target_os = "macos")]
 use crate::accessibility::{self, Element};
 use crate::overlay;
 use crate::settings::{get_settings, AppSettings};
@@ -156,6 +157,7 @@ fn tick(app: &AppHandle, seen: &mut Vec<String>, browser_calls: &mut BTreeMap<Br
 
 /// The meeting `browser` shows, read through Accessibility from the titles
 /// of its windows or the address of its front page. Nothing is logged.
+#[cfg(target_os = "macos")]
 fn browser_call(browser: Browser) -> Option<CallApp> {
     let workspace = objc2_app_kit::NSWorkspace::sharedWorkspace();
     workspace.runningApplications().iter().find_map(|running| {
@@ -171,6 +173,12 @@ fn browser_call(browser: Browser) -> Option<CallApp> {
                 .flatten()
         })
     })
+}
+
+/// Windows has no call detection: `mic_users` never answers there.
+#[cfg(target_os = "windows")]
+fn browser_call(_browser: Browser) -> Option<CallApp> {
+    None
 }
 
 /// Starts the meeting for a call, or tells why it did not.
