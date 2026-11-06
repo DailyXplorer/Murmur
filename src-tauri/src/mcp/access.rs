@@ -9,7 +9,8 @@ const SETTINGS_FILE: &str = "settings_store.json";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Access {
-    /// Meetings may be read.
+    /// The first switch: the server answers. Meetings may be read where they
+    /// exist (`MEETINGS_EXIST`); on Windows this alone opens nothing.
     pub meetings: bool,
     /// Dictations may be read too. Never true while `meetings` is false.
     pub dictations: bool,

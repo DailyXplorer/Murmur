@@ -125,6 +125,10 @@ Windows is a beta: it shares this repository and its version number with the Mac
   when AI cleanup did not run
 - Dictation styles for cleanup: Formal, Normal (the default) or Casual
 - A dictionary of custom words, spelled your way in each dictation
+- A space added when you dictate right after a word, so the text does not stick
+  to it. It never reads password fields or a selection, and adds nothing in an
+  app that does not show where the cursor is. Settings → Transcription → Add
+  leading space
 - Names from the frontmost window and a short excerpt around the cursor as
   hints for AI cleanup, read through Accessibility (UI Automation on Windows)
   and never stored; password fields and password managers are never read
@@ -150,9 +154,11 @@ Windows is a beta: it shares this repository and its version number with the Mac
 - Audio feedback, tray controls, and automatic updates
 
 The Windows beta has dictation, transcription on the PC or in the cloud, AI
-cleanup with styles, names read from the active window, history, Insights,
-custom words, shortcut keys shown for your keyboard layout, sounds, and launch
-at login. It does not have Meetings or automatic updates yet.
+cleanup with styles, names read from the active window, history you can search
+by words, Insights, custom words, a space added after a word, shortcut keys
+shown for your keyboard layout, sounds, launch at login, and read-only access to
+your dictation history for AI assistants. It does not have Meetings or automatic
+updates yet.
 
 ## Getting started
 
@@ -271,6 +277,50 @@ claude mcp add murmur -- /Applications/Murmur.app/Contents/MacOS/murmur mcp
 - If Murmur was updated and not opened since, open it once: the server never
   changes your data to catch up.
 
+### Use your meetings from an AI assistant
+
+An AI assistant that supports the Model Context Protocol can list, search and
+read your meetings: "what did we decide about pricing last week?". It is off
+until you turn on "Let AI agents read your meetings (MCP)" in Settings →
+Advanced, which then shows what to paste into Claude Code, Codex or Claude
+Desktop. For Claude Code, for example:
+
+```bash
+claude mcp add murmur -- /Applications/Murmur.app/Contents/MacOS/murmur mcp
+```
+
+- The assistant starts `murmur mcp` itself and talks to it through the
+  process's standard input and output. Murmur opens no window and no network
+  port for it, and nothing else on your Mac or the internet can reach it.
+- It is read-only: it opens your meetings with read-only access, offers no
+  tool that changes anything and takes no file path. It never returns audio,
+  audio paths, window names, settings or account data.
+- Five tools: `list_meetings`, `search`, `get_transcript`, `get_summary`, and
+  `recent_dictations`. The last exists only when you also turn on "Include
+  dictation history", which is off by default because dictations are more
+  personal than meetings.
+- Whatever the assistant reads goes to the assistant's own servers, not only
+  to your Mac. Turn the switch off to stop it; this takes effect on the next
+  request, without restarting the assistant.
+- If Murmur was updated and not opened since, open it once: the server never
+  changes your data to catch up.
+
+On Windows, which has no Meetings, the assistant reads your dictation history
+only, through two tools: `search` and `recent_dictations`. Both are off until
+you turn on "Let AI agents connect (MCP)" and then "Include dictation history"
+in Settings → Advanced; the first switch alone shares nothing. Settings shows
+the command with the real path of your `murmur.exe`. For Claude Code, for
+example, in PowerShell or cmd (keep the quotes if the path holds spaces):
+
+```bash
+claude mcp add murmur -- "C:\Users\you\AppData\Local\Murmur\murmur.exe" mcp
+```
+
+The server reads `settings_store.json` and `history.db` in
+`%APPDATA%\com.dailyxplorer.murmur`. Running `murmur.exe mcp` by hand in a
+terminal shows nothing: the Windows app has no console, so the server talks
+only through the pipes the assistant gives it.
+
 ### Permissions after updating to the stable signature
 
 Releases are signed with a stable Murmur certificate, so macOS keeps the
@@ -297,7 +347,7 @@ murmur --transcribe-file recording.wav --json
 murmur mcp
 ```
 
-`murmur mcp` is for AI assistants to launch, not to run by hand; see
+`murmur mcp` (`murmur.exe mcp` on Windows) is for AI assistants to launch, not to run by hand; see
 [Use your meetings from an AI assistant](#use-your-meetings-from-an-ai-assistant).
 
 On Unix systems, `SIGUSR2` also toggles transcription for a running instance:

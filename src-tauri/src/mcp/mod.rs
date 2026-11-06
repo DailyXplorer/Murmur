@@ -1,4 +1,5 @@
-//! `murmur mcp`: your meetings, read-only, for the AI apps you connect.
+//! `murmur mcp`: your meetings and dictations, read-only, for the AI apps you
+//! connect.
 //!
 //! An AI app (Claude Code, Codex, Claude Desktop) launches this as a child
 //! process and talks to it over stdin and stdout (Model Context Protocol,
@@ -10,14 +11,17 @@
 mod access;
 mod rpc;
 mod sample;
+mod setup;
 #[cfg(test)]
 mod tests;
 mod tools;
 
-use std::path::{Path, PathBuf};
+use std::ffi::OsString;
+use std::path::PathBuf;
 
 #[doc(hidden)]
 pub use sample::seed_sample_data_dir;
+pub use setup::command_path;
 pub use tools::open_read_only;
 
 /// The app's bundle identifier, which names its data directory. A test pins
@@ -27,23 +31,45 @@ const IDENTIFIER: &str = "com.dailyxplorer.murmur";
 /// Points the server at another data directory (tests and measurements).
 const DATA_DIR_VARIABLE: &str = "MURMUR_MCP_DATA_DIR";
 
-/// Where Tauri keeps the app's data on macOS.
-fn data_dir() -> Option<PathBuf> {
-    if let Some(dir) = std::env::var_os(DATA_DIR_VARIABLE) {
+/// Whether the app records meetings, and so whether the meeting tools exist.
+/// Windows has dictation only: there the server offers `search` over
+/// dictations and `recent_dictations`, and nothing else.
+const MEETINGS_EXIST: bool = cfg!(target_os = "macos");
+
+/// The folder Tauri keeps app data folders in on macOS.
+#[cfg(target_os = "macos")]
+fn data_root(var: impl Fn(&str) -> Option<OsString>) -> Option<PathBuf> {
+    Some(PathBuf::from(var("HOME")?).join("Library/Application Support"))
+}
+
+/// The folder Tauri keeps app data folders in on Windows: the Roaming
+/// AppData folder.
+#[cfg(target_os = "windows")]
+fn data_root(var: impl Fn(&str) -> Option<OsString>) -> Option<PathBuf> {
+    Some(PathBuf::from(var("APPDATA")?))
+}
+
+/// Where the app keeps its data, read through `var` (the environment).
+fn data_dir_from(var: impl Fn(&str) -> Option<OsString>) -> Option<PathBuf> {
+    if let Some(dir) = var(DATA_DIR_VARIABLE) {
         return Some(PathBuf::from(dir));
     }
-    let home = std::env::var_os("HOME")?;
-    Some(
-        Path::new(&home)
-            .join("Library/Application Support")
-            .join(IDENTIFIER),
-    )
+    Some(data_root(var)?.join(IDENTIFIER))
 }
+
+fn environment(name: &str) -> Option<OsString> {
+    std::env::var_os(name)
+}
+
+#[cfg(target_os = "macos")]
+const NO_DATA_DIR: &str = "murmur mcp: cannot find the home folder";
+#[cfg(target_os = "windows")]
+const NO_DATA_DIR: &str = "murmur mcp: cannot find the app data folder";
 
 /// Serves until the AI app closes our stdin. The exit code of the process.
 pub fn run() -> i32 {
-    let Some(data_dir) = data_dir() else {
-        eprintln!("murmur mcp: cannot find the home folder");
+    let Some(data_dir) = data_dir_from(environment) else {
+        eprintln!("{NO_DATA_DIR}");
         return 1;
     };
     let server = rpc::Server::new(data_dir);

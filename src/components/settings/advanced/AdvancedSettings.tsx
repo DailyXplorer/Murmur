@@ -40,13 +40,11 @@ export const AdvancedSettings: React.FC = () => {
         {meetingsEnabled && <MeetingsAudioRetention />}
       </SettingsGroup>
 
-      {/* The Windows beta has no MCP server, updater or release notes yet. */}
-      {!isWindows && (
-        <SettingsGroup title={t("settings.advanced.groups.mcp")}>
-          <McpAccess />
-        </SettingsGroup>
-      )}
+      <SettingsGroup title={t("settings.advanced.groups.mcp")}>
+        <McpAccess />
+      </SettingsGroup>
 
+      {/* The Windows beta has no updater and no release notes in the app. */}
       {!isWindows && (
         <SettingsGroup title={t("settings.advanced.groups.updates")}>
           <UpdateChecksToggle grouped={true} />

@@ -123,7 +123,7 @@ impl SettingsFile {
 
     /// Keeps the file as it is on disk next to it, before a repair rewrites
     /// it without a field this version cannot read. One copy per distinct
-    /// content, readable by the user only.
+    /// content, mode 0600 on macOS, with the folder's access rules on Windows.
     pub(crate) fn preserve_unreadable(&self) -> io::Result<Option<PathBuf>> {
         let bytes = match fs::read(&self.shared.path) {
             Ok(bytes) => bytes,
@@ -284,6 +284,71 @@ mod tests {
         file.flush();
         let on_disk: Value = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
         assert_eq!(on_disk["settings"]["audio_feedback_volume"], 100);
+    }
+
+    #[test]
+    fn settings_file_keeps_other_top_level_keys() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("settings_store.json");
+        fs::write(&path, br#"{"settings":{},"other":{"kept":true}}"#).unwrap();
+        let file = SettingsFile::open(path.clone());
+
+        file.store_checked(serde_json::json!({ "history_limit": 42 }))
+            .unwrap();
+
+        let on_disk: Value = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
+        assert_eq!(on_disk["other"], serde_json::json!({ "kept": true }));
+        assert_eq!(on_disk["settings"]["history_limit"], 42);
+    }
+
+    #[test]
+    fn opening_settings_removes_only_its_staged_copies() {
+        use std::process::{Command, Stdio};
+
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("settings_store.json");
+        let mut owner = Command::new(std::env::current_exe().unwrap())
+            .arg("--list")
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .unwrap();
+        assert!(owner.wait().unwrap().success());
+        let staged = dir
+            .path()
+            .join(format!("settings_store.json.{}.0.tmp", owner.id()));
+        let unrelated = dir.path().join("other.json.0.0.tmp");
+        fs::write(&staged, b"partial").unwrap();
+        fs::write(&unrelated, b"kept").unwrap();
+
+        let _file = SettingsFile::open(path);
+
+        assert!(!staged.exists());
+        assert_eq!(fs::read(unrelated).unwrap(), b"kept");
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn a_read_only_settings_file_rolls_back_a_checked_change() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("settings_store.json");
+        let file = SettingsFile::open(path.clone());
+        let previous = serde_json::json!({ "history_limit": 42 });
+        file.store_checked(previous.clone()).unwrap();
+        let original = fs::metadata(&path).unwrap().permissions();
+        let mut read_only = original.clone();
+        read_only.set_readonly(true);
+        fs::set_permissions(&path, read_only).unwrap();
+
+        let result = file.store_checked(serde_json::json!({ "history_limit": 5 }));
+        let memory = file.get();
+        let on_disk: Value = serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
+        fs::set_permissions(&path, original).unwrap();
+
+        assert!(result.is_err());
+        assert_eq!(memory, Some(previous.clone()));
+        assert_eq!(on_disk["settings"], previous);
+        assert_eq!(fs::read_dir(dir.path()).unwrap().count(), 1);
     }
 
     #[test]

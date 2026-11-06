@@ -68,6 +68,7 @@ jobs:
 
   rust:
     runs-on: windows-latest
+    timeout-minutes: 30
     steps:
       # bindings.ts and other checked-in files are compared byte for byte.
       - name: Keep line endings as committed
@@ -87,9 +88,30 @@ jobs:
         with:
           workspaces: "./src-tauri -> target"
 
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@1919c4a95903d2c33e4a221102edca87309fc14b # v2.89.0
+        with:
+          tool: cargo-nextest
+
+      - name: Prove a hung test times out
+        shell: pwsh
+        run: ./.github/scripts/check-nextest-timeout.ps1
+
       - name: Run Rust tests
         working-directory: src-tauri
-        run: cargo test --locked
+        run: cargo nextest run --locked --profile ci
+
+      - name: Run Rust doctests
+        working-directory: src-tauri
+        run: cargo test --locked --doc
+
+      - name: Upload Rust test results
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: windows-rust-tests
+          path: src-tauri/target/nextest/ci/junit.xml
+          if-no-files-found: warn
 
       - name: Run Clippy
         working-directory: src-tauri
@@ -100,6 +122,7 @@ jobs:
   # miss (739 MB) costs only this job.
   cpu-model:
     runs-on: windows-latest
+    timeout-minutes: 30
     steps:
       - name: Keep line endings as committed
         run: git config --global core.autocrlf false
@@ -159,7 +182,12 @@ jobs:
           }
           if ($recorded -eq 0) { throw "no voice to record a clip with" }
 
-      # --exact, and the count checked, so a renamed test fails the job
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@1919c4a95903d2c33e4a221102edca87309fc14b # v2.89.0
+        with:
+          tool: cargo-nextest
+
+      # Exact filters, and the count checked, so a renamed test fails the job
       # instead of matching nothing. The replace-then-delete test is macOS
       # only: Windows may refuse both while the file is mapped.
       - name: Transcribe the clips and delete the loaded model
@@ -170,11 +198,11 @@ jobs:
           MURMUR_SMOKE_CLIPS: ${{ runner.temp }}/clips
         run: |
           set -euo pipefail
-          cargo test --locked --lib -- --ignored --exact --nocapture \
-            engine::local::cpu::tests::the_cpu_model_hears_the_words_of_each_clip \
-            engine::local::cpu::tests::deleting_the_models_releases_the_loaded_cpu_model \
-            | tee "$RUNNER_TEMP/cpu-model.txt"
-          grep -q "test result: ok. 2 passed" "$RUNNER_TEMP/cpu-model.txt"
+          cargo nextest run --locked --lib --profile ci --color never \
+            --run-ignored only --no-capture \
+            -E 'test(=engine::local::cpu::tests::the_cpu_model_hears_the_words_of_each_clip) | test(=engine::local::cpu::tests::deleting_the_models_releases_the_loaded_cpu_model)' \
+            2>&1 | tee "$RUNNER_TEMP/cpu-model.txt"
+          grep -q "2 tests run: 2 passed" "$RUNNER_TEMP/cpu-model.txt"
 
   installer:
     runs-on: windows-latest

@@ -857,7 +857,11 @@ const handleAccountCommand = (
 const RESPONSES: Record<string, unknown> = {
   change_mcp_enabled_setting: null,
   change_mcp_include_dictations_setting: null,
-  get_mcp_setup: { command: "/Applications/Murmur.app/Contents/MacOS/murmur" },
+  get_mcp_setup: {
+    command: windows
+      ? "C:\\Users\\Some One\\AppData\\Local\\Murmur\\murmur.exe"
+      : "/Applications/Murmur.app/Contents/MacOS/murmur",
+  },
   change_meeting_audio_retention_setting: null,
   change_meeting_call_prompt_setting: null,
   change_meeting_capture_mode_setting: null,

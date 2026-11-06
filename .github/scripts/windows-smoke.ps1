@@ -6,7 +6,9 @@
 #   murmur.log                the app log
 # Fails when the install is not per-user, lacks the Visual C++ runtime beside
 # the app, the app loads that runtime from elsewhere, quits, the settings
-# window goes past the work area (under the taskbar), or the log shows a panic.
+# window goes past the work area (under the taskbar), the log shows a panic, or
+# `murmur.exe mcp`, run beside the app with redirected pipes as an AI assistant
+# runs it, fails to answer, shows a window or outlives its stdin.
 param(
     [Parameter(Mandatory)] [string] $Installer,
     [Parameter(Mandatory)] [string] $OutputDir
@@ -93,6 +95,52 @@ function Assert-NoPanic {
     }
 }
 
+# The release exe has the GUI subsystem: no console, so no console window for
+# an assistant that spawns `murmur mcp`. Its stdin and stdout are the pipes the
+# parent passes in. A console-subsystem exe would pass this check too, so the
+# PE header is read first.
+function Assert-McpServer {
+    $bytes = [System.IO.File]::ReadAllBytes($script:exe)
+    $optionalHeader = [BitConverter]::ToInt32($bytes, 0x3C) + 24
+    $subsystem = [BitConverter]::ToUInt16($bytes, $optionalHeader + 68)
+    if ($subsystem -ne 2) { throw "The installed exe has PE subsystem $subsystem, not 2 (Windows GUI)" }
+
+    $info = New-Object System.Diagnostics.ProcessStartInfo
+    $info.FileName = $script:exe
+    $info.Arguments = 'mcp'
+    $info.UseShellExecute = $false
+    $info.CreateNoWindow = $true
+    $info.RedirectStandardInput = $true
+    $info.RedirectStandardOutput = $true
+    $info.RedirectStandardError = $true
+    $info.StandardInputEncoding = New-Object System.Text.UTF8Encoding $false
+    $server = [System.Diagnostics.Process]::Start($info)
+    try {
+        $server.StandardInput.WriteLine('{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"smoke","version":"0"}}}')
+        $server.StandardInput.WriteLine('{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}')
+        $server.StandardInput.Flush()
+        $replies = foreach ($id in 1, 2) {
+            $line = $server.StandardOutput.ReadLineAsync()
+            if (-not $line.Wait(20000)) { throw "murmur mcp sent no reply to request $id within 20 s" }
+            $line.Result | ConvertFrom-Json
+        }
+        $server.Refresh()
+        if ($server.MainWindowHandle -ne [IntPtr]::Zero) { throw 'murmur mcp shows a window' }
+        if ($replies[0].result.serverInfo.name -ne 'murmur') { throw 'murmur mcp did not answer initialize' }
+        $tools = @($replies[1].result.tools.name)
+        Write-Host "murmur mcp lists: $($tools -join ', ')"
+        if ($tools -notcontains 'search') { throw 'murmur mcp lists no search tool' }
+        if ($tools -contains 'list_meetings') { throw 'murmur mcp lists a meeting tool on Windows' }
+
+        $server.StandardInput.Close()
+        if (-not $server.WaitForExit(20000)) { throw 'murmur mcp did not exit when its stdin closed' }
+        if ($server.ExitCode -ne 0) { throw "murmur mcp exited with code $($server.ExitCode)" }
+    }
+    finally {
+        if (-not $server.HasExited) { $server.Kill() }
+    }
+}
+
 try {
     # A per-user NSIS installer runs silently without elevation, installs
     # under %LOCALAPPDATA% and registers its uninstaller under HKCU.
@@ -132,6 +180,10 @@ try {
     # As after onboarding: the settings window opens instead.
     $settings = Get-Content -Raw $settingsFile | ConvertFrom-Json
     $settings.settings.onboarding_completed = $true
+    # The AI assistant server answers only when both switches are on.
+    foreach ($switch in 'mcp_enabled', 'mcp_include_dictations') {
+        $settings.settings | Add-Member -NotePropertyName $switch -NotePropertyValue $true -Force
+    }
     $settings | ConvertTo-Json -Depth 32 | Set-Content -Encoding utf8NoBOM $settingsFile
 
     $murmur = Start-Murmur
@@ -145,6 +197,10 @@ try {
     Save-Desktop 'desktop-overlay.png'
     Start-Process -FilePath $script:exe -ArgumentList '--cancel' -Wait
     Start-Sleep -Seconds 3
+
+    # The app is still running: the `mcp` path must not reach its single
+    # instance plugin.
+    Assert-McpServer
 
     $murmur.Refresh()
     if ($murmur.HasExited) { throw "Murmur quit with code $($murmur.ExitCode)" }
