@@ -36,13 +36,24 @@ impl Source {
 }
 
 /// Apple silicon runs the Core ML models through FluidAudio, the other Macs
-/// the GGUF file on the CPU.
+/// the GGUF file on the CPU. Windows runs the same GGUF file, and fetches the
+/// speaker model beside it (optional: dictation never waits for it).
 pub fn this_mac() -> &'static [Source] {
-    if cfg!(target_arch = "aarch64") {
+    if cfg!(target_os = "windows") {
+        pinned::WINDOWS
+    } else if cfg!(target_arch = "aarch64") {
         pinned::APPLE_SILICON
     } else {
         pinned::X86_64
     }
+}
+
+/// The speaker model (Sortformer) relative to the models directory, on
+/// Windows, where it is the one optional source.
+#[cfg(target_os = "windows")]
+pub fn speaker_gguf_path() -> std::path::PathBuf {
+    let source = &pinned::WINDOWS[1];
+    std::path::Path::new(source.folder).join(source.files[0].path)
 }
 
 /// The speech model earlier versions downloaded, Parakeet TDT 0.6B v3. A
@@ -130,7 +141,11 @@ mod tests {
 
     #[test]
     fn every_source_is_pinned_to_a_commit_and_every_file_to_a_sha256() {
-        for source in pinned::APPLE_SILICON.iter().chain(pinned::X86_64) {
+        for source in pinned::APPLE_SILICON
+            .iter()
+            .chain(pinned::X86_64)
+            .chain(pinned::WINDOWS)
+        {
             assert!(is_hex(source.commit, 40), "{} is not pinned", source.repo);
             assert!(!source.files.is_empty(), "{} has no files", source.repo);
             for file in source.files {
@@ -145,6 +160,34 @@ mod tests {
     fn the_download_sizes_are_the_ones_shown() {
         assert_eq!(total_bytes(pinned::APPLE_SILICON), 756_903_921);
         assert_eq!(total_bytes(pinned::X86_64), 740_363_168);
+        assert_eq!(total_bytes(pinned::WINDOWS), 879_673_504);
+    }
+
+    /// Windows dictates with the Intel Mac model, so a models folder ready
+    /// before the speaker model came stays ready: same required sources.
+    #[test]
+    fn windows_adds_one_optional_speaker_model_to_the_intel_set() {
+        let required: Vec<_> = pinned::WINDOWS.iter().filter(|s| !s.optional).collect();
+        assert_eq!(required.len(), pinned::X86_64.len());
+        for (windows, intel) in required.iter().zip(pinned::X86_64) {
+            assert_eq!(
+                (windows.repo, windows.commit, windows.folder),
+                (intel.repo, intel.commit, intel.folder)
+            );
+            assert_eq!(windows.files.len(), intel.files.len());
+            for (a, b) in windows.files.iter().zip(intel.files) {
+                assert_eq!((a.path, a.size, a.sha256), (b.path, b.size, b.sha256));
+            }
+        }
+        assert_eq!(
+            id(pinned::WINDOWS.iter().filter(|s| !s.optional)),
+            id(pinned::X86_64)
+        );
+        let optional: Vec<_> = pinned::WINDOWS.iter().filter(|s| s.optional).collect();
+        assert_eq!(optional.len(), 1);
+        assert_eq!(optional[0].folder, "sortformer");
+        assert_eq!(optional[0].files.len(), 1);
+        assert!(optional[0].files[0].path.ends_with("Q8_0.gguf"));
     }
 
     /// The Meetings page shows the size the download really is, in every
@@ -226,7 +269,11 @@ mod tests {
     /// it must hold nothing the current models need.
     #[test]
     fn the_previous_speech_model_shares_no_folder_with_the_current_models() {
-        for source in pinned::APPLE_SILICON.iter().chain(pinned::X86_64) {
+        for source in pinned::APPLE_SILICON
+            .iter()
+            .chain(pinned::X86_64)
+            .chain(pinned::WINDOWS)
+        {
             assert_ne!(source.folder, PREVIOUS.folder, "{}", source.repo);
         }
         assert_ne!(

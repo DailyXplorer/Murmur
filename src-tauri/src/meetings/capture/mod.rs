@@ -8,9 +8,14 @@
 //! was unplugged, the output device changed) or drift. So a sample index
 //! means the same moment in both files.
 
+// The Windows loopback's logic needs no Windows API, so macOS runs its tests.
+#[cfg(any(target_os = "windows", test))]
+mod loopback_logic;
 pub mod mic;
 pub mod route;
 pub mod system;
+#[cfg(target_os = "windows")]
+mod wasapi;
 
 use std::fs::{File, OpenOptions};
 use std::io::BufWriter;
@@ -428,13 +433,6 @@ impl CaptureBackend for DeviceCapture {
         system::permission() == system::SystemAudioPermission::Denied
     }
 
-    /// Windows offers no meetings, so it never records one to keep awake for.
-    #[cfg(target_os = "windows")]
-    fn keep_awake(&self) -> Option<Box<dyn Send>> {
-        None
-    }
-
-    #[cfg(target_os = "macos")]
     fn keep_awake(&self) -> Option<Box<dyn Send>> {
         let guard = super::power::AwakeGuard::hold("Murmur is recording a meeting")?;
         Some(Box::new(guard))

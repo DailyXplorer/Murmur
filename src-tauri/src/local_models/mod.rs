@@ -105,6 +105,16 @@ pub trait Host: Send + Sync + 'static {
     fn os_build(&self) -> Option<String> {
         None
     }
+    /// Whether the optional sources are wanted now. Windows fetches its
+    /// speaker model only for a user who has Meetings on.
+    fn optional_wanted(&self) -> bool {
+        true
+    }
+    /// Whether a meeting start fetches the optional files ready models
+    /// lack. A Mac fetches them at launch and after a download only.
+    fn optional_at_meeting_start(&self) -> bool {
+        true
+    }
 }
 
 /// What the models folder holds, by its ready marker.
@@ -377,6 +387,29 @@ impl LocalModels {
         panic!("the models are still fetching");
     }
 
+    /// Waits until the optional fetch, if one runs, has ended, and tells
+    /// whether the optional files are in place. Returns `false` at once if
+    /// `operation` is cancelled. A download that just made the models ready
+    /// holds its slot until it has started the optional fetch, so it is
+    /// waited for too; the background fetch of a newer speech model is not.
+    pub async fn wait_optional(&self, operation: &ProcessingOperation) -> bool {
+        tokio::select! {
+            biased;
+            () = operation.cancelled() => false,
+            fetched = self.optional_fetched() => fetched,
+        }
+    }
+
+    /// `wait_optional` without a way to cancel it.
+    pub async fn optional_fetched(&self) -> bool {
+        while self.optional_slot().is_some()
+            || (self.download_slot().is_some() && !self.upgrading.load(Ordering::SeqCst))
+        {
+            tokio::time::sleep(Duration::from_millis(250)).await;
+        }
+        optional_in_place(&self.dir, self.sources)
+    }
+
     /// Waits until no download or check is running, then tells whether the
     /// models are ready. Returns `false` at once if `operation` is cancelled.
     pub async fn wait_ready(&self, operation: &ProcessingOperation) -> bool {
@@ -448,6 +481,19 @@ impl LocalModels {
     /// `delete` holds, so a delete under way wins.
     pub fn download_unless_declined(self: &Arc<Self>) {
         self.start_download_unless(true);
+        // Ready models lack only what is optional: the speaker model of
+        // Windows, which a user who turned Meetings on after the download
+        // has not fetched yet.
+        // Under the download slot, as the other starts are: a delete holds
+        // it, and a background upgrade of the speech model is not disturbed.
+        if !self.host.optional_at_meeting_start() {
+            return;
+        }
+        let slot = self.download_slot();
+        if slot.is_none() && self.is_ready() && !self.declined() {
+            self.start_optional();
+        }
+        drop(slot);
     }
 
     fn start_download_unless(self: &Arc<Self>, declined: bool) {
@@ -496,6 +542,9 @@ impl LocalModels {
 
     /// Fetches the optional files ready models lack, in the background.
     fn start_optional(self: &Arc<Self>) {
+        if !self.host.optional_wanted() {
+            return;
+        }
         let operation = {
             let mut slot = self.optional_slot();
             if slot.is_some() {
@@ -742,7 +791,11 @@ fn wait_until_stopped(stopped: impl Fn() -> bool) -> Result<(), String> {
 /// `dir`: their marker is written once they are fetched and prepared. An
 /// earlier pin's marker stays while its files are replaced.
 pub fn optional_ready(dir: &Path) -> bool {
-    let optional = manifest::this_mac().iter().filter(|source| source.optional);
+    optional_in_place(dir, manifest::this_mac())
+}
+
+fn optional_in_place(dir: &Path, sources: &[Source]) -> bool {
+    let optional = sources.iter().filter(|source| source.optional);
     std::fs::read_to_string(dir.join(OPTIONAL_MARKER)).is_ok_and(|id| id == manifest::id(optional))
 }
 

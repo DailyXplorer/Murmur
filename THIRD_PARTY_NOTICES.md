@@ -63,3 +63,26 @@ words, and to transcribe the parts Codex refuses.
 > separating the FBank frontend from the embedding backend, and compiling
 > packages for Apple platforms. These files are licensed under CC-BY-4.0
 > (<https://creativecommons.org/licenses/by/4.0/>).
+
+## Meetings on Windows: speaker detection
+
+The Windows app tells the voices of a meeting apart with Sortformer, run on
+the CPU by transcribe.cpp inside the app (see above). Murmur downloads the
+model when Meetings are on, from Hugging Face at a pinned commit and checked
+by SHA-256; it is not bundled with Murmur.
+
+### Sortformer v2.1 (speaker diarization)
+
+`handy-computer/diar_streaming_sortformer_4spk-v2.1-gguf`: a GGUF conversion,
+quantised to 8 bits (Q8_0), by handy-computer of NVIDIA's
+`nvidia/diar_streaming_sortformer_4spk-v2.1`.
+
+> Licensed by NVIDIA Corporation under the NVIDIA Open Model License
+> (<https://www.nvidia.com/en-us/agreements/enterprise-software/nvidia-open-model-license/>).
+>
+> Modifications: handy-computer converted the NVIDIA model to GGUF for
+> transcribe.cpp. The conversion repackages the weights, renaming and
+> re-laying-out tensors, and the 8-bit file stores them at reduced numeric
+> precision. The weights were not retrained or fine-tuned.
+
+The model tells up to four speakers apart and was trained on English speech.

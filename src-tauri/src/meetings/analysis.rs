@@ -22,6 +22,7 @@ use crate::ProcessingOperation;
 
 pub const ANALYSIS_FILE: &str = "analysis.json";
 /// A 3-hour meeting takes a few minutes; this only catches a hung helper.
+#[cfg_attr(target_os = "windows", allow(dead_code))]
 const ANALYZE_TIMEOUT: Duration = Duration::from_secs(30 * 60);
 /// System audio where this many words were heard holds the remote side of
 /// a call, however long the user spoke. A ringtone or a chime gives next to
@@ -124,7 +125,25 @@ pub trait Analyzer: Send + Sync + 'static {
     fn analyze(&self, request: AnalysisRequest, operation: ProcessingOperation) -> AnalyzeFuture;
 }
 
+/// The analyzer this platform runs: the helper process on a Mac, the models
+/// in the app on Windows (`analysis_cpp`).
+pub fn platform_analyzer(models: Arc<Models>) -> Arc<dyn Analyzer> {
+    #[cfg(all(target_os = "windows", target_arch = "x86_64"))]
+    {
+        Arc::new(super::analysis_cpp::CppAnalyzer { models })
+    }
+    #[cfg(not(all(target_os = "windows", target_arch = "x86_64")))]
+    {
+        Arc::new(HelperAnalyzer {
+            models,
+            support: helper::support(),
+        })
+    }
+}
+
 /// Runs the analysis in `murmur-meetings-helper` with the downloaded models.
+/// Windows has no helper: it runs the models in the app (`analysis_cpp`).
+#[cfg_attr(target_os = "windows", allow(dead_code))]
 pub struct HelperAnalyzer {
     pub models: Arc<Models>,
     pub support: AnalysisSupport,
@@ -178,6 +197,7 @@ impl Analyzer for HelperAnalyzer {
 /// model it ran. When the switch to the current model deleted the previous
 /// one before the helper opened it, it runs again on the current one
 /// (`runs_again`).
+#[cfg_attr(target_os = "windows", allow(dead_code))]
 async fn analyze_on_the_model_in_use(
     program: &Path,
     models: &Models,
@@ -204,6 +224,7 @@ async fn analyze_on_the_model_in_use(
 /// by itself after finding the models missing, the folder names another
 /// model since, and the analysis was not cancelled. A cancel, a timeout or a
 /// helper that could not start ends the analysis there.
+#[cfg_attr(target_os = "windows", allow(dead_code))]
 fn runs_again(
     ended: Option<Ended>,
     models_missing: bool,
@@ -219,6 +240,7 @@ fn runs_again(
 
 /// The words first: what was said on each track picks the one whose voices
 /// are told apart.
+#[cfg_attr(target_os = "windows", allow(dead_code))]
 async fn analyze_and_diarize(
     program: &Path,
     models: &Models,
@@ -262,6 +284,7 @@ async fn analyze_and_diarize(
 
 /// Runs one helper `command` on `tracks`, adding what it prints to
 /// `analysis`. `None` when the helper cannot be run.
+#[cfg_attr(target_os = "windows", allow(dead_code))]
 async fn run_helper(
     program: &Path,
     command: &str,
@@ -290,6 +313,7 @@ async fn run_helper(
     .ok()
 }
 
+#[cfg_attr(target_os = "windows", allow(dead_code))]
 fn track_arg(track: Track) -> &'static str {
     match track {
         Track::Mic => "mic",

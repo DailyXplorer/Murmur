@@ -381,7 +381,8 @@
       },
       "meetingCallPrompt": {
         "label": "Oferecer gravar chamadas",
-        "description": "Quando Zoom, Google Meet, Teams, Slack, FaceTime, Webex ou Discord inicia uma chamada, perguntar se deve gravá-la. A pergunta fica até você responder ou a chamada terminar. O Murmur nunca grava sem um clique. Enquanto uma reunião é gravada, perguntar também se deve pará-la quando a chamada terminar. O Murmur nunca a para sem um clique."
+        "description": "Quando Zoom, Google Meet, Teams, Slack, FaceTime, Webex ou Discord inicia uma chamada, perguntar se deve gravá-la. A pergunta fica até você responder ou a chamada terminar. O Murmur nunca grava sem um clique. Enquanto uma reunião é gravada, perguntar também se deve pará-la quando a chamada terminar. O Murmur nunca a para sem um clique.",
+        "descriptionWindows": "Quando Zoom, Google Meet, Teams, Slack, Webex ou Discord inicia uma chamada, perguntar se deve gravá-la. A pergunta fica até você responder ou a chamada terminar. O Murmur nunca grava sem um clique. Enquanto uma reunião é gravada, perguntar também se deve pará-la quando a chamada terminar. O Murmur nunca a para sem um clique."
       },
       "meetingLiveTranscript": {
         "label": "Transcrição ao vivo das reuniões",
@@ -800,7 +801,8 @@
       "licence": {
         "parakeet": "Reconhecimento de fala: Parakeet Ultra da Moondream, baseado no Parakeet TDT 0.6B v3 da NVIDIA, CC BY 4.0. Convertido para Core ML pela Fluid Inference (Apple silicon) e para GGUF de 8 bits por handy-computer (Macs Intel).",
         "diarization": "Diarização Community-1: pyannote, CC BY 4.0, com WeSpeaker e BUT Speech@FIT. Conversão Core ML modificada da Fluid Inference.",
-        "fluidaudio": "FluidAudio: Fluid Inference, Licença Apache 2.0."
+        "fluidaudio": "FluidAudio: Fluid Inference, Licença Apache 2.0.",
+        "sortformer": "Deteção de oradores no Windows: Sortformer v2.1 da NVIDIA, NVIDIA Open Model License. Convertido para GGUF de 8 bits por handy-computer."
       }
     },
     "transcript": {

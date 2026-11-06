@@ -70,7 +70,9 @@ pub enum Browser {
 
 impl Browser {
     /// The app whose windows show the page. The process on the microphone is
-    /// often one of its helpers, or WebKit's for Safari.
+    /// often one of its helpers, or WebKit's for Safari. macOS only: Windows
+    /// finds a browser's windows by its executables, `WINDOWS_EXECUTABLES`.
+    #[cfg(any(target_os = "macos", test))]
     pub fn bundle_id(self) -> &'static str {
         match self {
             Self::Safari => "com.apple.Safari",
@@ -92,7 +94,9 @@ impl Browser {
     }
 
     /// Whether the address of its front page is read as well as the window
-    /// titles.
+    /// titles. macOS only: Windows reads the address bar of the browsers
+    /// it can, in `call_probe_windows.rs`.
+    #[cfg(any(target_os = "macos", test))]
     pub fn reads_url(self) -> bool {
         matches!(
             self,
@@ -163,6 +167,60 @@ fn same_app(bundle_id: &str, known: &str) -> bool {
         && matches!(bundle_id.as_bytes().get(known.len()), None | Some(b'.'))
 }
 
+/// The desktop apps of Windows that hold a call, by the lower-cased file name
+/// of their executable, which is how the microphone consent store names
+/// them. Chrome's Beta and Canary share `chrome.exe`, and every Edge channel
+/// `msedge.exe`, so they are one browser here.
+pub const WINDOWS_EXECUTABLES: [(&str, MicApp); 19] = [
+    ("zoom.exe", MicApp::Call(CallApp::Zoom)),
+    ("ms-teams.exe", MicApp::Call(CallApp::Teams)),
+    ("teams.exe", MicApp::Call(CallApp::Teams)),
+    ("slack.exe", MicApp::Call(CallApp::Slack)),
+    ("webex.exe", MicApp::Call(CallApp::Webex)),
+    ("ciscocollabhost.exe", MicApp::Call(CallApp::Webex)),
+    ("webexmta.exe", MicApp::Call(CallApp::Webex)),
+    ("atmgr.exe", MicApp::Call(CallApp::Webex)),
+    ("discord.exe", MicApp::Call(CallApp::Discord)),
+    ("chrome.exe", MicApp::Browser(Browser::Chrome)),
+    ("msedge.exe", MicApp::Browser(Browser::Edge)),
+    ("brave.exe", MicApp::Browser(Browser::Brave)),
+    ("firefox.exe", MicApp::Browser(Browser::Firefox)),
+    ("vivaldi.exe", MicApp::Browser(Browser::Vivaldi)),
+    ("opera.exe", MicApp::Browser(Browser::Opera)),
+    ("chromium.exe", MicApp::Browser(Browser::Chromium)),
+    ("arc.exe", MicApp::Browser(Browser::Arc)),
+    ("helium.exe", MicApp::Browser(Browser::Helium)),
+    ("comet.exe", MicApp::Browser(Browser::Comet)),
+];
+
+/// The packaged apps of Windows, by the lower-cased name that starts their
+/// package family name (`MSTeams_8wekyb3d8bbwe`, the part before the
+/// underscore). The consent store names a packaged app by its family.
+pub const WINDOWS_PACKAGES: [(&str, MicApp); 4] = [
+    ("msteams", MicApp::Call(CallApp::Teams)),
+    ("microsoftteams", MicApp::Call(CallApp::Teams)),
+    ("91750d7e.slack", MicApp::Call(CallApp::Slack)),
+    ("mozilla.firefox", MicApp::Browser(Browser::Firefox)),
+];
+
+/// A Windows app id: an executable's file name, or a package family name.
+fn windows_app(app_id: &str) -> Option<MicApp> {
+    let app_id = app_id.to_ascii_lowercase();
+    if let Some(&(_, app)) = WINDOWS_EXECUTABLES
+        .iter()
+        .find(|(known, _)| *known == app_id)
+    {
+        return Some(app);
+    }
+    let (name, _publisher) = app_id.split_once('_')?;
+    WINDOWS_PACKAGES
+        .iter()
+        .find(|(known, _)| *known == name)
+        .map(|&(_, app)| app)
+}
+
+/// What the process `bundle_id` is: a macOS bundle identifier, or a Windows
+/// app id, the two never colliding.
 pub fn mic_app(bundle_id: &str) -> Option<MicApp> {
     MIC_APPS
         .iter()
@@ -170,8 +228,11 @@ pub fn mic_app(bundle_id: &str) -> Option<MicApp> {
         // The longest match: `com.google.Chrome.beta` before Chrome.
         .max_by_key(|(known, _)| known.len())
         .map(|&(_, app)| app)
+        .or_else(|| windows_app(bundle_id))
 }
 
+/// A process on the microphone. On Windows the consent store names no
+/// process, so `pid` is 0 and `bundle_id` is the app id of `windows_app`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MicUser {
     pub pid: i32,
@@ -180,6 +241,7 @@ pub struct MicUser {
 
 /// Reads the list `murmur_mic_users` writes: one "pid<TAB>bundle id" line
 /// per process.
+#[cfg(any(target_os = "macos", test))]
 pub fn parse_mic_users(list: &str) -> Vec<MicUser> {
     list.lines()
         .filter_map(|line| {
