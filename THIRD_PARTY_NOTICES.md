@@ -66,23 +66,41 @@ words, and to transcribe the parts Codex refuses.
 
 ## Meetings on Windows: speaker detection
 
-The Windows app tells the voices of a meeting apart with Sortformer, run on
-the CPU by transcribe.cpp inside the app (see above). Murmur downloads the
-model when Meetings are on, from Hugging Face at a pinned commit and checked
-by SHA-256; it is not bundled with Murmur.
+The Windows app tells the voices of a meeting apart with the same model as the
+Mac, pyannote Community-1, run on the CPU inside the app by ONNX Runtime. The
+pipeline around the networks (windowing, features, PLDA, agglomerative and VBx
+clustering, assignment, reconstruction) is Murmur's own Rust re-implementation
+of the offline pipeline of FluidAudio 0.17.7 (Apache License 2.0, see above),
+with the same parameters. Murmur downloads the model files when Meetings are
+on, from Hugging Face at pinned commits and checked by SHA-256; they are not
+bundled with Murmur.
 
-### Sortformer v2.1 (speaker diarization)
+### Speaker diarization Community-1 (ONNX)
 
-`handy-computer/diar_streaming_sortformer_4spk-v2.1-gguf`: a GGUF conversion,
-quantised to 8 bits (Q8_0), by handy-computer of NVIDIA's
-`nvidia/diar_streaming_sortformer_4spk-v2.1`.
+- `altunenes/speaker-diarization-community-1-onnx`: the segmentation network
+  (`segmentation-community-1.onnx`), exported to ONNX by altunenes.
+- `welcomyou/pyannote-community-1-onnx-split`: the embedding network split
+  before its statistics pooling (`embedding_encoder.onnx`) with the weight and
+  bias of its last layer (`resnet_seg_1_weight.npy`, `resnet_seg_1_bias.npy`),
+  derived by welcomyou from altunenes's export. The pooling that weighs each
+  frame by one speaker's activity is done by Murmur.
+- `FluidInference/speaker-diarization-coreml`: only `plda-parameters.json` and
+  `xvector-transform.json`, the same files the Mac uses.
 
-> Licensed by NVIDIA Corporation under the NVIDIA Open Model License
-> (<https://www.nvidia.com/en-us/agreements/enterprise-software/nvidia-open-model-license/>).
->
-> Modifications: handy-computer converted the NVIDIA model to GGUF for
-> transcribe.cpp. The conversion repackages the weights, renaming and
-> re-laying-out tensors, and the 8-bit file stores them at reduced numeric
-> precision. The weights were not retrained or fine-tuned.
+> These files are modified conversions of components of the pyannote
+> Community-1 speaker diarization pipeline, published by pyannote under
+> CC-BY-4.0 (<https://huggingface.co/pyannote/speaker-diarization-community-1>).
+> The pipeline's speaker embedding component relates to WeSpeaker. The PLDA
+> parameters and x-vector transform originate from BUT Speech@FIT (Brno
+> University of Technology), who license them under CC-BY-4.0, including
+> commercial use. The PyTorch components were converted to ONNX, and the
+> embedding network was split in two parts. These files are licensed under
+> CC-BY-4.0 (<https://creativecommons.org/licenses/by/4.0/>).
 
-The model tells up to four speakers apart and was trained on English speech.
+### ONNX Runtime
+
+ONNX Runtime, by Microsoft, <https://github.com/microsoft/onnxruntime>,
+licensed under the MIT License. It is linked into the Windows app as the
+prebuilt CPU binaries that the Rust crate `ort` (pyke, MIT or Apache License
+2.0) downloads at build time and checks against the hash the crate pins. No
+other execution provider is built in, and no DLL ships beside the app.

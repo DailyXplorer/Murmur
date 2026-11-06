@@ -16,7 +16,9 @@ const ACRONYMS = [
   "GGUF", // the file format of the Intel model
   "MB",
   "MCP", // Model Context Protocol, the name of the AI assistants' connector
+  "MIT", // the MIT licence, in the model licences
   "NVIDIA",
+  "ONNX", // the model file format of the Windows speaker model
   "PC", // the Windows build's "this PC"
   "TDT", // Token-and-Duration Transducer, in the Parakeet model name
 ];
@@ -33,6 +35,8 @@ const PROPER_PHRASES = [
   "System Settings",
   "NVIDIA Open Model License",
   "Apache License",
+  "MIT License",
+  "ONNX Runtime",
   "Fluid Inference",
   "Parakeet Ultra",
   "Moondream",

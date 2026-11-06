@@ -14,6 +14,22 @@ use murmur::ProcessingOperation;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
+/// Prints the downloader's log: a failed optional fetch is only logged by
+/// the app, and would otherwise end this process without a word.
+struct Stderr;
+
+impl log::Log for Stderr {
+    fn enabled(&self, metadata: &log::Metadata) -> bool {
+        metadata.level() <= log::Level::Info
+    }
+    fn log(&self, record: &log::Record) {
+        if self.enabled(record.metadata()) {
+            eprintln!("{}: {}", record.level(), record.args());
+        }
+    }
+    fn flush(&self) {}
+}
+
 /// Prints each change of state, not every progress step.
 #[derive(Default)]
 struct Print {
@@ -44,6 +60,9 @@ fn main() {
         eprintln!("usage: fetch_models <models-dir>");
         std::process::exit(2);
     };
+    if log::set_logger(&Stderr).is_ok() {
+        log::set_max_level(log::LevelFilter::Info);
+    }
     let models = LocalModels::new(
         PathBuf::from(dir),
         manifest::this_mac(),
@@ -51,7 +70,9 @@ fn main() {
         manifest::HUGGING_FACE.to_string(),
         Arc::new(Print::default()),
     );
-    models.start_download();
+    // Also fetches the optional files of models a restored cache already
+    // holds as ready, which `start_download` leaves alone.
+    models.download_unless_declined();
     let state = tauri::async_runtime::block_on(models.settled());
     println!("{state:?}");
     if state != LocalModelState::Ready {
@@ -61,4 +82,10 @@ fn main() {
     // others: the process must not end before they are in place.
     let optional = tauri::async_runtime::block_on(models.optional_fetched());
     println!("optional models in place: {optional}");
+    // The Windows analysis tests need the speaker model: fail here, with the
+    // reason logged above, not later as a missing file.
+    if cfg!(target_os = "windows") && !optional {
+        eprintln!("the speaker model was not fetched");
+        std::process::exit(1);
+    }
 }

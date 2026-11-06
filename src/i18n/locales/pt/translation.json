@@ -801,7 +801,8 @@
         "parakeet": "Reconhecimento de fala: Parakeet Ultra da Moondream, baseado no Parakeet TDT 0.6B v3 da NVIDIA, CC BY 4.0. Convertido para Core ML pela Fluid Inference (Apple silicon) e para GGUF de 8 bits por handy-computer (Macs Intel).",
         "diarization": "Diarização Community-1: pyannote, CC BY 4.0, com WeSpeaker e BUT Speech@FIT. Conversão Core ML modificada da Fluid Inference.",
         "fluidaudio": "FluidAudio: Fluid Inference, Licença Apache 2.0.",
-        "sortformer": "Deteção de oradores no Windows: Sortformer v2.1 da NVIDIA, NVIDIA Open Model License. Convertido para GGUF de 8 bits por handy-computer."
+        "pyannote": "Deteção de oradores no Windows: pyannote Community-1, CC BY 4.0, com WeSpeaker e BUT Speech@FIT. Modificado: convertido para ONNX por altunenes e dividido em duas partes por welcomyou.",
+        "onnxruntime": "ONNX Runtime: Microsoft, Licença MIT."
       }
     },
     "transcript": {

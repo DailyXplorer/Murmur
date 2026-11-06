@@ -99,16 +99,47 @@ const SOURCES: Source[] = [
     take: ["parakeet-ultra-Q8_0.gguf"],
     rootMetadata: false,
   },
+  // pyannote Community-1 (CC-BY-4.0), the speaker model the Mac runs through
+  // FluidAudio, as ONNX files for the CPU: tells the voices of a meeting
+  // apart, any number of them. Not needed to dictate, so optional. The three
+  // sources share the folder `pyannote`.
   {
     set: "WINDOWS",
-    // Sortformer (NVIDIA Open Model License), up to 4 speakers: tells the
-    // voices of a meeting apart. Not needed to dictate, so optional.
-    repo: "handy-computer/diar_streaming_sortformer_4spk-v2.1-gguf",
-    commit: "60ebab3ef7cae9869be0abcde13360347e96ba03",
-    folder: "sortformer",
+    // The segmentation network, exported from the Community-1 weights.
+    repo: "altunenes/speaker-diarization-community-1-onnx",
+    commit: "e2e09da94ae093a56cd5a60a09b138ae3da1959c",
+    folder: "pyannote",
     fluidRevisionMarker: false,
     optional: true,
-    take: ["diar_streaming_sortformer_4spk-v2.1-Q8_0.gguf"],
+    take: ["segmentation-community-1.onnx"],
+    rootMetadata: false,
+  },
+  {
+    set: "WINDOWS",
+    // The embedding network split before its statistics pooling, so the
+    // pooling can weigh each frame by one speaker's activity, as the Core ML
+    // model does: the encoder, and the weight and bias of the last layer.
+    repo: "welcomyou/pyannote-community-1-onnx-split",
+    commit: "cde44c2db938c8abb755853b9a87cb3179c47803",
+    folder: "pyannote",
+    fluidRevisionMarker: false,
+    optional: true,
+    take: [
+      "embedding_encoder.onnx",
+      "resnet_seg_1_weight.npy",
+      "resnet_seg_1_bias.npy",
+    ],
+    rootMetadata: false,
+  },
+  {
+    set: "WINDOWS",
+    // The PLDA constants, the files the Mac pins in the Core ML source above.
+    repo: "FluidInference/speaker-diarization-coreml",
+    commit: "df2625ac79a7ac6b65ad868fee6d80f320da4232",
+    folder: "pyannote",
+    fluidRevisionMarker: false,
+    optional: true,
+    take: ["plda-parameters.json", "xvector-transform.json"],
     rootMetadata: false,
   },
 ];
