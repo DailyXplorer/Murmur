@@ -16,7 +16,9 @@ const ACRONYMS = [
   "GGUF", // the file format of the Intel model
   "MB",
   "MCP", // Model Context Protocol, the name of the AI assistants' connector
+  "MIT", // the MIT licence, in the model licences
   "NVIDIA",
+  "ONNX", // the model file format of the Windows speaker model
   "PC", // the Windows build's "this PC"
   "TDT", // Token-and-Duration Transducer, in the Parakeet model name
 ];
@@ -33,6 +35,8 @@ const PROPER_PHRASES = [
   "System Settings",
   "NVIDIA Open Model License",
   "Apache License",
+  "MIT License",
+  "ONNX Runtime",
   "Fluid Inference",
   "Parakeet Ultra",
   "Moondream",
@@ -42,6 +46,7 @@ const PROPER_PHRASES = [
   "Community-1",
   "Speech@FIT",
   "Bluetooth",
+  "Intel or AMD", // the processors the Windows speaker and live models need
   "Intel Macs",
   "European",
   "Parakeet",
@@ -51,6 +56,7 @@ const PROPER_PHRASES = [
   "WeSpeaker",
   "Markdown",
   "Trash",
+  "Recycle Bin",
   "FaceTime",
   "Core ML",
   "Claude Desktop",

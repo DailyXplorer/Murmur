@@ -8,8 +8,12 @@
 //! real `Processor`. Codex is a local server that answers each piece with
 //! text tagged by the piece's audio, so a piece sent twice shows.
 //!
-//! `a_killed_meeting_is_recovered_and_processed_at_relaunch` runs in CI on
-//! a few minutes of tones. `meetings_soak` runs three hours of two voices
+//! `a_killed_meeting_is_recovered_and_processed_at_relaunch` runs in CI, on
+//! macOS and on Windows (where a kill is `TerminateProcess`), on a few
+//! minutes of tones. `windows_meetings_soak` is its Windows long run: three
+//! hours of tones, a fake Codex and no models, run by the nightly
+//! `meetings-windows` workflow. The rest of this file is macOS-only.
+//! `meetings_soak` runs three hours of two voices
 //! made with `say` through the meetings helper and its models, and writes
 //! `soak-report.md`. It takes about half an hour on the Mac:
 //!
@@ -41,7 +45,9 @@ use std::time::{Duration, Instant};
 
 use serde::{Deserialize, Serialize};
 
-use super::analysis::{AnalysisRequest, AnalyzeFuture, Analyzer, AnalyzerOutcome, HelperAnalyzer};
+use super::analysis::{
+    platform_analyzer, AnalysisRequest, AnalyzeFuture, Analyzer, AnalyzerOutcome,
+};
 use super::capture::route::OutputRoute;
 use super::capture::{Feeder, TrackWriter};
 use super::coordinator::{
@@ -51,11 +57,17 @@ use super::helper;
 use super::merge::{Track as Source, PLACEHOLDER};
 use super::paths::{self, MIC_TRACK, SYSTEM_TRACK};
 use super::processor::{MeetingProgress, ProcessEvents, Processor};
-use super::store::{ChunkStatus, MeetingStatus, MeetingTracks, MeetingsStore, SpeakerAnalysis};
+#[cfg(target_os = "macos")]
+use super::store::MeetingTracks;
+use super::store::{ChunkStatus, MeetingStatus, MeetingsStore, SpeakerAnalysis};
 use super::summary::{CompleteFuture, Summarizer};
+#[cfg(target_os = "macos")]
 use super::tokens::{join, sentences, tokenize};
+#[cfg(target_os = "macos")]
 use super::track_audio;
-use super::transcribe::{CodexTranscriber, RetryPolicy, TranscribeFuture, Transcriber};
+use super::transcribe::{CodexTranscriber, RetryPolicy};
+#[cfg(target_os = "macos")]
+use super::transcribe::{TranscribeFuture, Transcriber};
 use super::Library;
 use crate::local_models::{manifest, Host, LocalModelStatus, LocalModels, PrepareFuture, Prepared};
 use crate::settings::MeetingCaptureMode;
@@ -76,6 +88,7 @@ const MAX_LOST_MS: u64 = 1_000;
 /// The echo of the remote voice on the microphone, as speakers give it.
 const ECHO_GAIN: f32 = 0.1;
 const ECHO_DELAY_SAMPLES: usize = 640;
+#[cfg(target_os = "macos")]
 const GIB: u64 = 1 << 30;
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -396,6 +409,7 @@ impl log::Log for KeptLog {
 }
 
 /// The peak resident memory of the largest child waited for, in bytes.
+#[cfg(target_os = "macos")]
 fn children_peak_rss() -> u64 {
     let mut usage = std::mem::MaybeUninit::<libc::rusage>::zeroed();
     // SAFETY: `usage` is a valid rusage to write into.
@@ -407,9 +421,16 @@ fn children_peak_rss() -> u64 {
     unsafe { usage.assume_init() }.ru_maxrss as u64
 }
 
+/// Windows analyses in the app: there is no helper process to measure.
+#[cfg(target_os = "windows")]
+fn children_peak_rss() -> u64 {
+    0
+}
+
 /// This process's peak footprint, in bytes. Unlike its resident size, it
 /// leaves out the pages of the test binary itself, which are large in a
 /// debug build.
+#[cfg(target_os = "macos")]
 fn peak_footprint() -> u64 {
     let mut info = std::mem::MaybeUninit::<libc::rusage_info_v4>::zeroed();
     // SAFETY: `info` is a valid rusage_info_v4 to write into, as the flavor says.
@@ -423,6 +444,25 @@ fn peak_footprint() -> u64 {
     assert_eq!(read, 0);
     // SAFETY: proc_pid_rusage succeeded, and the struct was zeroed before.
     unsafe { info.assume_init() }.ri_lifetime_max_phys_footprint
+}
+
+/// The most memory this process had committed, in bytes: what it asked
+/// Windows for, which is what the page file would have to hold.
+#[cfg(target_os = "windows")]
+fn peak_footprint() -> u64 {
+    use windows::Win32::System::ProcessStatus::{GetProcessMemoryInfo, PROCESS_MEMORY_COUNTERS};
+    use windows::Win32::System::Threading::GetCurrentProcess;
+
+    let size = std::mem::size_of::<PROCESS_MEMORY_COUNTERS>() as u32;
+    let mut counters = PROCESS_MEMORY_COUNTERS {
+        cb: size,
+        ..Default::default()
+    };
+    // SAFETY: `counters` is a valid PROCESS_MEMORY_COUNTERS of `size` bytes,
+    // and the pseudo handle of the current process needs no closing.
+    unsafe { GetProcessMemoryInfo(GetCurrentProcess(), &mut counters, size) }
+        .expect("the process reads its own memory counters");
+    counters.PeakPagefileUsage as u64
 }
 
 struct NoHost;
@@ -473,11 +513,10 @@ fn process(data: &Path, codex: Option<(String, PathBuf)>, models: Option<PathBuf
     let waiting = store.waiting_for_processing().unwrap();
     let analyzer: Arc<dyn Analyzer> = match models {
         Some(dir) => {
-            let support = helper::support();
             let models = LocalModels::new(
                 dir,
                 manifest::this_mac(),
-                support,
+                helper::support(),
                 manifest::HUGGING_FACE.to_string(),
                 Arc::new(NoHost),
             );
@@ -486,7 +525,7 @@ fn process(data: &Path, codex: Option<(String, PathBuf)>, models: Option<PathBuf
                 "the models are not ready: {:?}",
                 models.status()
             );
-            Arc::new(HelperAnalyzer { models, support })
+            platform_analyzer(models)
         }
         None => Arc::new(NoModels),
     };
@@ -1091,7 +1130,9 @@ fn a_killed_meeting_is_recovered_and_processed_at_relaunch() {
 // ---- The three-hour soak ----
 
 /// The voices of the dialogue: A is the user, B the remote side.
+#[cfg(target_os = "macos")]
 const VOICE_A: &str = "Thomas";
+#[cfg(target_os = "macos")]
 const VOICE_B: &str = "Amélie";
 
 /// The dialogue, A then B in turn. Said three times at different rates, it
@@ -1139,6 +1180,7 @@ const LINES: &[(bool, &str)] = &[
 
 /// Says the dialogue into `dir`, unless it is there already. `say` writes
 /// to files only: nothing plays.
+#[cfg(target_os = "macos")]
 fn say_dialogue(dir: &Path) {
     if dir.join(MIC_TRACK).is_file() && dir.join(SYSTEM_TRACK).is_file() {
         return;
@@ -1152,6 +1194,7 @@ fn say_dialogue(dir: &Path) {
 
 /// Each line of the dialogue, said three times at different rates, with
 /// its audio.
+#[cfg(target_os = "macos")]
 fn said_lines() -> Vec<((bool, &'static str), Vec<f32>)> {
     let clips = tempfile::tempdir().unwrap();
     let mut said = Vec::new();
@@ -1173,6 +1216,7 @@ fn said_lines() -> Vec<((bool, &'static str), Vec<f32>)> {
 }
 
 /// The analysis stage's time, read from the timings line.
+#[cfg(target_os = "macos")]
 fn stage_seconds(processed: &Processed, stage: &str) -> Option<f64> {
     let line = processed
         .log
@@ -1182,6 +1226,7 @@ fn stage_seconds(processed: &Processed, stage: &str) -> Option<f64> {
     after.split_once(" s")?.0.parse().ok()
 }
 
+#[cfg(target_os = "macos")]
 fn echo_removals(processed: &Processed) -> usize {
     processed
         .log
@@ -1193,6 +1238,7 @@ fn echo_removals(processed: &Processed) -> usize {
         .sum()
 }
 
+#[cfg(target_os = "macos")]
 fn sh(program: &str, args: &[&str]) -> String {
     Command::new(program)
         .args(args)
@@ -1203,10 +1249,12 @@ fn sh(program: &str, args: &[&str]) -> String {
         .unwrap_or_else(|| "unknown".to_string())
 }
 
+#[cfg(target_os = "macos")]
 fn gib(bytes: u64) -> String {
     format!("{:.2} GiB", bytes as f64 / GIB as f64)
 }
 
+#[cfg(target_os = "macos")]
 fn minutes(ms: u64) -> String {
     format!(
         "{}:{:02}:{:02}",
@@ -1217,11 +1265,13 @@ fn minutes(ms: u64) -> String {
 }
 
 /// One check of the report, and whether it passed.
+#[cfg(target_os = "macos")]
 struct Check {
     what: String,
     passed: bool,
 }
 
+#[cfg(target_os = "macos")]
 fn check(what: impl Into<String>, passed: bool) -> Check {
     Check {
         what: what.into(),
@@ -1229,6 +1279,7 @@ fn check(what: impl Into<String>, passed: bool) -> Check {
     }
 }
 
+#[cfg(target_os = "macos")]
 #[test]
 #[ignore = "three hours of audio through the real models: about half an hour"]
 fn meetings_soak() {
@@ -1567,16 +1618,19 @@ fn meetings_soak() {
 /// Codex as a script: each piece is answered with the lines said in it, the
 /// echoes the microphone heard included, found by where its audio sits in
 /// the track.
+#[cfg(target_os = "macos")]
 struct ScriptedCodex {
     tracks: Vec<ScriptedTrack>,
 }
 
+#[cfg(target_os = "macos")]
 struct ScriptedTrack {
     samples: Vec<f32>,
     /// Where each line said on the track starts, in samples.
     lines: Vec<(usize, &'static str)>,
 }
 
+#[cfg(target_os = "macos")]
 impl ScriptedCodex {
     fn answer(&self, piece: &[f32]) -> String {
         let Some(first) = piece.iter().position(|sample| *sample != 0.0) else {
@@ -1601,6 +1655,7 @@ impl ScriptedCodex {
     }
 }
 
+#[cfg(target_os = "macos")]
 impl Transcriber for ScriptedCodex {
     fn transcribe(
         &self,
@@ -1615,6 +1670,7 @@ impl Transcriber for ScriptedCodex {
 
 /// How often the words of `line` come in a row in `keys`, a run of word
 /// keys with a space on either side.
+#[cfg(target_os = "macos")]
 fn said_in(keys: &str, line: &str) -> usize {
     let line: Vec<String> = tokenize(line)
         .into_iter()
@@ -1628,6 +1684,7 @@ fn said_in(keys: &str, line: &str) -> usize {
 /// models, with Codex writing every echo the microphone heard: the echoes
 /// left under "Me" against the same meeting recorded on headphones, where
 /// nothing is removed, and the user's own words lost, which must be none.
+#[cfg(target_os = "macos")]
 #[test]
 #[ignore = "renders the dialogue with `say` (nothing plays): about a minute"]
 fn echoes_without_the_models() {
@@ -1746,11 +1803,171 @@ fn echoes_without_the_models() {
 }
 
 /// The length of the dialogue's microphone track.
+#[cfg(target_os = "macos")]
 fn track_ms_in(dialogue: &Path) -> u64 {
     let reader = hound::WavReader::open(dialogue.join(MIC_TRACK)).unwrap();
     u64::from(reader.duration()) * 1000 / u64::from(RATE)
 }
 
+#[cfg(target_os = "macos")]
 fn dirs_home() -> PathBuf {
     PathBuf::from(std::env::var_os("HOME").expect("HOME is set"))
+}
+
+// ---- The Windows soak ----
+
+/// What processing may hold at its peak, as on the Mac.
+#[cfg(target_os = "windows")]
+const PEAK_LIMIT: u64 = 1 << 30;
+
+/// A long meeting recorded and processed in child processes, one without a
+/// stop and one killed twice (while recording, then while processing). It
+/// runs the real coordinator, track writers and processor on tones, with the
+/// fake Codex and no models: the speakers and the word times have their own
+/// test on real voices (`analysis_cpp`). `MURMUR_SOAK_MINUTES` sets the
+/// length (180 by default), `MURMUR_SOAK_REPORT` a file for the report. The
+/// nightly `meetings-windows` workflow runs it:
+///
+/// `cargo test --locked --lib windows_meetings_soak -- --ignored --nocapture`
+///
+/// It never opens the app or plays a sound, and works in a temporary folder.
+#[cfg(target_os = "windows")]
+#[test]
+#[ignore = "three hours of tones through the real pipeline: a few minutes"]
+fn windows_meetings_soak() {
+    let minutes: u64 = std::env::var("MURMUR_SOAK_MINUTES")
+        .ok()
+        .and_then(|value| value.parse().ok())
+        .unwrap_or(180);
+    let seconds = minutes * 60;
+    let work = tempfile::tempdir().unwrap();
+    let exe = std::env::current_exe().unwrap();
+    let dialogue = work.path().join("dialogue");
+    tone_dialogue(&dialogue, 60);
+    // Each answer takes 2 s, so the kill of run C finds pieces still to do.
+    let codex = FakeCodex::start(Duration::from_secs(2), None);
+    let fake = Some((codex.url.clone(), auth_file(work.path())));
+    let child_for = |data: &Path| Child::Process {
+        data: data.to_path_buf(),
+        codex: fake.clone(),
+        models: None,
+        release_freed: false,
+    };
+
+    // Run A: recorded and processed without a stop.
+    let data_a = work.path().join("a");
+    let started = Instant::now();
+    let a = record_in(&exe, &data_a, &dialogue, seconds, None);
+    let recorded_a = started.elapsed();
+    let (store_a, _) = MeetingsStore::open(data_a.join("meetings.db"), chrono::Utc::now());
+    let dropped_a = store_a.dropped_ms(a.id).unwrap();
+    let kept_a = track_ms(&data_a, a.id);
+    let processed_a: Processed = spawn(&exe, &child_for(&data_a)).finish();
+    let outcome_a = outcome(&store_a, a.id);
+
+    // Run B: killed half way through the recording.
+    let data_b = work.path().join("b");
+    let b = record_in(&exe, &data_b, &dialogue, seconds, Some(seconds * 500));
+    let (store_b, _) = MeetingsStore::open(data_b.join("meetings.db"), chrono::Utc::now());
+
+    // Run C: the relaunch that processes it is killed half way through the
+    // pieces, and the next one finishes.
+    let child_b = child_for(&data_b);
+    let done_c = process_until_killed(&exe, &child_b, &store_b, b.id, 0.5);
+    let kept_b = track_ms(&data_b, b.id);
+    let sent_before = codex.requests().len();
+    let processed_c: Processed = spawn(&exe, &child_b).finish();
+    let sent_c = codex.requests()[sent_before..].to_vec();
+    let (_, done_after_c) = transcribed(&store_b, b.id).unwrap();
+    let resent = sent_again(&done_c, &sent_c, &done_after_c);
+    let outcome_c = outcome(&store_b, b.id);
+
+    let checks = [
+        (
+            "A: each track kept every millisecond pushed",
+            kept_a.iter().all(|ms| ms + MAX_LOST_MS >= a.pushed_ms),
+        ),
+        ("A: no audio dropped", dropped_a == 0),
+        ("A is ready", outcome_a.status == MeetingStatus::Ready),
+        (
+            "A: the saved duration is the recorded one",
+            outcome_a.duration_ms.abs_diff(a.pushed_ms as i64) < 5_000,
+        ),
+        (
+            "A: processing holds under 1 GiB",
+            processed_a.footprint < PEAK_LIMIT,
+        ),
+        (
+            "B: each track kept all but 1 s of what was pushed",
+            kept_b.iter().all(|ms| ms + MAX_LOST_MS >= b.pushed_ms),
+        ),
+        (
+            "C: the interrupted meeting is processed at relaunch",
+            processed_c.waiting.contains(&b.id),
+        ),
+        ("C: no transcribed piece sent again", resent == 0),
+        ("C is ready", outcome_c.status == MeetingStatus::Ready),
+        (
+            "C: processing holds under 1 GiB",
+            processed_c.footprint < PEAK_LIMIT,
+        ),
+    ];
+
+    let mib = |bytes: u64| bytes / (1 << 20);
+    let mut report = vec![
+        "# Windows meetings soak".to_string(),
+        String::new(),
+        format!("- Audio: {minutes} minutes of tones, 60 s looped, on both tracks"),
+        "- Codex: a local fake that tags each answer with a hash of the piece's WAV; the summary is canned; no models".to_string(),
+        format!(
+            "- Run A: recorded in {:.0} s, {dropped_a} ms dropped, saved as {} ms, processed in {:.1} s, peak commit {} MiB",
+            recorded_a.as_secs_f64(),
+            outcome_a.duration_ms,
+            processed_a.seconds,
+            mib(processed_a.footprint)
+        ),
+        format!("- Run A speakers: {:?}, bubbles {:?}", outcome_a.analysis, outcome_a.turns),
+        format!(
+            "- Run B: killed after {} ms pushed; the tracks held {} ms and {} ms",
+            b.pushed_ms, kept_b[0], kept_b[1]
+        ),
+        format!(
+            "- Run C: the first relaunch was killed after {} pieces; the next sent {} pieces, {resent} of them already transcribed; processed in {:.1} s, peak commit {} MiB",
+            done_c.len(),
+            sent_c.len(),
+            processed_c.seconds,
+            mib(processed_c.footprint)
+        ),
+        String::new(),
+        "Timings as logged:".to_string(),
+        String::new(),
+    ];
+    for (run, processed) in [("A", &processed_a), ("C", &processed_c)] {
+        for logged in processed
+            .log
+            .iter()
+            .filter(|line| line.contains("timings:"))
+        {
+            report.push(format!("- {run}: `{logged}`"));
+        }
+    }
+    report.push(String::new());
+    for (what, passed) in &checks {
+        report.push(format!("- [{}] {what}", if *passed { "x" } else { " " }));
+    }
+    let report = report.join("\n");
+    println!("{report}");
+    if let Some(path) = std::env::var_os("MURMUR_SOAK_REPORT") {
+        std::fs::write(path, &report).unwrap();
+    }
+    let failed: Vec<&str> = checks
+        .iter()
+        .filter(|(_, passed)| !passed)
+        .map(|(what, _)| *what)
+        .collect();
+    assert!(
+        failed.is_empty(),
+        "failed thresholds: {}",
+        failed.join("; ")
+    );
 }

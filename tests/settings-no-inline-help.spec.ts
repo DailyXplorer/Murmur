@@ -38,6 +38,12 @@ const SCREENS: { file: string; label: string; query: string }[] = [
     label: "Advanced",
     query: "platform=windows&mcp=1&mcpDictations=1",
   },
+  { file: "windows-meetings", label: "Meetings", query: "platform=windows" },
+  {
+    file: "windows-meetings-no-system-audio",
+    label: "Meetings",
+    query: "platform=windows&systemAudio=unsupported&analysis=unsupported",
+  },
   { file: "windows-history", label: "History", query: "platform=windows" },
   { file: "windows-about", label: "About", query: "platform=windows" },
 ];

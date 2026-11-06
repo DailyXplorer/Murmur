@@ -68,7 +68,7 @@ export const SECTIONS_CONFIG = {
     labelKey: "sidebar.meetings",
     icon: UsersThreeIcon,
     component: MeetingsPage,
-    enabled: (settings) => !isWindows && (settings?.meetings_enabled ?? false),
+    enabled: (settings) => settings?.meetings_enabled ?? false,
   },
   insights: {
     labelKey: "sidebar.insights",

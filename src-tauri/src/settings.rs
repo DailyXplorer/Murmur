@@ -365,6 +365,10 @@ pub struct AppSettings {
     /// its tray item exist only while this is on.
     #[serde(default = "default_meetings_enabled")]
     pub meetings_enabled: bool,
+    // Windows only: `meetings_enabled` was turned on once for a store from the
+    // betas that kept Meetings off. New Windows stores start with it set.
+    #[serde(default)]
+    pub meetings_turned_on_once: bool,
     #[serde(default)]
     pub meeting_capture_mode: MeetingCaptureMode,
     #[serde(default)]
@@ -417,9 +421,9 @@ impl AppSettings {
     }
 }
 
-/// On macOS only: see `restrict_to_windows`.
+/// On by default on both platforms.
 fn default_meetings_enabled() -> bool {
-    cfg!(target_os = "macos")
+    true
 }
 
 fn default_meeting_call_prompt() -> bool {
@@ -570,20 +574,34 @@ pub const DEFAULT_TRANSCRIBE_BINDING: &str = "option+space";
 #[cfg(target_os = "windows")]
 pub const DEFAULT_TRANSCRIBE_BINDING: &str = "ctrl+super";
 
-/// Turns off what the Windows build does not offer: meetings (the system
-/// audio tap and the analysis helper are macOS code) and the clamshell
-/// microphone (read through macOS APIs). Returns whether anything changed.
+/// Drops what the Windows build does not offer: the clamshell microphone
+/// (read through macOS APIs). Returns whether anything changed.
 #[cfg(target_os = "windows")]
 fn restrict_to_windows(settings: &mut AppSettings) -> bool {
-    let mut changed = false;
-    let mut set = |value: &mut bool| {
-        changed |= std::mem::replace(value, false);
-    };
-    set(&mut settings.meetings_enabled);
-    if settings.clamshell_microphone.take().is_some() {
-        changed = true;
+    settings.clamshell_microphone.take().is_some()
+}
+
+/// The betas before Meetings came to Windows forced `meetings_enabled` off on
+/// every load, so nobody there chose "off": it is turned on once, as it is by
+/// default. Read from the stored value: a salvaged store takes the marker
+/// from the defaults. Returns whether anything changed.
+#[cfg(target_os = "windows")]
+fn turn_on_meetings_once(stored: &serde_json::Value, settings: &mut AppSettings) -> bool {
+    if stored.get("meetings_turned_on_once").is_some() {
+        return false;
     }
-    changed
+    settings.meetings_turned_on_once = true;
+    settings.meetings_enabled = true;
+    // The shortcut the betas stored could not be used in practice (AltGr).
+    if let Some(binding) = settings.bindings.get_mut(crate::meetings::BINDING_ID) {
+        if binding.current_binding == crate::meetings::PREVIOUS_DEFAULT_BINDING {
+            binding.current_binding = crate::meetings::DEFAULT_BINDING.to_string();
+        }
+        if binding.default_binding == crate::meetings::PREVIOUS_DEFAULT_BINDING {
+            binding.default_binding = crate::meetings::DEFAULT_BINDING.to_string();
+        }
+    }
+    true
 }
 
 /// The betas before window context came to Windows hid the setting and
@@ -718,6 +736,7 @@ pub fn get_default_settings() -> AppSettings {
         extra_recording_buffer_ms: 0,
         overlay_style: default_overlay_style(),
         meetings_enabled: default_meetings_enabled(),
+        meetings_turned_on_once: cfg!(target_os = "windows"),
         meeting_capture_mode: MeetingCaptureMode::default(),
         meeting_audio_retention: MeetingAudioRetention::default(),
         meeting_call_prompt: default_meeting_call_prompt(),
@@ -794,6 +813,7 @@ fn parse_stored_settings(settings_value: &serde_json::Value) -> (AppSettings, bo
     {
         updated |= turn_on_window_context_once(settings_value, &mut settings);
         updated |= turn_on_update_checks_once(settings_value, &mut settings);
+        updated |= turn_on_meetings_once(settings_value, &mut settings);
     }
     updated |= normalize_settings(&mut settings);
     (settings, updated)
@@ -1638,9 +1658,10 @@ mod tests {
 
     #[cfg(target_os = "windows")]
     #[test]
-    fn windows_defaults_offer_only_what_the_windows_build_has() {
+    fn windows_defaults_have_what_the_windows_build_offers() {
         let settings = get_default_settings();
-        assert!(!settings.meetings_enabled);
+        assert!(settings.meetings_enabled);
+        assert!(settings.meetings_turned_on_once);
         assert!(settings.window_names_enabled);
         assert!(settings.update_checks_enabled);
         assert!(settings.update_checks_turned_on_once);
@@ -1662,7 +1683,7 @@ mod tests {
         let (settings, updated) = parse_stored_settings(&stored);
 
         assert!(updated);
-        assert!(!settings.meetings_enabled);
+        assert!(settings.meetings_enabled);
         assert!(settings.update_checks_enabled);
         assert!(settings.clamshell_microphone.is_none());
         assert_eq!(settings.selected_language, "fr");
@@ -1697,6 +1718,62 @@ mod tests {
             assert!(!updated, "{paste_method:?}");
             assert!(!settings.window_names_enabled, "{paste_method:?}");
         }
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn meetings_are_turned_on_once_for_a_beta_store() {
+        // A store this version cannot read whole is salvaged field by field
+        // over the defaults, which already carry the marker.
+        for paste_method in [None, Some("shift_insert")] {
+            let mut stored = default_settings_json();
+            stored["meetings_enabled"] = serde_json::json!(false);
+            if let Some(paste_method) = paste_method {
+                stored["paste_method"] = serde_json::json!(paste_method);
+            }
+            stored
+                .as_object_mut()
+                .unwrap()
+                .remove("meetings_turned_on_once");
+            stored["bindings"]["meeting_toggle"]["current_binding"] =
+                serde_json::json!(crate::meetings::PREVIOUS_DEFAULT_BINDING);
+            stored["bindings"]["meeting_toggle"]["default_binding"] =
+                serde_json::json!(crate::meetings::PREVIOUS_DEFAULT_BINDING);
+
+            let (mut settings, updated) = parse_stored_settings(&stored);
+            assert!(updated, "{paste_method:?}");
+            assert!(settings.meetings_enabled, "{paste_method:?}");
+            assert!(settings.meetings_turned_on_once, "{paste_method:?}");
+            let binding = &settings.bindings[crate::meetings::BINDING_ID];
+            assert_eq!(binding.current_binding, crate::meetings::DEFAULT_BINDING);
+            assert_eq!(binding.default_binding, crate::meetings::DEFAULT_BINDING);
+
+            // The user's own "off" is kept afterwards.
+            settings.meetings_enabled = false;
+            let (kept, rewritten) = parse_stored_settings(&serde_json::to_value(settings).unwrap());
+            assert!(!kept.meetings_enabled, "{paste_method:?}");
+            assert!(!rewritten, "{paste_method:?}");
+        }
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn a_shortcut_the_user_chose_for_meetings_survives_the_one_time_switch_on() {
+        let mut stored = default_settings_json();
+        stored["meetings_enabled"] = serde_json::json!(false);
+        stored
+            .as_object_mut()
+            .unwrap()
+            .remove("meetings_turned_on_once");
+        stored["bindings"]["meeting_toggle"]["current_binding"] =
+            serde_json::json!("ctrl+shift+f9");
+
+        let (settings, _) = parse_stored_settings(&stored);
+
+        assert_eq!(
+            settings.bindings[crate::meetings::BINDING_ID].current_binding,
+            "ctrl+shift+f9"
+        );
     }
 
     #[cfg(target_os = "windows")]
@@ -1824,7 +1901,6 @@ mod tests {
         );
     }
 
-    #[cfg(target_os = "macos")]
     #[test]
     fn meetings_are_on_by_default_and_record_both_sources() {
         let mut stored = default_settings_json();
@@ -2179,7 +2255,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join(SETTINGS_STORE_PATH);
         let mut stored = default_settings_json();
-        stored["meetings_enabled"] = serde_json::json!(true);
+        stored["meetings_enabled"] = serde_json::json!(false);
         stored["update_checks_enabled"] = serde_json::json!(false);
         stored["clamshell_microphone"] = serde_json::json!("Built-in Microphone");
         stored["window_names_enabled"] = serde_json::json!(false);
@@ -2187,6 +2263,7 @@ mod tests {
         let fields = stored.as_object_mut().unwrap();
         fields.remove("window_names_turned_on_once");
         fields.remove("update_checks_turned_on_once");
+        fields.remove("meetings_turned_on_once");
         fs::write(
             &path,
             serde_json::to_vec_pretty(&serde_json::json!({ "settings": stored })).unwrap(),
@@ -2195,7 +2272,8 @@ mod tests {
 
         let file = file::SettingsFile::open(path.clone());
         let mut settings = read_from(&file);
-        assert!(!settings.meetings_enabled);
+        assert!(settings.meetings_enabled);
+        assert!(settings.meetings_turned_on_once);
         assert!(settings.update_checks_enabled);
         assert!(settings.update_checks_turned_on_once);
         assert!(settings.clamshell_microphone.is_none());
@@ -2205,7 +2283,8 @@ mod tests {
         let persisted: serde_json::Value =
             serde_json::from_slice(&fs::read(&path).unwrap()).unwrap();
         let persisted: AppSettings = serde_json::from_value(persisted["settings"].clone()).unwrap();
-        assert!(!persisted.meetings_enabled);
+        assert!(persisted.meetings_enabled);
+        assert!(persisted.meetings_turned_on_once);
         assert!(persisted.update_checks_enabled);
         assert!(persisted.update_checks_turned_on_once);
         assert!(persisted.clamshell_microphone.is_none());
@@ -2214,6 +2293,7 @@ mod tests {
 
         settings.window_names_enabled = false;
         settings.update_checks_enabled = false;
+        settings.meetings_enabled = false;
         file.store_checked(serde_json::to_value(settings).unwrap())
             .unwrap();
         drop(file);
@@ -2222,6 +2302,7 @@ mod tests {
         assert!(!reloaded.window_names_enabled);
         assert!(reloaded.window_names_turned_on_once);
         assert!(!reloaded.meetings_enabled);
+        assert!(reloaded.meetings_turned_on_once);
         assert!(!reloaded.update_checks_enabled);
         assert!(reloaded.update_checks_turned_on_once);
         assert!(reloaded.clamshell_microphone.is_none());

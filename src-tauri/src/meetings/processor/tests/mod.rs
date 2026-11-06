@@ -1,3 +1,4 @@
+mod e2e;
 mod failures;
 mod run;
 mod speakers;

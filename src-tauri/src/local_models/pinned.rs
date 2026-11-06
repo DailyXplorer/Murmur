@@ -339,15 +339,58 @@ pub const WINDOWS: &[Source] = &[
         }],
     },
     Source {
-        repo: "handy-computer/diar_streaming_sortformer_4spk-v2.1-gguf",
-        commit: "60ebab3ef7cae9869be0abcde13360347e96ba03",
-        folder: "sortformer",
+        repo: "altunenes/speaker-diarization-community-1-onnx",
+        commit: "e2e09da94ae093a56cd5a60a09b138ae3da1959c",
+        folder: "pyannote",
         fluid_revision_marker: false,
         optional: true,
         files: &[ModelFile {
-            path: "diar_streaming_sortformer_4spk-v2.1-Q8_0.gguf",
-            size: 139310336,
-            sha256: "a5dacdc650790266c7a362e54e6bf51952015487edaa606c4e11632bc32442a9",
+            path: "segmentation-community-1.onnx",
+            size: 5916375,
+            sha256: "62d59a487d8ba877d0bd1638c53aa06a810bdb104fb776a27ec2204521711006",
         }],
+    },
+    Source {
+        repo: "welcomyou/pyannote-community-1-onnx-split",
+        commit: "cde44c2db938c8abb755853b9a87cb3179c47803",
+        folder: "pyannote",
+        fluid_revision_marker: false,
+        optional: true,
+        files: &[
+            ModelFile {
+                path: "embedding_encoder.onnx",
+                size: 21306024,
+                sha256: "9903474d6230e5e858dc6b6382a0e3f6e402ea9b4210e1e2f2bee60a33830e7a",
+            },
+            ModelFile {
+                path: "resnet_seg_1_bias.npy",
+                size: 1152,
+                sha256: "51fcb6d0530993ad044a797310f4bfd6af266af0dbf364f6bc0008fdd63520cd",
+            },
+            ModelFile {
+                path: "resnet_seg_1_weight.npy",
+                size: 5243008,
+                sha256: "ca91250bb69bea25bdc7c710e253a74450a415b3da587e53e04fd5a01abbe4da",
+            },
+        ],
+    },
+    Source {
+        repo: "FluidInference/speaker-diarization-coreml",
+        commit: "df2625ac79a7ac6b65ad868fee6d80f320da4232",
+        folder: "pyannote",
+        fluid_revision_marker: false,
+        optional: true,
+        files: &[
+            ModelFile {
+                path: "plda-parameters.json",
+                size: 89416,
+                sha256: "38ee28d4269c076cef254ee760bbd811f0738a92e0f01f9699ad372828c5de8f",
+            },
+            ModelFile {
+                path: "xvector-transform.json",
+                size: 177499,
+                sha256: "f7cd5cc16e63e2d89db052a23018ecfc47a311998ed1e9e39838fbac65048688",
+            },
+        ],
     },
 ];

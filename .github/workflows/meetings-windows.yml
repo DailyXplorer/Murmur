@@ -1,0 +1,220 @@
+name: "meetings windows"
+# The nightly check of Meetings on Windows, modelled on meetings-helper.yml:
+# what the pull request checks of windows.yml leave out because it is slow or
+# needs a sound output.
+#   analysis  the analysis the app runs after a meeting, on two of Windows'
+#             own voices speaking: word times, and the speakers told apart
+#             (downloads the models, about 740 MB, cached).
+#   loopback  the system audio capture against a real sound output.
+#   soak      three hours of meeting recorded and processed, killed while
+#             recording and while processing, in child processes.
+# A schedule fires from the default branch. A pull request or a push to main
+# that changes this file or the dialogue script runs it once with a short soak,
+# so a broken edit shows in its own pull request.
+on:
+  workflow_dispatch:
+    inputs:
+      soak_minutes:
+        description: "Minutes of audio the soak records"
+        default: "180"
+  schedule:
+    - cron: "41 3 * * *"
+  pull_request:
+    paths:
+      - ".github/workflows/meetings-windows.yml"
+      - ".github/scripts/windows-record-dialogue.ps1"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/meetings-windows.yml"
+      - ".github/scripts/windows-record-dialogue.ps1"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  # A push to this file checks the workflow, not the hours.
+  SOAK_MINUTES: ${{ (github.event_name == 'push' || github.event_name == 'pull_request') && '20' || inputs.soak_minutes || '180' }}
+
+jobs:
+  analysis:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - name: Keep line endings as committed
+        run: git config --global core.autocrlf false
+
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+
+      - name: Install pinned Rust toolchain
+        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # v1
+        with:
+          toolchain: 1.96.0
+
+      - uses: swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          workspaces: "./src-tauri -> target"
+          key: meetings-windows-analysis
+
+      - name: Cache the models
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ runner.temp }}/models
+          key: windows-parakeet-gguf-${{ hashFiles('src-tauri/src/local_models/pinned.rs') }}
+
+      - name: Download the models
+        working-directory: src-tauri
+        run: cargo run --locked --example fetch_models -- "${{ runner.temp }}/models"
+
+      - name: Record the English dialogue
+        shell: powershell
+        run: ./.github/scripts/windows-record-dialogue.ps1 -Language en -Out "$env:RUNNER_TEMP\dialogue"
+
+      # A Server image usually has no French voice: the script says so and the
+      # French test skips itself.
+      - name: Record the French dialogue
+        shell: powershell
+        run: ./.github/scripts/windows-record-dialogue.ps1 -Language fr -Out "$env:RUNNER_TEMP\dialogue-fr"
+
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@1919c4a95903d2c33e4a221102edca87309fc14b # v2.89.0
+        with:
+          tool: cargo-nextest
+
+      # Exact filters, and the count checked, so a renamed test fails the job
+      # instead of matching nothing.
+      - name: Time the words and tell the voices apart
+        working-directory: src-tauri
+        shell: bash
+        env:
+          MURMUR_SMOKE_MODELS: ${{ runner.temp }}/models
+          MURMUR_SMOKE_DIALOGUE: ${{ runner.temp }}/dialogue
+          MURMUR_SMOKE_DIALOGUE_FR: ${{ runner.temp }}/dialogue-fr
+        run: |
+          set -euo pipefail
+          cargo nextest run --locked --lib --profile ci --color never \
+            --run-ignored only --no-capture \
+            -E 'test(=meetings::analysis_cpp::tests::two_voices_are_timed_and_told_apart) | test(=meetings::analysis_cpp::tests::two_french_voices_are_timed_and_told_apart) | test(=meetings::analysis_cpp::tests::a_folder_without_the_speech_model_ends_the_analysis_without_a_panic)' \
+            2>&1 | tee "$RUNNER_TEMP/analysis.txt"
+          grep -q "3 tests run: 3 passed" "$RUNNER_TEMP/analysis.txt"
+
+  # A hosted runner usually has no audio device, so the tests skip with a
+  # logged reason and the job ends with a warning: not proven in CI. It cannot
+  # fail the workflow until it has been green on a runner that has an output.
+  loopback:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    continue-on-error: true
+    steps:
+      - name: Keep line endings as committed
+        run: git config --global core.autocrlf false
+
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+
+      - name: Install pinned Rust toolchain
+        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # v1
+        with:
+          toolchain: 1.96.0
+
+      - uses: swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          workspaces: "./src-tauri -> target"
+          key: meetings-windows-loopback
+
+      # Windows Audio is off on a hosted runner. Turning it on gives an
+      # output only when the image has an audio device.
+      - name: Start the Windows Audio service
+        shell: powershell
+        run: |
+          foreach ($name in "AudioEndpointBuilder", "Audiosrv") {
+            try {
+              Set-Service -Name $name -StartupType Automatic
+              Start-Service -Name $name
+            } catch {
+              Write-Output "$name did not start: $($_.Exception.Message)"
+            }
+          }
+          Get-Service AudioEndpointBuilder, Audiosrv | Format-Table Name, Status
+          $devices = @(Get-CimInstance Win32_SoundDevice)
+          Write-Output "sound devices: $($devices.Count)"
+          $devices | ForEach-Object { Write-Output "  $($_.Name)" }
+
+      - name: Install cargo-nextest
+        uses: taiki-e/install-action@1919c4a95903d2c33e4a221102edca87309fc14b # v2.89.0
+        with:
+          tool: cargo-nextest
+
+      - name: Play a tone and record it back
+        working-directory: src-tauri
+        shell: bash
+        run: |
+          set -euo pipefail
+          cargo nextest run --locked --lib --profile ci --color never \
+            --run-ignored only --no-capture \
+            -E 'test(=meetings::capture::wasapi::tests::wasapi_loopback_hears_a_tone) | test(=meetings::capture::wasapi::tests::wasapi_process_loopback_leaves_out_the_own_process)' \
+            2>&1 | tee "$RUNNER_TEMP/meetings-audio.txt"
+          grep -q "2 tests run: 2 passed" "$RUNNER_TEMP/meetings-audio.txt"
+          if grep -q "skipped:" "$RUNNER_TEMP/meetings-audio.txt"; then
+            echo "::warning::not proven in CI: $(grep -h 'skipped:' "$RUNNER_TEMP/meetings-audio.txt" | sort -u | head -n 3 | tr '\n' ' ')"
+          fi
+
+  # Not blocking until it has been green three nights: its thresholds (peak
+  # memory of processing, nothing lost to a kill, no piece sent twice) were
+  # measured by nobody on Windows before. The report is kept as an artifact.
+  soak:
+    runs-on: windows-latest
+    timeout-minutes: 120
+    continue-on-error: true
+    steps:
+      - name: Keep line endings as committed
+        run: git config --global core.autocrlf false
+
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+
+      - name: Install pinned Rust toolchain
+        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # v1
+        with:
+          toolchain: 1.96.0
+
+      - uses: swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+        with:
+          workspaces: "./src-tauri -> target"
+          key: meetings-windows-soak
+
+      # The processing compresses each meeting to AAC; Server images lack it.
+      - name: Install the AAC encoder
+        shell: pwsh
+        run: ./.github/scripts/windows-media-foundation.ps1
+
+      # One test process: the soak starts its own children from the test
+      # binary and runs for as long as the audio it records.
+      - name: Record, kill and process a long meeting
+        working-directory: src-tauri
+        shell: bash
+        env:
+          MURMUR_SOAK_MINUTES: ${{ env.SOAK_MINUTES }}
+          MURMUR_SOAK_REPORT: ${{ runner.temp }}/soak-report.md
+        run: |
+          set -euo pipefail
+          cargo test --locked --lib -- --ignored --nocapture --exact meetings::soak::windows_meetings_soak 2>&1 | tee "$RUNNER_TEMP/soak.txt"
+          grep -q "test result: ok. 1 passed" "$RUNNER_TEMP/soak.txt"
+
+      - name: Keep the soak report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: windows-meetings-soak
+          path: |
+            ${{ runner.temp }}/soak-report.md
+            ${{ runner.temp }}/soak.txt
+          if-no-files-found: warn

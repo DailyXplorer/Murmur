@@ -65,15 +65,19 @@
     "meetingStoppedAtLimit": "Das Meeting hat das Limit von 3 Stunden erreicht und wurde gespeichert.",
     "meetingWriteFailed": "Das Meeting wurde beendet, weil Murmur nicht auf die Festplatte schreiben konnte. Das Aufgenommene bleibt erhalten.",
     "meetingLowDiskSpace": "Auf diesem Mac ist weniger als 1,5 GB frei. Ein langes Meeting kann früher enden; das Aufgenommene bleibt erhalten.",
+    "meetingLowDiskSpaceWindows": "Auf diesem PC ist weniger als 1,5 GB frei. Ein langes Meeting kann früher enden; das Aufgenommene bleibt erhalten.",
     "meetingSystemAudioInterrupted": "Der Systemton wurde nach einem Wechsel der Audioausgabe unterbrochen. Murmur versucht weiter, ihn wiederherzustellen; dein Mikrofon wird weiter aufgenommen.",
     "meetingMicrophoneInterrupted": "Das Mikrofon nimmt nicht mehr auf. Murmur versucht weiter, es wiederherzustellen; prüfe, ob es noch verbunden ist.",
     "meetingMicrophoneDenied": "Der Mikrofonzugriff ist aus, daher nimmt das Meeting deine Stimme nicht auf. Erlaube Murmur in Systemeinstellungen → Datenschutz & Sicherheit → Mikrofon.",
+    "meetingMicrophoneDeniedWindows": "Der Mikrofonzugriff ist aus, daher nimmt das Meeting deine Stimme nicht auf. Erlaube Desktop-Apps in Windows-Einstellungen → Datenschutz und Sicherheit → Mikrofon.",
     "meetingSystemAudioDenied": "Die Systemaudioaufnahme ist aus, daher nimmt das Meeting die anderen Teilnehmer nicht auf. Erlaube Murmur in Systemeinstellungen → Datenschutz & Sicherheit → Bildschirm- & Systemaudioaufnahme.",
     "meetingRecovered": "Ein Meeting wurde unterbrochen, weil Murmur unerwartet beendet wurde. Das Aufgenommene wird jetzt transkribiert.",
     "meetingsRecovered": "{{count}} Meetings wurden unterbrochen, weil Murmur unerwartet beendet wurde. Das Aufgenommene wird jetzt transkribiert.",
     "meetingsReset": "Deine Meeting-Liste war beschädigt und wurde zurückgesetzt. Ihre Aufnahmen werden 30 Tage lang aufbewahrt.",
     "meetingPausedWhileAsleep": "Dein Mac war während des Meetings im Ruhezustand. Von {{from}} bis {{to}} wurde nichts aufgenommen.",
-    "meetingAudioDropped": "Ein Teil des Meeting-Audios ging verloren, weil der Mac zu ausgelastet war."
+    "meetingPausedWhileAsleepWindows": "Dein PC war während des Meetings im Energiesparmodus. Von {{from}} bis {{to}} wurde nichts aufgenommen.",
+    "meetingAudioDropped": "Ein Teil des Meeting-Audios ging verloren, weil der Mac zu ausgelastet war.",
+    "meetingAudioDroppedWindows": "Ein Teil des Meeting-Audios ging verloren, weil der PC zu ausgelastet war."
   },
   "sidebar": {
     "general": "Allgemein",
@@ -361,9 +365,6 @@
         "description": "Verbundene KI-Apps wie Claude oder Codex können deine Meetings auflisten, durchsuchen und lesen. Nur Lesezugriff. Sie senden das Gelesene möglicherweise an ihre eigenen Server.",
         "dictations": "Diktatverlauf einbeziehen",
         "dictationsDescription": "Erlaubt ihnen auch, deine letzten Diktate zu lesen, die persönlicher sind als Meetings.",
-        "labelWindows": "KI-Agenten erlauben, sich zu verbinden (MCP)",
-        "descriptionWindows": "KI-Apps, die du verbindest, etwa Claude oder Codex, können bei Murmur anfragen, was du unten freigibst. Murmur ändert dadurch nie etwas.",
-        "dictationsDescriptionWindows": "Erlaubt ihnen, deine Diktate zu durchsuchen und zu lesen. Sie senden das Gelesene möglicherweise an ihre eigenen Server.",
         "setupTitle": "App verbinden",
         "setupDescription": "Wähle deine App und füge dies dort ein. Kein Fenster, kein Netzwerkport.",
         "clientsLabel": "KI-App",
@@ -803,7 +804,8 @@
         "parakeet": "Spracherkennung: Parakeet Ultra von Moondream, auf Basis von Parakeet TDT 0.6B v3 von NVIDIA, CC BY 4.0. Nach Core ML konvertiert von Fluid Inference (Apple Silicon) und nach 8-Bit-GGUF von handy-computer (Intel-Macs).",
         "diarization": "Sprecherdiarisierung Community-1: pyannote, CC BY 4.0, mit WeSpeaker und BUT Speech@FIT. Angepasste Core-ML-Konvertierung von Fluid Inference.",
         "fluidaudio": "FluidAudio: Fluid Inference, Apache-Lizenz 2.0.",
-        "sortformer": "Sprechererkennung unter Windows: Sortformer v2.1 von NVIDIA, NVIDIA Open Model License. Nach 8-Bit-GGUF konvertiert von handy-computer."
+        "pyannote": "Sprechererkennung unter Windows: pyannote Community-1, CC BY 4.0, mit WeSpeaker und BUT Speech@FIT. Geändert: von altunenes nach ONNX konvertiert und von welcomyou in zwei Teile aufgeteilt.",
+        "onnxruntime": "ONNX Runtime: Microsoft, MIT-Lizenz."
       }
     },
     "transcript": {
@@ -1021,12 +1023,44 @@
             "saveFailed": "Angemeldet, aber die Sitzung konnte auf diesem PC nicht gespeichert werden."
           }
         }
+      },
+      "advanced": {
+        "meetingsToggle": {
+          "description": "Nimm Meetings über dein Mikrofon und den Systemton auf. Fügt eine Meetings-Seite, einen Kurzbefehl und einen Eintrag im Infobereich hinzu."
+        }
       }
     },
     "meetings": {
       "models": {
         "licence": {
           "parakeet": "Spracherkennung: Parakeet Ultra von Moondream, auf Basis von Parakeet TDT 0.6B v3 von NVIDIA, CC BY 4.0. Nach 8-Bit-GGUF konvertiert von handy-computer."
+        },
+        "preparing": "Modelle werden für diesen PC vorbereitet…",
+        "unsupported": "Die Sprechererkennung erfordert einen 64-Bit-Prozessor von Intel oder AMD. Meetings zeigen einen Sprecher pro Audioquelle."
+      },
+      "recording": {
+        "description": "Du kannst ein Meeting auch mit dem Kurzbefehl oder über das Menü im Infobereich starten und beenden. Nach 3 Stunden endet es von selbst."
+      },
+      "live": {
+        "unsupported": "Der Live-Text braucht einen PC mit 64-Bit-Prozessor von Intel oder AMD. Das Transkript entsteht nach dem Beenden."
+      },
+      "systemAudioUnavailable": "Systemton braucht einen PC mit 64-Bit-Prozessor von Intel oder AMD, daher nehmen Meetings nur dein Mikrofon auf.",
+      "permission": {
+        "title": "Mikrofonzugriff",
+        "description": "Wenn ein Meeting deine Stimme nicht aufnimmt, erlaube Desktop-Apps in Windows-Einstellungen → Datenschutz und Sicherheit → Mikrofon.",
+        "open": "Windows-Einstellungen öffnen"
+      },
+      "localFallback": "Codex war {{duration}} dieses Meetings nicht verfügbar, daher wurde dieser Teil auf diesem PC transkribiert.",
+      "deleteDialog": {
+        "title": "Dieses Meeting in den Papierkorb legen?",
+        "description": "Transkript und Aufnahme kommen in den Papierkorb, wo du sie weiterhin öffnen kannst. Murmur zeigt das Meeting nicht mehr an.",
+        "confirm": "In den Papierkorb legen"
+      },
+      "audio": {
+        "deleteDialog": {
+          "title": "Audio dieses Meetings in den Papierkorb legen?",
+          "description": "Die Aufnahme kommt in den Papierkorb, wo du sie weiterhin öffnen kannst. Transkript und Zusammenfassung bleiben in Murmur erhalten, aber das Meeting kann nicht erneut transkribiert werden.",
+          "confirm": "In den Papierkorb legen"
         }
       }
     },
