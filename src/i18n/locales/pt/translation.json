@@ -386,7 +386,8 @@
       },
       "meetingLiveTranscript": {
         "label": "Transcrição ao vivo das reuniões",
-        "description": "Mostra o texto da reunião enquanto você grava. Ele é feito neste Mac pelo modelo local, nunca na nuvem."
+        "description": "Mostra o texto da reunião enquanto você grava. Ele é feito neste Mac pelo modelo local, nunca na nuvem.",
+        "descriptionWindows": "Mostra o texto da reunião enquanto você grava. Ele é feito neste PC pelo modelo local, nunca na nuvem."
       },
       "meetingsAudio": {
         "title": "Apagar o áudio das reuniões",

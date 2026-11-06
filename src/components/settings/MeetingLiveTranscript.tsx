@@ -1,5 +1,6 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
+import { isWindows } from "@/lib/platform";
 import { useSettings } from "../../hooks/useSettings";
 import { ToggleSwitch } from "../ui/ToggleSwitch";
 
@@ -12,8 +13,11 @@ export const MeetingLiveTranscript: React.FC = () => {
       onChange={(enabled) => updateSetting("meeting_live_transcript", enabled)}
       isUpdating={isUpdating("meeting_live_transcript")}
       label={t("settings.advanced.meetingLiveTranscript.label")}
-      description={t("settings.advanced.meetingLiveTranscript.description")}
-      descriptionMode="tooltip"
+      description={t(
+        isWindows
+          ? "settings.advanced.meetingLiveTranscript.descriptionWindows"
+          : "settings.advanced.meetingLiveTranscript.description",
+      )}
       grouped={true}
     />
   );

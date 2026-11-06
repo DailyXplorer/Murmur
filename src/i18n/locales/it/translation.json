@@ -386,7 +386,8 @@
       },
       "meetingLiveTranscript": {
         "label": "Trascrizione dal vivo delle riunioni",
-        "description": "Mostra il testo della riunione mentre registri. Viene creato su questo Mac dal modello locale, mai nel cloud."
+        "description": "Mostra il testo della riunione mentre registri. Viene creato su questo Mac dal modello locale, mai nel cloud.",
+        "descriptionWindows": "Mostra il testo della riunione mentre registri. Viene creato su questo PC dal modello locale, mai nel cloud."
       },
       "meetingsAudio": {
         "title": "Elimina l'audio delle riunioni",

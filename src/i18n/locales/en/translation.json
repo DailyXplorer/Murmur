@@ -386,7 +386,8 @@
       },
       "meetingLiveTranscript": {
         "label": "Live meeting transcript",
-        "description": "Shows the meeting's text while you record. It is made on this Mac by the local model, never in the cloud."
+        "description": "Shows the meeting's text while you record. It is made on this Mac by the local model, never in the cloud.",
+        "descriptionWindows": "Shows the meeting's text while you record. It is made on this PC by the local model, never in the cloud."
       },
       "meetingsAudio": {
         "title": "Delete meeting audio",

@@ -386,7 +386,8 @@
       },
       "meetingLiveTranscript": {
         "label": "Transcription en direct des réunions",
-        "description": "Affiche le texte de la réunion pendant l’enregistrement. Il est produit sur ce Mac par le modèle local, jamais dans le cloud."
+        "description": "Affiche le texte de la réunion pendant l’enregistrement. Il est produit sur ce Mac par le modèle local, jamais dans le cloud.",
+        "descriptionWindows": "Affiche le texte de la réunion pendant l’enregistrement. Il est produit sur ce PC par le modèle local, jamais dans le cloud."
       },
       "meetingsAudio": {
         "title": "Supprimer l’audio des réunions",

@@ -1,5 +1,5 @@
 //! The live transcript of the meeting being recorded: a draft, a few seconds
-//! behind speech, made on this Mac by the dictation's own local model at
+//! behind speech, made on this computer by the dictation's own local model at
 //! background priority, so a dictation always goes first. Each track's
 //! writer hands its audio to a `LiveTap`, which cuts it into pieces
 //! (`chunker`); the `worker` transcribes them one at a time, joins them into
@@ -60,7 +60,7 @@ pub enum LiveUnavailable {
     Missing,
     Downloading,
     Preparing,
-    /// An Intel Mac.
+    /// A platform without the live engine, such as an Intel Mac.
     Unsupported,
     /// Three pieces in a row failed.
     EngineFailed,
@@ -374,29 +374,48 @@ impl AppEngine {
     }
 }
 
+/// Where a live meeting can use the dictation's local engine: Apple silicon
+/// (the meetings helper) and Windows on x86_64 (the CPU model). An Intel Mac
+/// is left out on purpose, as it never had live text.
+const PLATFORM_RUNS_LIVE: bool = cfg!(any(
+    all(target_os = "macos", target_arch = "aarch64"),
+    all(target_os = "windows", target_arch = "x86_64")
+));
+
+/// Whether the live transcript can run, given the platform, the state of the
+/// local models (`None` when the app does not manage them) and whether the
+/// dictation's engine exists.
+fn availability_of(
+    platform: bool,
+    models: Option<&crate::local_models::LocalModelState>,
+    engine: bool,
+) -> Result<(), LiveUnavailable> {
+    use crate::local_models::LocalModelState;
+    if !platform {
+        return Err(LiveUnavailable::Unsupported);
+    }
+    match models {
+        Some(LocalModelState::Ready) if engine => Ok(()),
+        None | Some(LocalModelState::Ready | LocalModelState::Unsupported { .. }) => {
+            Err(LiveUnavailable::Unsupported)
+        }
+        Some(LocalModelState::Missing | LocalModelState::Failed { .. }) => {
+            Err(LiveUnavailable::Missing)
+        }
+        Some(LocalModelState::Downloading { .. }) => Err(LiveUnavailable::Downloading),
+        Some(LocalModelState::Preparing) => Err(LiveUnavailable::Preparing),
+    }
+}
+
 impl LiveEngine for AppEngine {
     fn availability(&self) -> Result<(), LiveUnavailable> {
-        use crate::local_models::{LocalModelState, LocalModels};
+        use crate::local_models::LocalModels;
         use tauri::Manager;
-        if !cfg!(target_arch = "aarch64") {
-            return Err(LiveUnavailable::Unsupported);
-        }
-        let Some(models) = self.0.try_state::<Arc<LocalModels>>() else {
-            return Err(LiveUnavailable::Unsupported);
-        };
-        match models.state() {
-            LocalModelState::Ready if self.engine().is_some() => Ok(()),
-            LocalModelState::Ready | LocalModelState::Unsupported { .. } => {
-                Err(LiveUnavailable::Unsupported)
-            }
-            LocalModelState::Missing | LocalModelState::Failed { .. } => {
-                Err(LiveUnavailable::Missing)
-            }
-            LocalModelState::Downloading { .. } => Err(LiveUnavailable::Downloading),
-            LocalModelState::Preparing | LocalModelState::Optimizing => {
-                Err(LiveUnavailable::Preparing)
-            }
-        }
+        let models = self
+            .0
+            .try_state::<Arc<LocalModels>>()
+            .map(|models| models.status().state);
+        availability_of(PLATFORM_RUNS_LIVE, models.as_ref(), self.engine().is_some())
     }
 
     fn warm(&self) {
@@ -476,6 +495,51 @@ mod tests {
         assert_eq!(transcript_of(&live, dir.path(), 7), None);
         live.begin(7, LiveState::Stopped);
         assert_eq!(transcript_of(&live, dir.path(), 7), None);
+    }
+
+    #[test]
+    fn the_platforms_with_a_live_engine_are_apple_silicon_and_windows_on_x86_64() {
+        let expected = (cfg!(target_os = "macos") && cfg!(target_arch = "aarch64"))
+            || (cfg!(target_os = "windows") && cfg!(target_arch = "x86_64"));
+        assert_eq!(PLATFORM_RUNS_LIVE, expected);
+    }
+
+    #[test]
+    fn live_needs_a_supported_platform_ready_models_and_the_engine() {
+        use crate::local_models::LocalModelState;
+        let ready = LocalModelState::Ready;
+        assert_eq!(availability_of(true, Some(&ready), true), Ok(()));
+        assert_eq!(
+            availability_of(false, Some(&ready), true),
+            Err(LiveUnavailable::Unsupported)
+        );
+        assert_eq!(
+            availability_of(true, Some(&ready), false),
+            Err(LiveUnavailable::Unsupported)
+        );
+        assert_eq!(
+            availability_of(true, None, true),
+            Err(LiveUnavailable::Unsupported)
+        );
+        assert_eq!(
+            availability_of(true, Some(&LocalModelState::Missing), true),
+            Err(LiveUnavailable::Missing)
+        );
+        assert_eq!(
+            availability_of(
+                true,
+                Some(&LocalModelState::Downloading {
+                    done_bytes: 1,
+                    total_bytes: 2
+                }),
+                true
+            ),
+            Err(LiveUnavailable::Downloading)
+        );
+        assert_eq!(
+            availability_of(true, Some(&LocalModelState::Preparing), true),
+            Err(LiveUnavailable::Preparing)
+        );
     }
 
     #[test]

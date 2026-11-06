@@ -1513,7 +1513,7 @@ export type LiveUnavailable =
  */
 "off" | "missing" | "downloading" | "preparing" | 
 /**
- * An Intel Mac.
+ * A platform without the live engine, such as an Intel Mac.
  */
 "unsupported" | 
 /**

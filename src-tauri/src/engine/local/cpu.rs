@@ -6,9 +6,12 @@
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
-use transcribe_cpp::{Backend, CancelToken, Model, ModelOptions, RunOptions, Session};
+use transcribe_cpp::{
+    Backend, CancelToken, ErrorKind, Model, ModelOptions, RunOptions, Session, TimestampKind,
+};
 
 use super::session::{BoxFuture, Loaded, Runtime};
+use crate::meetings::protocol::Word;
 
 pub struct CpuRuntime {
     /// The models folder: which GGUF file it runs is read at each load.
@@ -92,19 +95,61 @@ impl Drop for AbortOnDrop {
     }
 }
 
-impl Loaded for CpuModel {
-    fn transcribe<'a>(
-        &'a mut self,
-        samples: &'a [f32],
-        _terms: &'a [String],
-    ) -> BoxFuture<'a, anyhow::Result<String>> {
+/// Puts the calling thread below the normal priority until dropped. The
+/// blocking pool reuses its threads, so the drop puts the old priority back.
+#[cfg(target_os = "windows")]
+struct BelowNormal {
+    previous: i32,
+}
+
+#[cfg(target_os = "windows")]
+impl BelowNormal {
+    fn set() -> Self {
+        use windows::Win32::System::Threading::{
+            GetCurrentThread, GetThreadPriority, SetThreadPriority, THREAD_PRIORITY_BELOW_NORMAL,
+        };
+        // SAFETY: the pseudo handle of the calling thread needs no closing and
+        // is used on this thread only.
+        unsafe {
+            let thread = GetCurrentThread();
+            let previous = GetThreadPriority(thread);
+            if SetThreadPriority(thread, THREAD_PRIORITY_BELOW_NORMAL).is_err() {
+                log::debug!("Cannot lower the priority of a live meeting piece");
+            }
+            Self { previous }
+        }
+    }
+}
+
+#[cfg(target_os = "windows")]
+impl Drop for BelowNormal {
+    fn drop(&mut self) {
+        use windows::Win32::System::Threading::{
+            GetCurrentThread, SetThreadPriority, THREAD_PRIORITY,
+        };
+        // SAFETY: as in `set`, on the same thread.
+        let _ = unsafe { SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY(self.previous)) };
+    }
+}
+
+impl CpuModel {
+    /// Runs `work` on the session in a blocking task. `lowered` runs it below
+    /// the normal priority on Windows, for a piece no one waits on.
+    fn run<T: Send + 'static>(
+        &self,
+        lowered: bool,
+        work: impl FnOnce(&mut Session) -> anyhow::Result<T> + Send + 'static,
+    ) -> BoxFuture<'static, anyhow::Result<T>> {
         let session = Arc::clone(&self.session);
         let cancel = self.cancel.clone();
-        let samples = samples.to_vec();
         Box::pin(async move {
             let abandoned = Arc::new(AtomicBool::new(false));
             let mut abort = AbortOnDrop(Some((cancel.clone(), Arc::clone(&abandoned))));
-            let text = tokio::task::spawn_blocking(move || -> anyhow::Result<String> {
+            let result = tokio::task::spawn_blocking(move || -> anyhow::Result<T> {
+                #[cfg(target_os = "windows")]
+                let _priority = lowered.then(BelowNormal::set);
+                #[cfg(not(target_os = "windows"))]
+                let _ = lowered;
                 let mut session = session
                     .lock()
                     .unwrap_or_else(|poisoned| poisoned.into_inner());
@@ -113,18 +158,106 @@ impl Loaded for CpuModel {
                 if abandoned.load(Ordering::SeqCst) {
                     anyhow::bail!("Local transcription abandoned");
                 }
-                Ok(session.run(&samples, &RunOptions::default())?.text)
+                work(&mut session)
             })
             .await??;
             abort.0 = None;
-            Ok(text)
+            Ok(result)
         })
     }
+}
+
+impl Loaded for CpuModel {
+    fn transcribe<'a>(
+        &'a mut self,
+        samples: &'a [f32],
+        _terms: &'a [String],
+    ) -> BoxFuture<'a, anyhow::Result<String>> {
+        let samples = samples.to_vec();
+        self.run(false, move |session| {
+            Ok(session.run(&samples, &RunOptions::default())?.text)
+        })
+    }
+
+    fn transcribe_words<'a>(
+        &'a mut self,
+        samples: &'a [f32],
+    ) -> BoxFuture<'a, anyhow::Result<Vec<Word>>> {
+        let samples = samples.to_vec();
+        self.run(true, move |session| {
+            let options = RunOptions {
+                timestamps: TimestampKind::Word,
+                ..RunOptions::default()
+            };
+            let transcript = match session.run(&samples, &options) {
+                Ok(transcript) => transcript,
+                Err(error) => {
+                    // A decode that stopped early keeps the words it found.
+                    let partial = match error.kind() {
+                        ErrorKind::OutputTruncated | ErrorKind::OutputRepetition => {
+                            error.partial().cloned()
+                        }
+                        _ => None,
+                    };
+                    match partial {
+                        Some(partial) => partial,
+                        None => return Err(error.into()),
+                    }
+                }
+            };
+            Ok(timed_words(
+                transcript
+                    .words
+                    .into_iter()
+                    .map(|word| (word.text, word.t0_ms, word.t1_ms)),
+            ))
+        })
+    }
+}
+
+/// The words of a piece as the live transcript takes them: trimmed, empty
+/// ones dropped, times in seconds from the start of the piece.
+fn timed_words(words: impl IntoIterator<Item = (String, i64, i64)>) -> Vec<Word> {
+    words
+        .into_iter()
+        .filter_map(|(text, start_ms, end_ms)| {
+            let text = text.trim();
+            (!text.is_empty()).then(|| Word {
+                w: text.to_string(),
+                s: start_ms as f64 / 1000.0,
+                e: end_ms.max(start_ms) as f64 / 1000.0,
+            })
+        })
+        .collect()
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn live_words_are_trimmed_timed_in_seconds_and_never_end_before_they_start() {
+        let heard = timed_words([
+            (" Hello".to_string(), 500, 900),
+            ("  ".to_string(), 900, 950),
+            ("world.".to_string(), 1_000, 800),
+        ]);
+        assert_eq!(
+            heard,
+            [
+                Word {
+                    w: "Hello".into(),
+                    s: 0.5,
+                    e: 0.9
+                },
+                Word {
+                    w: "world.".into(),
+                    s: 1.0,
+                    e: 1.0
+                },
+            ]
+        );
+    }
 
     /// Needs the models and spoken clips, so CI runs it on its own (`local
     /// engine` on Intel, `windows beta` on Windows):
