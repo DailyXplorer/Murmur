@@ -882,6 +882,7 @@ const RESPONSES: Record<string, unknown> = {
   get_meeting_runtime: MEETING_RUNTIME,
   get_system_audio_permission: systemAudioPermission,
   open_system_audio_privacy_settings: null,
+  open_microphone_settings: null,
   start_meeting: null,
   stop_meeting: null,
   check_custom_sounds: { start: false, stop: false },

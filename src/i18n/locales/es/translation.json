@@ -65,15 +65,19 @@
     "meetingStoppedAtLimit": "La reunión alcanzó el límite de 3 horas y se guardó.",
     "meetingWriteFailed": "La reunión se detuvo porque Murmur no pudo escribir en el disco. Lo grabado se conserva.",
     "meetingLowDiskSpace": "Hay menos de 1,5 GB libres en este Mac. Una reunión larga puede detenerse antes; lo grabado se conserva.",
+    "meetingLowDiskSpaceWindows": "Hay menos de 1,5 GB libres en este PC. Una reunión larga puede detenerse antes; lo grabado se conserva.",
     "meetingSystemAudioInterrupted": "El audio del sistema se detuvo al cambiar la salida de sonido. Murmur sigue intentando recuperarlo; tu micrófono se sigue grabando.",
     "meetingMicrophoneInterrupted": "El micrófono dejó de grabar. Murmur sigue intentando recuperarlo; comprueba que siga conectado.",
     "meetingMicrophoneDenied": "El acceso al micrófono está desactivado, así que la reunión no graba su voz. Permita Murmur en Ajustes del Sistema → Privacidad y seguridad → Micrófono.",
+    "meetingMicrophoneDeniedWindows": "El acceso al micrófono está desactivado, así que la reunión no graba su voz. Permita las aplicaciones de escritorio en Configuración de Windows → Privacidad y seguridad → Micrófono.",
     "meetingSystemAudioDenied": "La grabación de audio del sistema está desactivada, así que la reunión no graba a los demás participantes. Permita Murmur en Ajustes del Sistema → Privacidad y seguridad → Grabación de pantalla y audio del sistema.",
     "meetingRecovered": "Una reunión se interrumpió porque Murmur se cerró inesperadamente. Lo grabado se está transcribiendo.",
     "meetingsRecovered": "{{count}} reuniones se interrumpieron porque Murmur se cerró inesperadamente. Lo grabado se está transcribiendo.",
     "meetingsReset": "Tu lista de reuniones estaba dañada y se ha restablecido. Sus grabaciones se guardan durante 30 días.",
     "meetingPausedWhileAsleep": "Su Mac entró en reposo durante la reunión. No se grabó nada entre las {{from}} y las {{to}}.",
-    "meetingAudioDropped": "Se perdió parte del audio de la reunión porque el Mac estaba demasiado ocupado."
+    "meetingPausedWhileAsleepWindows": "Su PC entró en suspensión durante la reunión. No se grabó nada entre las {{from}} y las {{to}}.",
+    "meetingAudioDropped": "Se perdió parte del audio de la reunión porque el Mac estaba demasiado ocupado.",
+    "meetingAudioDroppedWindows": "Se perdió parte del audio de la reunión porque el PC estaba demasiado ocupado."
   },
   "sidebar": {
     "general": "General",
@@ -361,9 +365,6 @@
         "description": "Las aplicaciones de IA que conecte, como Claude o Codex, pueden listar, buscar y leer las transcripciones y los resúmenes de sus reuniones. Pueden enviar lo que leen a sus propios servidores. Murmur nunca cambia nada por esta vía.",
         "dictations": "Incluir el historial de dictados",
         "dictationsDescription": "También les permite leer sus últimos dictados, más personales que las reuniones.",
-        "labelWindows": "Permitir que los agentes de IA se conecten (MCP)",
-        "descriptionWindows": "Las aplicaciones de IA que conecte, como Claude o Codex, pueden pedirle a Murmur lo que comparta a continuación. Murmur nunca cambia nada por esta vía.",
-        "dictationsDescriptionWindows": "Les permite buscar y leer sus dictados. Pueden enviar lo que leen a sus propios servidores.",
         "setupTitle": "Conectar una aplicación",
         "setupDescription": "Elija su aplicación y pegue esto en ella. Sin ventana ni puerto de red.",
         "clientsLabel": "Aplicación de IA",
@@ -1011,12 +1012,44 @@
             "saveFailed": "Sesión iniciada, pero no se pudo guardar en este PC."
           }
         }
+      },
+      "advanced": {
+        "meetingsToggle": {
+          "description": "Grabe reuniones desde su micrófono y el audio del sistema. Añade una página de reuniones, un atajo y un elemento en el área de notificaciones."
+        }
       }
     },
     "meetings": {
       "models": {
         "licence": {
           "parakeet": "Reconocimiento de voz: Parakeet Ultra de Moondream, basado en Parakeet TDT 0.6B v3 de NVIDIA, CC BY 4.0, convertido a GGUF de 8 bits por handy-computer."
+        },
+        "preparing": "Preparando los modelos para este PC…",
+        "unsupported": "La detección de participantes requiere un procesador Intel o AMD de 64 bits. Las reuniones muestran un participante por fuente de audio."
+      },
+      "recording": {
+        "description": "También puede iniciar y detener una reunión con su atajo o desde el menú del área de notificaciones. Una reunión se detiene sola a las 3 horas."
+      },
+      "live": {
+        "unsupported": "El texto en directo necesita un PC con procesador Intel o AMD de 64 bits. La transcripción se hará después de detener."
+      },
+      "systemAudioUnavailable": "El audio del sistema requiere un PC con procesador Intel o AMD de 64 bits, así que las reuniones solo graban su micrófono.",
+      "permission": {
+        "title": "Acceso al micrófono",
+        "description": "Si una reunión no graba su voz, permita las aplicaciones de escritorio en Configuración de Windows → Privacidad y seguridad → Micrófono.",
+        "open": "Abrir Configuración de Windows"
+      },
+      "localFallback": "Codex no estuvo disponible durante {{duration}} de esta reunión, así que esa parte se transcribió en este PC.",
+      "deleteDialog": {
+        "title": "¿Mover esta reunión a la Papelera de reciclaje?",
+        "description": "Su transcripción y su grabación van a la Papelera de reciclaje, donde aún puedes abrirlas. Murmur ya no la muestra.",
+        "confirm": "Mover a la Papelera de reciclaje"
+      },
+      "audio": {
+        "deleteDialog": {
+          "title": "¿Mover el audio de esta reunión a la Papelera de reciclaje?",
+          "description": "La grabación va a la Papelera de reciclaje, donde aún puedes abrirla. La transcripción y el resumen se quedan en Murmur, pero la reunión no se podrá volver a transcribir.",
+          "confirm": "Mover a la Papelera de reciclaje"
         }
       }
     },

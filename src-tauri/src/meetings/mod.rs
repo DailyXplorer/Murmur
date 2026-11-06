@@ -97,7 +97,16 @@ use transcribe::{CodexTranscriber, CodexVerdict, LocalTranscriber, RetryPolicy, 
 
 pub const BINDING_ID: &str = "meeting_toggle";
 /// Option+Command+M is macOS's "Minimize All"; adding Control frees it.
+#[cfg(target_os = "macos")]
 pub const DEFAULT_BINDING: &str = "ctrl+option+command+m";
+/// The default of the betas, where Meetings were hidden. Ctrl+Alt+Win+M reads
+/// as AltGr+Win+M on layouts that have an AltGr key.
+#[cfg(target_os = "windows")]
+pub const PREVIOUS_DEFAULT_BINDING: &str = "ctrl+option+command+m";
+/// Ctrl+Alt is AltGr on many layouts and Win+Ctrl+M is taken by Windows
+/// itself: Alt+Shift+M is left to Murmur, as Alt+Shift+V is for paste last.
+#[cfg(target_os = "windows")]
+pub const DEFAULT_BINDING: &str = "alt+shift+m";
 pub const TRAY_ITEM_ID: &str = "meeting_toggle";
 
 /// Sent whenever a meeting starts or stops.
@@ -1311,6 +1320,24 @@ mod tests {
         crate::shortcut::tauri_impl::parse_shortcut(DEFAULT_BINDING).unwrap();
     }
 
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn default_binding_leaves_the_other_default_shortcuts_alone() {
+        let default = crate::shortcut::tauri_impl::parse_shortcut(DEFAULT_BINDING).unwrap();
+        for taken in [
+            crate::paste_last::DEFAULT_BINDING,
+            crate::settings::DEFAULT_TRANSCRIBE_BINDING,
+            "win+m",
+            "ctrl+m",
+            "alt+m",
+        ] {
+            if let Ok(taken) = crate::shortcut::tauri_impl::parse_shortcut(taken) {
+                assert_ne!(default, taken, "{taken:?}");
+            }
+        }
+    }
+
+    #[cfg(target_os = "macos")]
     #[test]
     fn default_binding_leaves_standard_macos_shortcuts_alone() {
         // A global hotkey swallows its keys in every app, so the default must

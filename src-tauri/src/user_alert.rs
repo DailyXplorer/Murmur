@@ -98,17 +98,30 @@ impl Alert {
                 MeetingAlert::StopsSoon => &strings.meeting_stops_soon,
                 MeetingAlert::StoppedAtLimit => &strings.meeting_stopped_at_limit,
                 MeetingAlert::WriteFailed => &strings.meeting_write_failed,
+                MeetingAlert::LowDiskSpace if cfg!(target_os = "windows") => {
+                    &strings.meeting_low_disk_space_windows
+                }
                 MeetingAlert::LowDiskSpace => &strings.meeting_low_disk_space,
                 MeetingAlert::SystemAudioInterrupted => &strings.meeting_system_audio_interrupted,
                 MeetingAlert::MicrophoneInterrupted => &strings.meeting_microphone_interrupted,
+                MeetingAlert::MicrophoneDenied if cfg!(target_os = "windows") => {
+                    &strings.meeting_microphone_denied_windows
+                }
                 MeetingAlert::MicrophoneDenied => &strings.meeting_microphone_denied,
                 MeetingAlert::SystemAudioDenied => &strings.meeting_system_audio_denied,
+                MeetingAlert::AudioDropped if cfg!(target_os = "windows") => {
+                    &strings.meeting_audio_dropped_windows
+                }
                 MeetingAlert::AudioDropped => &strings.meeting_audio_dropped,
                 MeetingAlert::PausedWhileAsleep { from_ms, to_ms } => {
-                    return strings
-                        .meeting_paused_while_asleep
+                    let template = if cfg!(target_os = "windows") {
+                        &strings.meeting_paused_while_asleep_windows
+                    } else {
+                        &strings.meeting_paused_while_asleep
+                    };
+                    return template
                         .replace("{{from}}", &clock_time(*from_ms, language))
-                        .replace("{{to}}", &clock_time(*to_ms, language))
+                        .replace("{{to}}", &clock_time(*to_ms, language));
                 }
             }
             .clone(),
@@ -264,9 +277,16 @@ mod tests {
             from_ms: from,
             to_ms: from + 20 * 60_000,
         });
+        let device = if cfg!(target_os = "windows") {
+            "PC"
+        } else {
+            "Mac"
+        };
         assert_eq!(
             alert.message(&get_tray_translations(Some("en".to_string())), "en"),
-            "Your Mac slept during the meeting. Nothing was recorded from 2:05 PM to 2:25 PM."
+            format!(
+                "Your {device} slept during the meeting. Nothing was recorded from 2:05 PM to 2:25 PM."
+            )
         );
         let french = alert.message(&get_tray_translations(Some("fr".to_string())), "fr");
         assert!(french.contains("de 14:05 à 14:25"), "{french}");
@@ -294,6 +314,30 @@ mod tests {
         };
         assert!(message.contains(expected), "{message}");
         assert!(!message.contains("{{"));
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn windows_meeting_alerts_name_no_mac_setting() {
+        let alerts = [
+            MeetingAlert::LowDiskSpace,
+            MeetingAlert::MicrophoneDenied,
+            MeetingAlert::AudioDropped,
+            MeetingAlert::PausedWhileAsleep {
+                from_ms: 0,
+                to_ms: 60_000,
+            },
+        ];
+        for language in ["en", "fr", "de", "es", "it", "pt"] {
+            let strings = get_tray_translations(Some(language.to_string()));
+            for alert in &alerts {
+                let message = Alert::Meeting(*alert).message(&strings, language);
+                for mac_word in ["Mac", "macOS", "System Settings", "Systemeinstellungen"] {
+                    assert!(!message.contains(mac_word), "{language}: {message}");
+                }
+                assert!(!message.contains("{{"), "{language}: {message}");
+            }
+        }
     }
 
     #[cfg(target_os = "windows")]

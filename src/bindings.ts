@@ -1261,7 +1261,7 @@ whisper_mode?: boolean; extra_recording_buffer_ms?: number; overlay_style?: Over
  * Meeting recording, on by default: the Meetings page, its shortcut and
  * its tray item exist only while this is on.
  */
-meetings_enabled?: boolean; meeting_capture_mode?: MeetingCaptureMode; meeting_audio_retention?: MeetingAudioRetention; 
+meetings_enabled?: boolean; meetings_turned_on_once?: boolean; meeting_capture_mode?: MeetingCaptureMode; meeting_audio_retention?: MeetingAudioRetention; 
 /**
  * Offers to record when a call app starts using the microphone. Only
  * while meetings are on.

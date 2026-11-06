@@ -4,6 +4,10 @@
 #   settings-window.png       the settings window once onboarding is done
 #   desktop-overlay.png       the desktop while a dictation is toggled on
 #   murmur.log                the app log
+# Meetings are on by default there: the settings the first launch writes say
+# so, the library `meetings.db` exists once the app runs, and the AI assistant
+# server lists the (empty) library. Recording a meeting needs audio devices
+# the runner lacks; the Rust tests run a whole meeting on fake capture.
 # Fails when the install is not per-user, lacks the Visual C++ runtime beside
 # the app, the app loads that runtime from elsewhere, quits, the settings
 # window goes past the work area (under the taskbar), the log shows a panic, or
@@ -71,6 +75,7 @@ function Assert-InsideWorkArea([System.Diagnostics.Process] $Process) {
 
 $logFile = Join-Path $env:LOCALAPPDATA 'com.dailyxplorer.murmur\logs\murmur.log'
 $settingsFile = Join-Path $env:APPDATA 'com.dailyxplorer.murmur\settings_store.json'
+$meetingsDatabase = Join-Path $env:APPDATA 'com.dailyxplorer.murmur\meetings.db'
 $installDir = Join-Path $env:LOCALAPPDATA 'Murmur'
 
 function Start-Murmur {
@@ -118,8 +123,9 @@ function Assert-McpServer {
     try {
         $server.StandardInput.WriteLine('{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"smoke","version":"0"}}}')
         $server.StandardInput.WriteLine('{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}')
+        $server.StandardInput.WriteLine('{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"list_meetings","arguments":{}}}')
         $server.StandardInput.Flush()
-        $replies = foreach ($id in 1, 2) {
+        $replies = foreach ($id in 1, 2, 3) {
             $line = $server.StandardOutput.ReadLineAsync()
             if (-not $line.Wait(20000)) { throw "murmur mcp sent no reply to request $id within 20 s" }
             $line.Result | ConvertFrom-Json
@@ -132,6 +138,9 @@ function Assert-McpServer {
         foreach ($tool in 'list_meetings', 'search', 'get_transcript', 'get_summary', 'recent_dictations') {
             if ($tools -notcontains $tool) { throw "murmur mcp lists no $tool tool" }
         }
+        # The library the running app created answers, empty: no "open Murmur
+        # once to finish updating", no missing database.
+        if ($replies[2].result.isError -eq $true) { throw "list_meetings failed: $($replies[2].result.content[0].text)" }
 
         $server.StandardInput.Close()
         if (-not $server.WaitForExit(20000)) { throw 'murmur mcp did not exit when its stdin closed' }
@@ -180,6 +189,7 @@ try {
 
     # As after onboarding: the settings window opens instead.
     $settings = Get-Content -Raw $settingsFile | ConvertFrom-Json
+    if ($settings.settings.meetings_enabled -ne $true) { throw 'Meetings are not on in the settings of a new install' }
     $settings.settings.onboarding_completed = $true
     # The AI assistant server answers only when both switches are on.
     foreach ($switch in 'mcp_enabled', 'mcp_include_dictations') {
@@ -190,6 +200,7 @@ try {
     $murmur = Start-Murmur
     Save-Window $murmur 'settings-window.png'
     Assert-InsideWorkArea $murmur
+    if (-not (Test-Path $meetingsDatabase)) { throw "Meetings are on but the app created no $meetingsDatabase" }
 
     # A second instance forwards the toggle to the running one, then quits.
     # Without a microphone on the runner, the overlay reports it.

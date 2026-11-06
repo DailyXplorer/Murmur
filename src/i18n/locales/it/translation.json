@@ -65,15 +65,19 @@
     "meetingStoppedAtLimit": "La riunione ha raggiunto il limite di 3 ore ed è stata salvata.",
     "meetingWriteFailed": "La riunione si è interrotta perché Murmur non è riuscito a scrivere sul disco. Quanto registrato è conservato.",
     "meetingLowDiskSpace": "Su questo Mac sono liberi meno di 1,5 GB. Una riunione lunga potrebbe interrompersi prima; quanto registrato viene conservato.",
+    "meetingLowDiskSpaceWindows": "Su questo PC sono liberi meno di 1,5 GB. Una riunione lunga potrebbe interrompersi prima; quanto registrato viene conservato.",
     "meetingSystemAudioInterrupted": "L'audio di sistema si è interrotto dopo il cambio dell'uscita audio. Murmur continua a provare a ripristinarlo; il microfono viene ancora registrato.",
     "meetingMicrophoneInterrupted": "Il microfono ha smesso di registrare. Murmur continua a provare a ripristinarlo; verifica che sia ancora collegato.",
     "meetingMicrophoneDenied": "L'accesso al microfono è disattivato, quindi la riunione non registra la tua voce. Consenti Murmur in Impostazioni di Sistema → Privacy e sicurezza → Microfono.",
+    "meetingMicrophoneDeniedWindows": "L'accesso al microfono è disattivato, quindi la riunione non registra la tua voce. Consenti le app desktop in Impostazioni di Windows → Privacy e sicurezza → Microfono.",
     "meetingSystemAudioDenied": "La registrazione dell'audio di sistema è disattivata, quindi la riunione non registra gli altri partecipanti. Consenti Murmur in Impostazioni di Sistema → Privacy e sicurezza → Registrazione schermo e audio di sistema.",
     "meetingRecovered": "Una riunione è stata interrotta perché Murmur si è chiuso inaspettatamente. Quanto registrato è in fase di trascrizione.",
     "meetingsRecovered": "{{count}} riunioni sono state interrotte perché Murmur si è chiuso inaspettatamente. Quanto registrato è in fase di trascrizione.",
     "meetingsReset": "Il tuo elenco delle riunioni era danneggiato ed è stato reimpostato. Le sue registrazioni sono conservate per 30 giorni.",
     "meetingPausedWhileAsleep": "Il tuo Mac è andato in stop durante la riunione. Non è stato registrato nulla dalle {{from}} alle {{to}}.",
-    "meetingAudioDropped": "Parte dell'audio della riunione è andata persa perché il Mac era troppo occupato."
+    "meetingPausedWhileAsleepWindows": "Il tuo PC è andato in stop durante la riunione. Non è stato registrato nulla dalle {{from}} alle {{to}}.",
+    "meetingAudioDropped": "Parte dell'audio della riunione è andata persa perché il Mac era troppo occupato.",
+    "meetingAudioDroppedWindows": "Parte dell'audio della riunione è andata persa perché il PC era troppo occupato."
   },
   "sidebar": {
     "general": "Generale",
@@ -361,9 +365,6 @@
         "description": "Le app IA che colleghi, come Claude o Codex, possono elencare, cercare e leggere le trascrizioni e i riassunti delle tue riunioni. Possono inviare ciò che leggono ai propri server. Murmur non modifica mai nulla in questo modo.",
         "dictations": "Includi la cronologia dei dettati",
         "dictationsDescription": "Permette loro di leggere anche i tuoi ultimi dettati, più personali delle riunioni.",
-        "labelWindows": "Lascia che gli agenti IA si colleghino (MCP)",
-        "descriptionWindows": "Le app IA che colleghi, come Claude o Codex, possono chiedere a Murmur ciò che condividi qui sotto. Murmur non modifica mai nulla in questo modo.",
-        "dictationsDescriptionWindows": "Permette loro di cercare e leggere i tuoi dettati. Possono inviare ciò che leggono ai propri server.",
         "setupTitle": "Collega un'app",
         "setupDescription": "Scegli la tua app e incolla questo al suo interno. Senza finestra e senza porta di rete.",
         "clientsLabel": "App IA",
@@ -1011,12 +1012,44 @@
             "saveFailed": "Accesso effettuato, ma non è stato possibile salvare la sessione su questo PC."
           }
         }
+      },
+      "advanced": {
+        "meetingsToggle": {
+          "description": "Registra le riunioni dal microfono e dall'audio di sistema. Aggiunge una pagina Riunioni, una scorciatoia e una voce nell'area di notifica."
+        }
       }
     },
     "meetings": {
       "models": {
         "licence": {
           "parakeet": "Riconoscimento vocale: Parakeet Ultra di Moondream, basato su Parakeet TDT 0.6B v3 di NVIDIA, CC BY 4.0, convertito in GGUF a 8 bit da handy-computer."
+        },
+        "preparing": "Preparazione dei modelli per questo PC…",
+        "unsupported": "Il rilevamento dei partecipanti richiede un processore Intel o AMD a 64 bit. Le riunioni mostrano un partecipante per sorgente audio."
+      },
+      "recording": {
+        "description": "Puoi anche avviare e interrompere una riunione con la scorciatoia o dal menu dell'area di notifica. Una riunione si interrompe da sola dopo 3 ore."
+      },
+      "live": {
+        "unsupported": "Il testo dal vivo richiede un PC con processore Intel o AMD a 64 bit. La trascrizione verrà creata dopo l’interruzione."
+      },
+      "systemAudioUnavailable": "L'audio di sistema richiede un PC con processore Intel o AMD a 64 bit, quindi le riunioni registrano solo il microfono.",
+      "permission": {
+        "title": "Accesso al microfono",
+        "description": "Se una riunione non registra la tua voce, consenti le app desktop in Impostazioni di Windows → Privacy e sicurezza → Microfono.",
+        "open": "Apri Impostazioni di Windows"
+      },
+      "localFallback": "Codex non è stato disponibile per {{duration}} di questa riunione, quindi quella parte è stata trascritta su questo PC.",
+      "deleteDialog": {
+        "title": "Spostare questa riunione nel Cestino?",
+        "description": "La trascrizione e la registrazione vanno nel Cestino, dove puoi ancora aprirle. Murmur non la mostra più.",
+        "confirm": "Sposta nel Cestino"
+      },
+      "audio": {
+        "deleteDialog": {
+          "title": "Spostare nel Cestino l'audio di questa riunione?",
+          "description": "La registrazione va nel Cestino, dove puoi ancora aprirla. Trascrizione e riepilogo restano in Murmur, ma la riunione non potrà più essere trascritta di nuovo.",
+          "confirm": "Sposta nel Cestino"
         }
       }
     },

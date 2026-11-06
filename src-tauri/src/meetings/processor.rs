@@ -2863,4 +2863,6 @@ mod tests {
         let names: Vec<&str> = meeting.speakers.iter().map(|s| s.name.as_str()).collect();
         assert_eq!(names, ["Speaker 1"]);
     }
+
+    mod e2e;
 }
