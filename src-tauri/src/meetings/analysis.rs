@@ -197,6 +197,7 @@ impl Analyzer for HelperAnalyzer {
 /// model it ran. When the switch to the current model deleted the previous
 /// one before the helper opened it, it runs again on the current one
 /// (`runs_again`).
+#[cfg_attr(target_os = "windows", allow(dead_code))]
 async fn analyze_on_the_model_in_use(
     program: &Path,
     models: &Models,
@@ -223,6 +224,7 @@ async fn analyze_on_the_model_in_use(
 /// by itself after finding the models missing, the folder names another
 /// model since, and the analysis was not cancelled. A cancel, a timeout or a
 /// helper that could not start ends the analysis there.
+#[cfg_attr(target_os = "windows", allow(dead_code))]
 fn runs_again(
     ended: Option<Ended>,
     models_missing: bool,
@@ -238,6 +240,7 @@ fn runs_again(
 
 /// The words first: what was said on each track picks the one whose voices
 /// are told apart.
+#[cfg_attr(target_os = "windows", allow(dead_code))]
 async fn analyze_and_diarize(
     program: &Path,
     models: &Models,
