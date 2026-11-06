@@ -9,6 +9,7 @@ assert.deepEqual(
     "bun run check:platforms",
     "bun run test:platforms",
     "bun run test:updater-manifest",
+    "bun run test:release-contract",
     "bun run test:windows-updater",
     "bun run test:versions",
     "bun run test:macos-expanded",

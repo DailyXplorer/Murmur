@@ -178,20 +178,91 @@ One `latest.json` on the latest release serves every client
   `--verify-public-legacy` checks a downloaded copy.
 - Tests: `bun run test:updater-manifest`.
 
+## Releasing
+
+One workflow, `.github/workflows/release.yml`, releases Murmur for macOS and
+Windows (beta) together. Only the repository owner can start it, on `main`,
+from Actions, Release, Run workflow. It builds the exact commit of `main` the
+run started on.
+
+| Input     | Value              | Effect                                                                                                                                                              |
+| --------- | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `windows` | `true` (default)   | Builds, smoke-tests and signs the Windows installer and puts the `windows-*` keys in `latest.json`. A failed Windows build stops the release before it goes public. |
+| `windows` | `false`            | A Mac-only release, as before Windows joined: no Windows job, a darwin-only `latest.json`, the `windows-beta` pointer untouched.                                    |
+| `channel` | `stable` (default) | The release the update feed and Latest point at. The version is `x.y.z`.                                                                                            |
+| `channel` | `test`             | A prerelease on the `updater-test` feed, never Latest, never the stable feed. The version is `x.y.z-test.N`.                                                        |
+
+**Stable release.**
+
+1. Prepare the version in the five places `AGENTS.md` lists, with
+   `src/content/release-notes/<version>.md` holding a "Windows (beta)" section
+   in user terms: what a PC gets, that it is a beta, and that the installer has
+   no Windows certificate. Merge it.
+2. Run the workflow with `channel` `stable`. `validate-release-source` pins
+   `main` and checks the version, `create-release` makes the draft `v<version>`,
+   `publish-tauri` (the two Mac builds, unchanged) and `publish-windows`
+   (`build-windows.yml`) run in parallel, then `publish-release` runs.
+3. `publish-release` builds one `latest.json`, downloads the assets it points
+   at and checks every signature against the updater `pubkey` while the release
+   is still a draft. It publishes the draft as Latest, checks the public
+   `releases/latest/download/latest.json`, points the legacy `windows-beta`
+   feed at the same Windows installer and checks that feed too.
+
+**Test channel.** `channel` `test` needs the version `x.y.z-test.N` in the five
+version files (the release notes are those of `x.y.z`). The Mac and Windows
+builds read `src-tauri/updater-test.conf.json`, whose only content is the
+endpoint `releases/download/updater-test/latest.json`. The release is the
+prerelease `v<version>`, and `latest.json` goes to the rolling prerelease
+`updater-test`, created on the first run. To try the updater end to end:
+release `x.y.z-test.1`, install it by hand on a Mac and a PC, release
+`x.y.z-test.2`, and let both update from the app.
+`x.y.z-test.1 < x.y.z-test.2 < x.y.z`, so the stable `x.y.z` supersedes both.
+A Mac build with a pre-release version has not shipped before: run the test
+channel before the first stable release of this workflow.
+
+**Rollback.**
+
+- The Mac side is the usual one: mark the release a draft or delete it, and
+  `releases/latest` falls back to the previous release.
+- The `windows-beta` pointer: each stable run uploads the file it replaces as
+  the artifact `windows-beta-feed-before-<version>` (kept 90 days). To go back,
+  download it and run `gh release upload windows-beta latest.json --clobber`.
+  PCs that already updated cannot be downgraded: ship the next number.
+- A run that fails before "Publish release" leaves a draft only. Delete the
+  draft and its tag, then run again.
+
+**Dry run.** A pull request that touches the release workflows,
+`.github/scripts`, `src-tauri/tauri*.json` or `src-tauri/updater-*.json` runs
+`release-dry-run.yml`. It builds a Windows installer, signs it with a key made
+in the job and thrown away with it, runs the unified manifest builder on fake
+Mac archives and that installer, and verifies the result. It uses no repository
+secret and uploads nothing.
+
+**The Mac path is pinned.** `bun run test:release-contract` compares
+`release.yml` and `build.yml` with
+`scripts/fixtures/release-contract-v1.12.1.json`, taken from the workflows of
+v1.12.1: the Mac jobs, their secrets, environments and matrix, the
+`make_latest` step and the signing steps of `build.yml` must not change. The
+one deliberate difference from v1.12.1 is the cache step of `build.yml`: the
+separate `actions/cache` step for the meetings helper is gone, and the
+SwiftPM `.build` directory is cached by the `swatinem/rust-cache` step
+(`cache-directories`, aarch64 only) which saves only on a push to main. This
+closes a CodeQL cache-poisoning alert (no default-branch cache is written from
+a caller-supplied ref); the macOS build output is unchanged. The release
+workflow may add Windows and test-channel jobs and `if` guards. Changing a pin
+is a deliberate edit of that file, with the reason in the pull request.
+
 ### Windows update feed
 
-The Windows installs in the field read the `windows-beta` feed, set in
-`src-tauri/tauri.windows.conf.json` (see `AGENTS.md`, "Windows updates"). The
-feed tooling is `.github/scripts/windows-updater-manifest.mjs` with
-`minisign.mjs`; its tests are `bun run test:windows-updater`. No workflow on
-`main` publishes to it yet: `beta-release.yml` is gone, and the unified release
-workflow takes over its job.
-
-**Rollback.** A bad build cannot be taken back from the PCs that installed it:
-ship the next number. To stop offering it, upload the previous release's
-`latest.json` (it is an asset of that release) to the feed with
-`gh release upload windows-beta latest.json --clobber`, and delete the bad
-versioned release if needed.
+The Windows app reads the same feed as the Mac app: `tauri.windows.conf.json`
+has no endpoint (`bun run check:platforms` fails if it gets one). The
+`windows-beta` feed stays for installs older than the unified release (Beta 7
+and 8 read it). Every stable release with `windows` on rewrites its
+`latest.json` to the Windows entries of the unified manifest, with the same
+installer and signature, so a beta that stayed offline for months jumps to the
+newest build. The `windows-beta` and `v1.9.0-beta.*` releases are never
+deleted. The feed tooling is `.github/scripts/windows-updater-manifest.mjs`
+with `minisign.mjs`; its tests are `bun run test:windows-updater`.
 
 **The first update.** Beta 6 and older have no updater, so a build with one is
 installed by hand once. The installer has no Authenticode certificate, so

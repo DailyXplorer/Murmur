@@ -1,0 +1,193 @@
+name: "Build Windows"
+# Builds the signed Windows installer for a release and attaches it to the
+# draft release. Called by release.yml only. Windows is a beta: the version and
+# the release are the Mac's, the installer is `Murmur_<version>_x64-setup.exe`.
+#
+# Two jobs, so the key and the write token never meet: `build` holds the
+# updater signing key and a read-only token, `upload` holds the write token and
+# no key. The install smoke test runs on the installer before anything is
+# uploaded; a failure leaves the draft release without a Windows asset.
+
+on:
+  workflow_call:
+    inputs:
+      release-id:
+        required: true
+        type: string
+      tag:
+        required: true
+        type: string
+      version:
+        required: true
+        type: string
+      ref:
+        description: "The validated commit to build."
+        required: true
+        type: string
+      updater-endpoint:
+        description: "Test channel only: the feed the build reads. It must equal the endpoint of src-tauri/updater-test.conf.json."
+        required: false
+        type: string
+        default: ""
+    secrets:
+      TAURI_SIGNING_PRIVATE_KEY:
+        required: true
+      TAURI_SIGNING_PRIVATE_KEY_PASSWORD:
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    if: github.ref == 'refs/heads/main' && github.actor == github.repository_owner
+    runs-on: windows-latest
+    environment: release-signing
+    timeout-minutes: 90
+    permissions:
+      contents: read
+    steps:
+      - name: Keep line endings as committed
+        run: git config --global core.autocrlf false
+
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Check the inputs before anything is built
+        shell: bash
+        env:
+          RELEASE_ID: ${{ inputs.release-id }}
+          TAG: ${{ inputs.tag }}
+          VERSION: ${{ inputs.version }}
+          UPDATER_ENDPOINT: ${{ inputs.updater-endpoint }}
+        run: |
+          set -euo pipefail
+          fail() { echo "::error::$1"; exit 1; }
+          [[ "$RELEASE_ID" =~ ^[0-9]+$ ]] || fail "release id is not a number"
+          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-test\.[0-9]+)?$ ]] || fail "version $VERSION is neither x.y.z nor x.y.z-test.N"
+          [ "$TAG" = "v${VERSION}" ] || fail "tag $TAG is not v$VERSION"
+          [ "$(jq -r .version src-tauri/tauri.conf.json)" = "$VERSION" ] || fail "tauri.conf.json is not at $VERSION"
+          if [ -n "$UPDATER_ENDPOINT" ]; then
+            [[ "$VERSION" == *-test.* ]] || fail "only a test version reads the test feed"
+            [ "$(jq -r '.plugins.updater.endpoints | join(",")' src-tauri/updater-test.conf.json)" = "$UPDATER_ENDPOINT" ] \
+              || fail "updater-test.conf.json does not hold the test feed endpoint"
+          else
+            [[ "$VERSION" != *-test.* ]] || fail "a test version must read the test feed"
+          fi
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+
+      - name: Install Rust 1.96.0
+        uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # v1
+        with:
+          toolchain: 1.96.0
+          targets: x86_64-pc-windows-msvc
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Check the four version files agree
+        run: bun run check:versions
+
+      # Murmur then starts on a PC without the Visual C++ Redistributable.
+      - name: Locate the Visual C++ runtime
+        shell: pwsh
+        run: ./.github/scripts/windows-vc-runtime.ps1
+
+      # A release is built from scratch, with no Rust cache. The updater
+      # artifacts config merges after the Windows overlay (which keeps them off
+      # for ordinary builds); a missing .sig fails the next step.
+      - name: Build and sign the installer
+        shell: bash
+        env:
+          UPDATER_ENDPOINT: ${{ inputs.updater-endpoint }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          args=(--target x86_64-pc-windows-msvc --bundles nsis --config src-tauri/updater-artifacts.conf.json)
+          if [ -n "$UPDATER_ENDPOINT" ]; then
+            args+=(--config src-tauri/updater-test.conf.json)
+          fi
+          bun run tauri build "${args[@]}"
+
+      - name: Collect the installer and its signature
+        shell: bash
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          name="Murmur_${VERSION}_x64-setup.exe"
+          dir=src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis
+          [ -f "$dir/$name" ] || { echo "::error::$name was not built"; ls "$dir"; exit 1; }
+          [ -f "$dir/$name.sig" ] || { echo "::error::$name.sig was not written: updater artifacts are off"; ls "$dir"; exit 1; }
+          mkdir release
+          cp "$dir/$name" "$dir/$name.sig" release/
+
+      # Installs it the way a user without administrator rights would, starts
+      # it and reads its log. Nothing is uploaded unless this passes.
+      - name: Install, launch and check the installer
+        shell: pwsh
+        env:
+          VERSION: ${{ inputs.version }}
+        run: >
+          ./.github/scripts/windows-smoke.ps1
+          -Installer "$PWD/release/Murmur_${env:VERSION}_x64-setup.exe"
+          -OutputDir "$env:RUNNER_TEMP/smoke"
+
+      - name: Upload screenshots and log
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: windows-release-smoke
+          path: ${{ runner.temp }}/smoke/
+          retention-days: 14
+
+      - name: Hand the installer to the upload job
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: windows-release-installer
+          path: release/*
+          if-no-files-found: error
+          retention-days: 7
+
+  upload:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: windows-release-installer
+          path: release
+
+      - name: Attach the installer and its signature to the draft release
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
+        env:
+          RELEASE_ID: ${{ inputs.release-id }}
+          VERSION: ${{ inputs.version }}
+        with:
+          script: |
+            const fs = require('fs')
+            const name = `Murmur_${process.env.VERSION}_x64-setup.exe`
+            for (const asset of [name, `${name}.sig`]) {
+              const data = fs.readFileSync(`release/${asset}`)
+              await github.rest.repos.uploadReleaseAsset({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                release_id: Number(process.env.RELEASE_ID),
+                name: asset,
+                data,
+                headers: {
+                  'content-type': 'application/octet-stream',
+                  'content-length': data.length
+                }
+              })
+            }

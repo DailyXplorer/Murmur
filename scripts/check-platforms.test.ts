@@ -314,11 +314,14 @@ describe("Windows section", () => {
     expect(checkWindows(repoRoot).failures).toEqual([]);
   });
 
-  test("the Windows updater reads its own feed in passive mode", () => {
+  test("the Windows updater reads the shared feed in passive mode", () => {
     const root = cloneRepo();
     rewrite(root, "src-tauri/tauri.windows.conf.json", (text) =>
       text
-        .replace("windows-beta/latest.json", "latest/download/latest.json")
+        .replace(
+          '"updater": {',
+          '"updater": {\n      "endpoints": ["https://github.com/DailyXplorer/Murmur/releases/download/windows-beta/latest.json"],',
+        )
         .replace('"passive"', '"basicUi"')
         .replace(
           '"createUpdaterArtifacts": false',
@@ -327,8 +330,27 @@ describe("Windows section", () => {
     );
     expect(checkWindows(root).failures).toEqual([
       "the Windows config builds updater artifacts: a release build turns them on",
-      "the Windows updater does not read exactly the windows-beta feed",
+      "the Windows config overrides the updater endpoints: it reads the shared feed",
       "the Windows updater does not install in passive mode",
+      "src-tauri/tauri.windows.conf.json points at the legacy windows-beta feed",
+    ]);
+  });
+
+  test("the base config holds one stable endpoint and the test config only the test feed", () => {
+    const root = cloneRepo();
+    rewrite(root, "src-tauri/tauri.conf.json", (text) =>
+      text.replace(
+        "releases/latest/download",
+        "releases/download/windows-beta",
+      ),
+    );
+    rewrite(root, "src-tauri/updater-test.conf.json", (text) =>
+      text.replace('"plugins"', '"identifier": "x", "plugins"'),
+    );
+    expect(checkWindows(root).failures).toEqual([
+      "tauri.conf.json does not hold exactly the stable update feed as its one endpoint",
+      "src-tauri/updater-test.conf.json must hold only the test feed endpoint",
+      "src-tauri/tauri.conf.json points at the legacy windows-beta feed",
     ]);
   });
 

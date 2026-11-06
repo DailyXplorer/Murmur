@@ -1,0 +1,120 @@
+name: release dry run
+# Proves the release tooling on a pull request that touches it, without a
+# release secret and without publishing anything. A Windows installer is built
+# and signed with a key generated in the job and thrown away with it. The
+# unified manifest builder then runs, offline, on fake Mac archives and that
+# real installer, and the result is verified: every key, the Windows signature
+# against the throw-away public key, the Mac-only manifest and the legacy
+# windows-beta feed.
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/release.yml"
+      - ".github/workflows/build-windows.yml"
+      - ".github/workflows/release-dry-run.yml"
+      - ".github/scripts/**"
+      - "src-tauri/tauri*.json"
+      - "src-tauri/updater-*.json"
+      - "scripts/release-contract*"
+      - "scripts/fixtures/release-contract-*"
+  workflow_dispatch:
+
+concurrency:
+  group: release-dry-run-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  installer:
+    runs-on: windows-latest
+    timeout-minutes: 90
+    steps:
+      - name: Keep line endings as committed
+        run: git config --global core.autocrlf false
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: latest
+
+      - name: Install pinned Rust toolchain
+        uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # v1
+        with:
+          toolchain: 1.96.0
+
+      - uses: swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
+        with:
+          workspaces: "./src-tauri -> target"
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      # Murmur then starts on a PC without the Visual C++ Redistributable.
+      - name: Locate the Visual C++ runtime
+        shell: pwsh
+        run: ./.github/scripts/windows-vc-runtime.ps1
+
+      # The key lives in the runner temp folder and is never uploaded. The
+      # build also takes the test updater config, so its merge is exercised.
+      - name: Build and sign the installer with a throw-away key
+        shell: bash
+        run: |
+          set -euo pipefail
+          key="$RUNNER_TEMP/dry-run.key"
+          bun run tauri signer generate --ci -p x -w "$key"
+          export TAURI_SIGNING_PRIVATE_KEY="$(cat "$key")"
+          export TAURI_SIGNING_PRIVATE_KEY_PASSWORD=x
+          bun run tauri build --target x86_64-pc-windows-msvc --bundles nsis \
+            --config src-tauri/updater-artifacts.conf.json \
+            --config src-tauri/updater-test.conf.json
+          version=$(jq -r .version src-tauri/tauri.conf.json)
+          name="Murmur_${version}_x64-setup.exe"
+          dir=src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis
+          [ -f "$dir/$name" ] || { echo "::error::$name was not built"; ls "$dir"; exit 1; }
+          [ -f "$dir/$name.sig" ] || { echo "::error::$name.sig was not written"; ls "$dir"; exit 1; }
+          mkdir dry-run
+          cp "$dir/$name" "$dir/$name.sig" dry-run/
+          cp "$key.pub" dry-run/key.pub
+          echo "$version" > dry-run/version.txt
+
+      - name: Install, launch and check the installer
+        shell: pwsh
+        run: >
+          ./.github/scripts/windows-smoke.ps1
+          -Installer (Get-ChildItem dry-run -Filter *-setup.exe | Select-Object -First 1).FullName
+          -OutputDir "$env:RUNNER_TEMP/smoke"
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: release-dry-run-installer
+          path: dry-run/*
+          if-no-files-found: error
+          retention-days: 3
+
+  manifest:
+    needs: installer
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7
+        with:
+          name: release-dry-run-installer
+          path: dry-run
+
+      - name: Build and verify the unified manifest on fake Mac assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          node .github/scripts/release-dry-run.mjs \
+            --dir dry-run \
+            --pubkey-file dry-run/key.pub \
+            --version "$(cat dry-run/version.txt)"
