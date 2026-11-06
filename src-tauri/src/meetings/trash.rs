@@ -1,4 +1,5 @@
-//! Delete moves a meeting to the macOS Trash instead of erasing it.
+//! Delete moves a meeting to the Trash (the Recycle Bin on Windows) instead of
+//! erasing it.
 //!
 //! A meeting lives in two places, its folder and `meetings.db`, so the folder
 //! the Trash receives holds the notes as a Markdown file next to the audio:
@@ -18,16 +19,18 @@ use super::export::{self, Transcript};
 use super::paths::{self, AUDIO_FILES};
 use super::store::MeetingDetail;
 
-/// Where a deleted meeting goes. The real one is the macOS Trash; the tests
-/// give a folder.
+/// Where a deleted meeting goes. The real one is the Trash of the Mac or the
+/// Recycle Bin of the PC; the tests give a folder.
 pub trait Trash {
     /// Moves `path`, a folder, to the Trash.
     fn trash(&self, path: &Path) -> io::Result<()>;
 }
 
 /// The user's Trash, through `NSFileManager`.
+#[cfg(target_os = "macos")]
 pub struct SystemTrash;
 
+#[cfg(target_os = "macos")]
 impl Trash for SystemTrash {
     fn trash(&self, path: &Path) -> io::Result<()> {
         use objc2_foundation::{NSFileManager, NSString, NSURL};
@@ -39,6 +42,10 @@ impl Trash for SystemTrash {
             .map_err(|error| io::Error::other(error.localizedDescription().to_string()))
     }
 }
+
+/// The Recycle Bin, in `trash_windows.rs`.
+#[cfg(target_os = "windows")]
+pub use super::trash_windows::SystemTrash;
 
 /// What the Trash gets besides the audio: the notes and the name that
 /// carries them.
@@ -350,9 +357,9 @@ pub mod tests {
         assert_eq!(names(&root), ["5"].map(String::from));
     }
 
-    /// Moves a real folder to the real Trash of the Mac it runs on.
+    /// Moves a real folder to the real Trash of the machine it runs on.
     #[test]
-    #[ignore = "puts a folder in the real Trash of the Mac that runs it"]
+    #[ignore = "puts a folder in the real Trash or Recycle Bin of the machine that runs it"]
     fn the_system_trash_takes_a_folder() {
         let tmp = tempfile::tempdir().unwrap();
         let folder = tmp.path().join("murmur-trash-check");

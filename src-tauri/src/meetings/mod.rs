@@ -62,6 +62,10 @@ pub mod tokens;
 pub mod track_audio;
 pub mod transcribe;
 pub mod trash;
+// The Recycle Bin call is Windows-only; what decides its input and result is
+// plain code, tested on every host.
+#[cfg(any(target_os = "windows", test))]
+mod trash_windows;
 pub mod wav_recovery;
 
 use std::collections::{HashSet, VecDeque};
