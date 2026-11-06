@@ -78,6 +78,10 @@ pub struct Processor {
     pub policy: RetryPolicy,
     pub language: Option<String>,
     pub events: Arc<dyn ProcessEvents>,
+    /// Whether the tracks are compressed once the summary is written. Always
+    /// on in the app; a test with a long recording turns it off, as encoding
+    /// 25 minutes in a debug build takes minutes.
+    pub compress_audio: bool,
 }
 
 fn track_file(track: Track) -> &'static str {
@@ -241,6 +245,9 @@ impl Processor {
         stages.push(("summary", started.elapsed()));
         self.events.updated(id);
         if !summarized.settled {
+            return Ok(summarized.codex);
+        }
+        if !self.compress_audio {
             return Ok(summarized.codex);
         }
         let started = Instant::now();

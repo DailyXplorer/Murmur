@@ -98,7 +98,10 @@ fn name_of<'a>(meeting: &'a crate::meetings::store::MeetingDetail, text: &str) -
 
 #[test]
 fn a_renamed_voice_keeps_its_name_when_a_retry_fills_an_earlier_part() {
-    let h = harness();
+    let h = Harness {
+        compress_audio: false,
+        ..harness()
+    };
     // 25 minutes of remote speech: three pieces.
     let id = h.meeting(MeetingTracks::System, 25 * 60);
     let path = paths::meeting_dir(&h.root, id).join(paths::SYSTEM_TRACK);

@@ -57,7 +57,10 @@ fn both_tracks_become_one_chronological_transcript() {
 
 #[test]
 fn a_failed_part_leaves_a_placeholder_and_a_retry_sends_only_that_part() {
-    let h = harness();
+    let h = Harness {
+        compress_audio: false,
+        ..harness()
+    };
     // 25 minutes of speech on one track: three pieces.
     let id = h.meeting(MeetingTracks::Mic, 25 * 60);
     let dir = paths::meeting_dir(&h.root, id);
@@ -100,7 +103,10 @@ fn a_failed_part_leaves_a_placeholder_and_a_retry_sends_only_that_part() {
 
 #[test]
 fn pieces_already_transcribed_are_not_sent_again_after_a_crash() {
-    let h = harness();
+    let h = Harness {
+        compress_audio: false,
+        ..harness()
+    };
     let id = h.meeting(MeetingTracks::Mic, 25 * 60);
     let dir = paths::meeting_dir(&h.root, id);
     track(&dir.join(paths::MIC_TRACK), 25 * 60, &[(0, 25 * 60)]);
@@ -127,7 +133,10 @@ fn pieces_already_transcribed_are_not_sent_again_after_a_crash() {
 
 #[test]
 fn a_lost_connection_waits_offline_and_the_next_run_sends_only_what_is_left() {
-    let h = harness();
+    let h = Harness {
+        compress_audio: false,
+        ..harness()
+    };
     // 25 minutes of speech on one track: three pieces.
     let id = h.meeting(MeetingTracks::Mic, 25 * 60);
     let dir = paths::meeting_dir(&h.root, id);

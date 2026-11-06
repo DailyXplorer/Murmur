@@ -60,7 +60,7 @@ pub enum LiveUnavailable {
     Missing,
     Downloading,
     Preparing,
-    /// An Intel Mac.
+    /// A platform without the live engine, such as an Intel Mac.
     Unsupported,
     /// Three pieces in a row failed.
     EngineFailed,
@@ -374,11 +374,19 @@ impl AppEngine {
     }
 }
 
+/// Where a live meeting can use the dictation's local engine: Apple silicon
+/// (the meetings helper) and Windows on x86_64 (the CPU model). An Intel Mac
+/// is left out on purpose, as it never had live text.
+const PLATFORM_RUNS_LIVE: bool = cfg!(any(
+    all(target_os = "macos", target_arch = "aarch64"),
+    all(target_os = "windows", target_arch = "x86_64")
+));
+
 impl LiveEngine for AppEngine {
     fn availability(&self) -> Result<(), LiveUnavailable> {
         use crate::local_models::{LocalModelState, LocalModels};
         use tauri::Manager;
-        if !cfg!(target_arch = "aarch64") {
+        if !PLATFORM_RUNS_LIVE {
             return Err(LiveUnavailable::Unsupported);
         }
         let Some(models) = self.0.try_state::<Arc<LocalModels>>() else {
@@ -476,6 +484,13 @@ mod tests {
         assert_eq!(transcript_of(&live, dir.path(), 7), None);
         live.begin(7, LiveState::Stopped);
         assert_eq!(transcript_of(&live, dir.path(), 7), None);
+    }
+
+    #[test]
+    fn the_platforms_with_a_live_engine_are_apple_silicon_and_windows_on_x86_64() {
+        let expected = (cfg!(target_os = "macos") && cfg!(target_arch = "aarch64"))
+            || (cfg!(target_os = "windows") && cfg!(target_arch = "x86_64"));
+        assert_eq!(PLATFORM_RUNS_LIVE, expected);
     }
 
     #[test]

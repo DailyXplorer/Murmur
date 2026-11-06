@@ -386,7 +386,8 @@
       },
       "meetingLiveTranscript": {
         "label": "Live-Transkript von Meetings",
-        "description": "Zeigt den Text des Meetings während der Aufnahme. Er entsteht auf diesem Mac mit dem lokalen Modell, nie in der Cloud."
+        "description": "Zeigt den Text des Meetings während der Aufnahme. Er entsteht auf diesem Mac mit dem lokalen Modell, nie in der Cloud.",
+        "descriptionWindows": "Zeigt den Text des Meetings während der Aufnahme. Er entsteht auf diesem PC mit dem lokalen Modell, nie in der Cloud."
       },
       "meetingsAudio": {
         "title": "Meeting-Audio löschen",

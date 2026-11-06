@@ -31,11 +31,6 @@ const IDENTIFIER: &str = "com.dailyxplorer.murmur";
 /// Points the server at another data directory (tests and measurements).
 const DATA_DIR_VARIABLE: &str = "MURMUR_MCP_DATA_DIR";
 
-/// Whether the app records meetings, and so whether the meeting tools exist.
-/// Windows has dictation only: there the server offers `search` over
-/// dictations and `recent_dictations`, and nothing else.
-const MEETINGS_EXIST: bool = cfg!(target_os = "macos");
-
 /// The folder Tauri keeps app data folders in on macOS.
 #[cfg(target_os = "macos")]
 fn data_root(var: impl Fn(&str) -> Option<OsString>) -> Option<PathBuf> {

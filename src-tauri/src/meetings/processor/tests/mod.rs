@@ -265,6 +265,8 @@ struct Harness {
     language: Option<&'static str>,
     /// This Mac's model, when it is ready.
     local: Option<Arc<dyn Transcriber>>,
+    /// Off for the tests that record 25 minutes.
+    compress_audio: bool,
     _dir: tempfile::TempDir,
 }
 
@@ -277,6 +279,7 @@ fn harness() -> Harness {
         events: Arc::default(),
         language: None,
         local: None,
+        compress_audio: true,
         _dir: dir,
     }
 }
@@ -337,6 +340,7 @@ impl Harness {
             },
             language: self.language.map(str::to_string),
             events: Arc::clone(&self.events) as Arc<dyn ProcessEvents>,
+            compress_audio: self.compress_audio,
         };
         tauri::async_runtime::block_on(processor.process(id, operation)).unwrap()
     }
