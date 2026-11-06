@@ -37,7 +37,7 @@ Status: `Yes` is built, tested and reachable from the UI. `Yes, differs` names t
 
 ## Evidence per row
 
-Test names, by the job that runs them. `rust` is the Windows job of `windows-beta.yml` (nextest on every push), `cpu-model` its job with the real speech model, `nightly` the `meetings-windows` workflow (see "Tests"), `owner` a check that needs a real PC.
+Test names, by the job that runs them. `rust` is the Windows job of `windows.yml` (nextest on every push), `cpu-model` its job with the real speech model, `nightly` the `meetings-windows` workflow (see "Tests"), `owner` a check that needs a real PC.
 
 | #   | Tests                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | Not covered by CI                                                           |
 | --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------- |
@@ -80,7 +80,7 @@ Test names, by the job that runs them. `rust` is the Windows job of `windows-bet
 - **Input.** `recycle_list` builds the double-NUL-terminated UTF-16 list the shell reads, and refuses a path it would read as something else: a wildcard, a NUL, a relative path, an extended-length (`\\?\`) path, or 260 characters or more (the shell reads no longer paths, and a cut path could name another folder). A refusal is an error like any other.
 - **Answer.** `outcome` maps the return value and `fAnyOperationsAborted`: aborted or non-zero is an error.
 - **Tests.** `recycle_list` and `outcome` run on every host. The sequence runs against a folder standing in for the bin. `the_system_trash_takes_a_folder` is `#[ignore]`d: it puts a folder in the real bin of the machine.
-- **Not proven in CI.** The question the shell asks for a folder it cannot recycle, a bin set to "Don't move files", a network or removable drive, and the look of the bin entry. `OWNER_CHECKS.md` lists them.
+- **Not proven in CI.** The question the shell asks for a folder it cannot recycle, a bin set to "Don't move files", a network or removable drive, and the look of the bin entry. [windows-meetings-owner-checks.md](windows-meetings-owner-checks.md) lists them.
 
 ## System audio on Windows
 
@@ -110,7 +110,7 @@ Test names, by the job that runs them. `rust` is the Windows job of `windows-bet
 After a meeting, the transcript shows who spoke (Speaker 1, 2, 3… on the
 remote side, "You" on the microphone) and every word sits at the time it was
 said. The pipeline after the analysis is the Mac one: `Analysis::absorb`,
-`align/`, `speakers.rs` and `bleed.rs` read the same `protocol` messages.
+`align/`, `speakers.rs` and `bleed/` read the same `protocol` messages.
 
 **Where it runs.** In the app, in a background thread, with no helper
 process (`meetings/analysis_cpp.rs`). Two models run on the CPU:
@@ -202,7 +202,7 @@ analysis the same way. It never fails the meeting.
 
 - There is no maximum number of speakers and the speaker model is not tied to
   English. How well it does on French, on crosstalk and on a headset is a
-  real-PC check (`OWNER_CHECKS.md` of the lane).
+  real-PC check ([windows-meetings-owner-checks.md](windows-meetings-owner-checks.md)).
 - Memory (measured, Linux x86_64, release, see below): a 2.9-hour track peaks at
   1.13 GB of working set, 0.68 GB of which is the track itself, read whole
   into memory as before. The pipeline adds about 0.45 GB at that length: the
@@ -255,7 +255,7 @@ analysis the same way. It never fails the meeting.
   (`diarize/parity.rs`: same number of speakers, change points within 1 s,
   at least 90 % of frames agreeing after the best mapping) waits for the
   file the Mac makes: the `meetings helper` workflow keeps the dialogue and
-  the turns of a manual run, and `OWNER_CHECKS.md` says how to commit them.
+  the turns of a manual run, and [windows-meetings-owner-checks.md](windows-meetings-owner-checks.md) says how to commit them.
 
 CI cannot prove accuracy on real calls (accents, crosstalk, more than four
 speakers), French accuracy when the runner has no French voice, or speed and
@@ -290,14 +290,14 @@ memory on a weak laptop.
 - **Speed.** Over 30 s of speech waiting shows "Catching up". Over 120 s skips the oldest pieces with a gap entry; the final transcript has them. A PC slower than real time therefore shows "Catching up", recovers when the speech pauses, and never queues without limit.
 - **The shortcut.** "Paste new meeting text" (`meeting_paste_new`) ships unbound. It holds its keys only while Meetings are on and yields them to an action that uses them (`shortcut::MEETING_BINDINGS`). It pastes through the same Windows paste path as "Paste last", as `You:` and `Others:` lines.
 - **Draft.** The live text is appended to `live.ndjson` in the meeting's folder, shown as stopped after a crash, never saved as the meeting's transcript, and deleted when the processor saves the final turns. Once deleted it is sealed: a late sentence from the worker does not bring it back.
-- **Not proven in CI.** The real-time factor on a laptop CPU during a call, the effect of the thread priority on a dictation made during a piece, and pasting into Word, Notepad and a Teams chat. `OWNER_CHECKS.md` of the lane lists them.
+- **Not proven in CI.** The real-time factor on a laptop CPU during a call, the effect of the thread priority on a dictation made during a piece, and pasting into Word, Notepad and a Teams chat. [windows-meetings-owner-checks.md](windows-meetings-owner-checks.md) lists them.
 
 ## Known limits
 
 - Before Windows 10 build 20348, Murmur's own sounds can reach the system track. The echo filter tolerates it.
 - Windows may play call audio on the default communications device, which is not the default device. The capture follows the default device only.
-- Not proven in CI: real call audio, Bluetooth switching, headsets, an unplugged device mid-meeting. `OWNER_CHECKS.md` of the lane lists them.
-- Not proven in CI: real Teams (new, classic, packaged), Zoom, Slack, Discord and Webex calls, a browser's address bar through UI Automation in each browser, and what an app does with the microphone while muted. `OWNER_CHECKS.md` of the lane lists them.
+- Not proven in CI: real call audio, Bluetooth switching, headsets, an unplugged device mid-meeting. [windows-meetings-owner-checks.md](windows-meetings-owner-checks.md) lists them.
+- Not proven in CI: real Teams (new, classic, packaged), Zoom, Slack, Discord and Webex calls, a browser's address bar through UI Automation in each browser, and what an app does with the microphone while muted. [windows-meetings-owner-checks.md](windows-meetings-owner-checks.md) lists them.
 - A Windows machine without the consent store (before Windows 10 1903) has no call detection, and the setting is hidden.
 - A call app Windows does not list yet, or one renamed by its maker, is no call until it is added to the tables. The debug log lists the apps on the microphone, by file name or package family, so a missing one can be found.
 - The compressed audio is larger than on macOS (about 43 MB an hour), and N or KN editions without the Media Feature Pack keep WAV tracks (about 230 MB an hour) because there is no encoder.
@@ -307,8 +307,8 @@ memory on a weak laptop.
 
 - The live transcript's pure parts run on both platforms: chunker, seam joiner, echo filter, draft file, the tap on a real `TrackWriter`, the state and paste rules, the platform gate, `Session::transcribe_background` against a fake model. The word conversion of the CPU model (`timed_words`) is pure; the real model run is not in the normal job.
 - The pure logic runs in the normal Windows `rust` job and on macOS: downmix, packet clock, pause-to-silence on the real `TrackWriter`, default-output follow state machine, route table, keep-awake guard (Windows only).
-- The archive tests encode two tones with the real encoder and decode them: length, size an hour, channels kept apart (each tone ten times louder than the other on its own track), a single track, a missing channel, a track that cannot be read, the pipeline in `processor.rs`. They need the AAC encoder: the `rust` job runs `.github/scripts/windows-media-foundation.ps1`, which installs `Server-Media-Foundation` on Server images that lack it. The sample-rate filter, the PCM packing and the clock run without it. The save dialog is compile-checked only.
-- `wasapi_loopback_hears_a_tone` and `wasapi_process_loopback_leaves_out_the_own_process` need a sound output. They are `#[ignore]`d, and the `meetings-audio` job of `windows-beta.yml` runs them with `--ignored`. They skip with a logged reason when the machine has no output. Run them by hand with `cargo test --lib wasapi_ -- --ignored --nocapture`.
+- The archive tests encode two tones with the real encoder and decode them: length, size an hour, channels kept apart (each tone ten times louder than the other on its own track), a single track, a missing channel, a track that cannot be read, the pipeline in `processor/`. They need the AAC encoder: the `rust` job runs `.github/scripts/windows-media-foundation.ps1`, which installs `Server-Media-Foundation` on Server images that lack it. The sample-rate filter, the PCM packing and the clock run without it. The save dialog is compile-checked only.
+- `wasapi_loopback_hears_a_tone` and `wasapi_process_loopback_leaves_out_the_own_process` need a sound output. They are `#[ignore]`d, and the `meetings-audio` job of `windows.yml` runs them with `--ignored`. They skip with a logged reason when the machine has no output. Run them by hand with `cargo test --lib wasapi_ -- --ignored --nocapture`.
 - `a_recorded_meeting_is_processed_listed_found_exported_and_deleted` (`processor/tests/e2e.rs`) takes a meeting from its recorded tracks through the processor (Codex, the analysis and the summary scripted) to the list, the detail, two searches, the notes the Trash receives, the move to a folder standing in for the bin, and the deletion with its search index. Starting and stopping on fake tracks is covered by the coordinator tests (`start_then_stop_records_both_tracks_for_processing` and its neighbours). None of it needs a device, so the Windows `rust` job runs it.
 - **Soak and recovery.** `a_killed_meeting_is_recovered_and_processed_at_relaunch` (`meetings/soak.rs`) runs in the `rust` job. It starts the test binary again as a recording child, drives the real coordinator and track writers on a few minutes of tones faster than real time, and ends the child with `TerminateProcess` (the Mac test uses SIGKILL) once the tracks hold the amount asked for. A processing child with a local fake Codex is ended after its first piece. The next launch must recover both tracks to within a second, process only what was left and send no piece twice.
 - `windows_meetings_soak` is the same at the length of the 3-hour cap (180 minutes; `MURMUR_SOAK_MINUTES` changes it). Run A records and processes without a stop, run B is killed half way through the recording, run C is the relaunch killed half way through the pieces and finished by the next one. Its thresholds are the Mac's: nothing lost to a kill beyond a second, no audio dropped, no piece sent twice, and a peak commit of the processing child under 1 GiB (`GetProcessMemoryInfo`, `PeakPagefileUsage`). It uses tones, a fake Codex and no models: the speakers and word times have their own test on real voices. It is `#[ignore]`d, because nextest would end it after two minutes, and runs under `cargo test --lib -- --ignored --nocapture --exact meetings::soak::windows_meetings_soak`. The three-hour run with `say` and the helper, and `echoes_without_the_models`, stay macOS-only.

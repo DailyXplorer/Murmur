@@ -630,7 +630,10 @@ impl LocalModels {
             // the CTC model: done here, the first dictation does not wait.
             self.prepare(operation).await?;
             std::fs::write(&marker, &id)?;
-            self.remove_retired();
+            // Only an earlier Windows build made a retired folder.
+            if cfg!(target_os = "windows") {
+                self.remove_retired();
+            }
             Ok::<_, Stopped>(())
         };
         if let Err(Stopped::Failed(reason)) = fetched.await {

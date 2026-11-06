@@ -1,6 +1,6 @@
 # Meetings on Windows: checks on a real PC
 
-What no CI job can prove, from the lanes that built Meetings on Windows (system audio, speakers, calls, audio file and export, live transcript, notices, MCP, enabling) and the QA lane. Meetings are on by default now, so every check runs on the installer the Windows CI builds. `docs/windows-meetings.md` holds the parity table and, for each row, the tests that run in CI.
+What no CI job can prove, for Meetings on Windows (system audio, speakers, calls, audio file and export, live transcript, notices, MCP, enabling, QA). Meetings are on by default now, so every check runs on the installer the Windows CI builds. `docs/windows-meetings.md` holds the parity table and, for each row, the tests that run in CI.
 
 "Headset" means a wired or Bluetooth headset, "speakers" the PC's own. Tick a line once, on a real machine, and write the Windows build next to it.
 
@@ -116,5 +116,5 @@ Run with `--debug`: the log lists the apps on the microphone, by file name or pa
 - [ ] Run `windows_meetings_soak` on a low-end laptop (`cargo test --lib -- --ignored --nocapture --exact meetings::soak::windows_meetings_soak`) and compare its peak commit and processing time with the runner's.
 - [ ] Run the `loopback` job's two tests on a PC with a sound output. A hosted runner has none, so the job only warns; after three green runs on a machine that has an output, drop `continue-on-error` from it.
 - [ ] A schedule only fires from the default branch. When the Windows work is synced to it, confirm the cron fires once.
-- [ ] Parity with the Mac: run `meetings helper` by hand (`workflow_dispatch`) for the `parity-dialogue` artifact, commit both files under `src-tauri/src/meetings/fixtures/`, remove the `#[ignore]` of `the_turns_match_the_mac_helper_on_the_same_dialogue` and add it to the `cpu-model` filter of `windows-beta.yml` (count raised by one).
+- [ ] Parity with the Mac: run `meetings helper` by hand (`workflow_dispatch`) for the `parity-dialogue` artifact, commit both files under `src-tauri/src/meetings/fixtures/`, remove the `#[ignore]` of `the_turns_match_the_mac_helper_on_the_same_dialogue` and add it to the `cpu-model` filter of `windows.yml` (count raised by one).
 - [ ] French needs a French voice. Check the `analysis` job's log for `no fr-FR voice`; on a PC with French voices run `two_french_voices_are_timed_and_told_apart` for real.

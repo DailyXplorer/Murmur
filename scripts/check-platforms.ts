@@ -193,16 +193,6 @@ const requiredPaths = [
   "src-tauri/src/local_models/verify.rs",
   "src-tauri/src/commands/local_models.rs",
   "src/hooks/useLocalModel.ts",
-  // What Meetings need on Windows, in place of the macOS pieces.
-  "src-tauri/src/meetings/capture/wasapi.rs",
-  "src-tauri/src/meetings/capture/route.rs",
-  "src-tauri/src/meetings/power_windows.rs",
-  "src-tauri/src/meetings/call_probe_windows.rs",
-  "src-tauri/src/meetings/analysis_cpp.rs",
-  "src-tauri/src/meetings/diarize/pyannote.rs",
-  "src-tauri/src/meetings/archive/media_foundation.rs",
-  "src-tauri/src/meetings/trash_windows.rs",
-  "docs/windows-meetings.md",
 ];
 
 // Windows text that must not be compiled for macOS. It is allowed in a
@@ -622,6 +612,7 @@ export const windowsRequiredPaths: string[] = [
   "src-tauri/src/meetings/call_probe_windows.rs",
   "src-tauri/src/meetings/capture/loopback_logic.rs",
   "src-tauri/src/meetings/capture/wasapi.rs",
+  "src-tauri/src/meetings/capture/route.rs",
   "src-tauri/src/meetings/power_windows.rs",
   "src-tauri/src/meetings/archive/aac.rs",
   "src-tauri/src/meetings/archive/media_foundation.rs",
