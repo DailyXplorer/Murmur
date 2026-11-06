@@ -8,9 +8,6 @@ use std::process::{Child, ChildStdin, Command, Stdio};
 use std::sync::mpsc::{self, Receiver};
 use std::time::{Duration, Instant};
 
-/// Whether the app records meetings, and so offers the meeting tools (macOS).
-const MEETINGS_EXIST: bool = cfg!(target_os = "macos");
-
 /// How long any wait on the server may take: a slow runner is allowed, a hang
 /// is not (nextest ends a test after two minutes).
 const WAIT: Duration = Duration::from_secs(30);
@@ -142,40 +139,35 @@ fn every_tool_answers_over_stdio() {
         .iter()
         .map(|tool| tool["name"].as_str().unwrap())
         .collect();
-    if MEETINGS_EXIST {
-        assert_eq!(
-            names,
-            [
-                "list_meetings",
-                "search",
-                "get_transcript",
-                "get_summary",
-                "recent_dictations"
-            ]
-        );
-    } else {
-        assert_eq!(names, ["search", "recent_dictations"]);
-    }
+    assert_eq!(
+        names,
+        [
+            "list_meetings",
+            "search",
+            "get_transcript",
+            "get_summary",
+            "recent_dictations"
+        ]
+    );
 
-    if MEETINGS_EXIST {
-        let meetings = session.call("list_meetings", json!({"limit": 5}));
-        assert_eq!(meetings["meetings"].as_array().unwrap().len(), 3);
-        assert_eq!(meetings["meetings"][2]["title"], "Roadmap review");
+    let meetings = session.call("list_meetings", json!({"limit": 5}));
+    assert_eq!(meetings["meetings"].as_array().unwrap().len(), 3);
+    assert_eq!(meetings["meetings"][2]["title"], "Roadmap review");
 
-        let found = session.call("search", json!({"query": "roadmap budget"}));
-        assert_eq!(found["meetings"][0]["id"], 1);
-        assert_eq!(found["dictations"], json!([]));
+    let found = session.call("search", json!({"query": "roadmap budget"}));
+    assert_eq!(found["meetings"][0]["id"], 1);
+    assert_eq!(found["dictations"], json!([]));
 
-        let transcript = session.call("get_transcript", json!({"id": 1}));
-        assert_eq!(transcript["turns"].as_array().unwrap().len(), 3);
-        assert_eq!(transcript["turns"][1]["speaker"], "Product lead");
+    let transcript = session.call("get_transcript", json!({"id": 1}));
+    assert_eq!(transcript["turns"].as_array().unwrap().len(), 3);
+    assert_eq!(transcript["turns"][1]["speaker"], "Product lead");
 
-        let summary = session.call("get_summary", json!({"id": 1}));
-        assert!(summary["summary"]
-            .as_str()
-            .unwrap()
-            .contains("Product lead owns the launch checklist."));
-    }
+    let summary = session.call("get_summary", json!({"id": 1}));
+    assert!(summary["summary"]
+        .as_str()
+        .unwrap()
+        .contains("Product lead owns the launch checklist."));
+
     let found = session.call("search", json!({"query": "plumber"}));
     assert_eq!(
         found["dictations"][0]["text"],
@@ -198,7 +190,7 @@ fn a_server_with_the_switch_off_answers_nothing() {
     assert_eq!(listed["result"]["tools"], json!([]));
     let called = session.request(
         "tools/call",
-        json!({"name": "recent_dictations", "arguments": {}}),
+        json!({"name": "list_meetings", "arguments": {}}),
     );
     assert_eq!(called["result"]["isError"], true);
     assert!(called["result"]["content"][0]["text"]
@@ -209,8 +201,36 @@ fn a_server_with_the_switch_off_answers_nothing() {
     assert!(session.finish().success());
 }
 
+#[test]
+fn meetings_are_read_without_the_dictation_switch() {
+    let dir = seeded(true, false);
+    let mut session = Session::start(dir.path());
+
+    session.initialize();
+    let listed = session.request("tools/list", json!({}));
+    let names: Vec<&str> = listed["result"]["tools"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|tool| tool["name"].as_str().unwrap())
+        .collect();
+    assert_eq!(
+        names,
+        ["list_meetings", "search", "get_transcript", "get_summary"]
+    );
+    let found = session.call("search", json!({"query": "reunion budget"}));
+    assert_eq!(found["meetings"][0]["id"], 2);
+    assert!(found.get("dictations").is_none());
+    let refused = session.request(
+        "tools/call",
+        json!({"name": "recent_dictations", "arguments": {}}),
+    );
+    assert_eq!(refused["result"]["isError"], true);
+
+    assert!(session.finish().success());
+}
+
 /// The measurement searches a large library of meetings.
-#[cfg(target_os = "macos")]
 mod timing {
     use super::*;
 

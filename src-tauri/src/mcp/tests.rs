@@ -5,17 +5,6 @@ use std::path::Path;
 use super::rpc::{serve, Server};
 use super::sample::{seed_sample_data_dir, write_settings};
 use super::tools::open_read_only;
-use super::MEETINGS_EXIST;
-
-/// Ends a test that is about meetings where the app has none (Windows),
-/// where `dictations_only_*` tests state what the server offers instead.
-macro_rules! meetings_only {
-    () => {
-        if !MEETINGS_EXIST {
-            return;
-        }
-    };
-}
 
 #[test]
 fn identifier_matches_tauri_conf() {
@@ -152,27 +141,10 @@ fn mcp_initialize_and_list_tools() {
     );
     assert_eq!(replies[1]["result"], json!({}));
     assert_eq!(replies[2]["result"]["protocolVersion"], "2025-11-25");
-    // The first switch alone: the meeting tools where meetings exist, and
-    // nothing where they do not.
     let tools = replies[3]["result"]["tools"].as_array().unwrap();
-    assert_eq!(tools.len(), if MEETINGS_EXIST { 4 } else { 0 });
+    assert_eq!(tools.len(), 4);
     for tool in tools {
         assert_eq!(tool["annotations"]["readOnlyHint"], true);
-        assert_eq!(tool["inputSchema"]["type"], "object");
-    }
-}
-
-#[test]
-fn every_listed_tool_is_read_only() {
-    let dir = seeded(true, true);
-
-    let reply = exchange(dir.path(), &[request(1, "tools/list", json!({}))]);
-
-    let tools = reply[0]["result"]["tools"].as_array().unwrap();
-    assert_eq!(tools.len(), if MEETINGS_EXIST { 5 } else { 2 });
-    for tool in tools {
-        assert_eq!(tool["annotations"]["readOnlyHint"], true);
-        assert_eq!(tool["annotations"]["destructiveHint"], false);
         assert_eq!(tool["inputSchema"]["type"], "object");
     }
 }
@@ -209,6 +181,21 @@ fn malformed_messages_get_json_rpc_errors() {
 }
 
 #[test]
+fn every_listed_tool_is_read_only() {
+    let dir = seeded(true, true);
+
+    let reply = exchange(dir.path(), &[request(1, "tools/list", json!({}))]);
+
+    let tools = reply[0]["result"]["tools"].as_array().unwrap();
+    assert_eq!(tools.len(), 5);
+    for tool in tools {
+        assert_eq!(tool["annotations"]["readOnlyHint"], true);
+        assert_eq!(tool["annotations"]["destructiveHint"], false);
+        assert_eq!(tool["inputSchema"]["type"], "object");
+    }
+}
+
+#[test]
 fn mcp_refuses_tools_when_disabled() {
     let dir = seeded(false, true);
 
@@ -232,100 +219,17 @@ fn mcp_refuses_tools_when_disabled() {
 fn turning_the_switch_off_applies_to_a_running_server() {
     let dir = seeded(true, true);
     assert!(!call(dir.path(), "recent_dictations", json!({})).0);
-    if MEETINGS_EXIST {
-        assert!(!call(dir.path(), "list_meetings", json!({})).0);
-    }
+    assert!(!call(dir.path(), "list_meetings", json!({})).0);
 
     write_settings(dir.path(), false, false).unwrap();
 
     assert!(call(dir.path(), "recent_dictations", json!({})).0);
-    if MEETINGS_EXIST {
-        assert!(call(dir.path(), "list_meetings", json!({})).0);
-    }
+    assert!(call(dir.path(), "list_meetings", json!({})).0);
     assert!(tool_names(dir.path()).is_empty());
-}
-
-#[cfg(target_os = "windows")]
-#[test]
-fn dictations_only_the_first_switch_alone_lists_and_reads_nothing() {
-    let dir = seeded(true, false);
-
-    assert!(tool_names(dir.path()).is_empty());
-    for (tool, arguments) in [
-        ("search", json!({"query": "invoice"})),
-        ("search", json!({"query": "invoice", "scope": "dictations"})),
-        ("recent_dictations", json!({})),
-    ] {
-        let (is_error, body) = call(dir.path(), tool, arguments);
-        assert!(is_error, "{tool}");
-        let message = body.as_str().unwrap();
-        assert!(message.contains("Include dictation history"), "{message}");
-        assert!(!message.contains("invoice"), "{message}");
-    }
-
-    write_settings(dir.path(), true, true).unwrap();
-
-    assert_eq!(tool_names(dir.path()), ["search", "recent_dictations"]);
-    assert!(!call(dir.path(), "recent_dictations", json!({})).0);
-}
-
-#[cfg(target_os = "windows")]
-#[test]
-fn dictations_only_search_takes_no_meeting_scope() {
-    let dir = seeded(true, true);
-
-    let listed = exchange(dir.path(), &[request(1, "tools/list", json!({}))]);
-    let search = &listed[0]["result"]["tools"][0];
-    assert_eq!(search["name"], "search");
-    assert_eq!(
-        search["inputSchema"]["properties"]["scope"]["enum"],
-        json!(["dictations"])
-    );
-    assert!(!search["description"].as_str().unwrap().contains("meeting"));
-    // No scope means dictations.
-    let (is_error, body) = call(dir.path(), "search", json!({"query": "plumber"}));
-    assert!(!is_error);
-    assert_eq!(body["dictations"].as_array().unwrap().len(), 1);
-    assert!(body.get("meetings").is_none());
-    for scope in ["meetings", "all"] {
-        let (is_error, body) = call(
-            dir.path(),
-            "search",
-            json!({"query": "plumber", "scope": scope}),
-        );
-        assert!(is_error, "{scope}");
-        assert_eq!(body, "scope must be dictations");
-    }
-}
-
-#[cfg(target_os = "windows")]
-#[test]
-fn dictations_only_the_meeting_tools_are_unknown() {
-    let dir = seeded(true, true);
-    let calls: Vec<Value> = ["list_meetings", "get_transcript", "get_summary"]
-        .iter()
-        .enumerate()
-        .map(|(index, name)| {
-            request(
-                index as i64,
-                "tools/call",
-                json!({"name": name, "arguments": {"id": 1}}),
-            )
-        })
-        .collect();
-
-    for reply in exchange(dir.path(), &calls) {
-        assert_eq!(reply["error"]["code"], -32602);
-        assert!(reply["error"]["message"]
-            .as_str()
-            .unwrap()
-            .contains("Unknown tool"));
-    }
 }
 
 #[test]
 fn mcp_hides_dictations_unless_included() {
-    meetings_only!();
     let dir = seeded(true, false);
 
     assert_eq!(
@@ -356,12 +260,7 @@ fn mcp_hides_dictations_unless_included() {
 #[test]
 fn mcp_opens_db_read_only() {
     let dir = seeded(true, true);
-    let files: &[&str] = if MEETINGS_EXIST {
-        &["meetings.db", "history.db"]
-    } else {
-        &["history.db"]
-    };
-    for file in files {
+    for file in ["meetings.db", "history.db"] {
         let conn = open_read_only(&dir.path().join(file)).unwrap();
         for write in [
             "DELETE FROM meetings",
@@ -374,7 +273,7 @@ fn mcp_opens_db_read_only() {
         // Not even a connection that switches `query_only` off can write.
         conn.pragma_update(None, "query_only", false).unwrap();
         let error = conn
-            .execute_batch(if *file == "meetings.db" {
+            .execute_batch(if file == "meetings.db" {
                 "UPDATE meetings SET title = 'changed'"
             } else {
                 "UPDATE transcription_history SET title = 'changed'"
@@ -383,19 +282,13 @@ fn mcp_opens_db_read_only() {
         assert!(error.to_string().contains("readonly"), "{file}: {error}");
     }
     // Everything is still there.
-    let (is_error, body) = call(dir.path(), "recent_dictations", json!({}));
+    let (is_error, body) = call(dir.path(), "list_meetings", json!({}));
     assert!(!is_error);
-    assert_eq!(body["dictations"].as_array().unwrap().len(), 2);
-    if MEETINGS_EXIST {
-        let (is_error, body) = call(dir.path(), "list_meetings", json!({}));
-        assert!(!is_error);
-        assert_eq!(body["meetings"].as_array().unwrap().len(), 3);
-    }
+    assert_eq!(body["meetings"].as_array().unwrap().len(), 3);
 }
 
 #[test]
 fn list_meetings_pages_newest_first() {
-    meetings_only!();
     let dir = seeded(true, false);
 
     let (_, first) = call(dir.path(), "list_meetings", json!({"limit": 2}));
@@ -426,7 +319,6 @@ fn list_meetings_pages_newest_first() {
 
 #[test]
 fn search_finds_meetings_and_dictations() {
-    meetings_only!();
     let dir = seeded(true, true);
 
     let (is_error, body) = call(dir.path(), "search", json!({"query": "roadmap"}));
@@ -515,7 +407,6 @@ fn search_finds_dictations_and_returns_their_text_only() {
 
 #[test]
 fn get_transcript_names_speakers_and_pages() {
-    meetings_only!();
     let dir = seeded(true, false);
 
     let (is_error, page) = call(dir.path(), "get_transcript", json!({"id": 1, "limit": 2}));
@@ -549,7 +440,6 @@ fn get_transcript_names_speakers_and_pages() {
 
 #[test]
 fn get_summary_names_people() {
-    meetings_only!();
     let dir = seeded(true, false);
 
     let (_, summary) = call(dir.path(), "get_summary", json!({"id": 1}));
@@ -596,7 +486,6 @@ fn recent_dictations_return_text_and_time_only() {
 
 #[test]
 fn a_library_the_app_has_not_updated_is_refused() {
-    meetings_only!();
     let dir = tempfile::tempdir().unwrap();
     write_settings(dir.path(), true, false).unwrap();
     let conn = rusqlite::Connection::open(dir.path().join("meetings.db")).unwrap();
@@ -622,23 +511,12 @@ fn without_a_library_there_is_nothing_to_list() {
     write_settings(dir.path(), true, true).unwrap();
 
     assert_eq!(
-        call(dir.path(), "recent_dictations", json!({})).1["dictations"],
+        call(dir.path(), "list_meetings", json!({})).1["meetings"],
         json!([])
     );
     assert_eq!(
-        call(
-            dir.path(),
-            "search",
-            json!({"query": "invoice", "scope": "dictations"})
-        )
-        .1["dictations"],
+        call(dir.path(), "recent_dictations", json!({})).1["dictations"],
         json!([])
     );
-    if MEETINGS_EXIST {
-        assert_eq!(
-            call(dir.path(), "list_meetings", json!({})).1["meetings"],
-            json!([])
-        );
-        assert!(call(dir.path(), "get_summary", json!({"id": 1})).0);
-    }
+    assert!(call(dir.path(), "get_summary", json!({"id": 1})).0);
 }
