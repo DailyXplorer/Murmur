@@ -76,7 +76,7 @@ const notesText = releaseNotes({
 });
 assert.match(
   notesText,
-  /^## Murmur for Windows 1\.9\.0-beta\.7\n\nWhat is new in the beta\.\n\nNot on Windows yet: meetings, call features\./,
+  /^## Murmur for Windows 1\.9\.0-beta\.7\n\nWhat is new in the beta\.\n\n### Install without administrator rights/,
 );
 assert.match(notesText, /Download `Murmur_1\.9\.0-beta\.7_x64-setup\.exe`/);
 assert.match(notesText, /SmartScreen/);

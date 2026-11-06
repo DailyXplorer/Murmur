@@ -59,7 +59,6 @@ export function releaseNotes({ version, message, checksum }) {
   const sections = [
     `## Murmur for Windows ${version}`,
     message.trim(),
-    "Not on Windows yet: meetings, call features.",
     [
       "### Install without administrator rights",
       `1. Download \`${name}\` below and run it.`,

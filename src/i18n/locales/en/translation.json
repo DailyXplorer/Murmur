@@ -65,15 +65,19 @@
     "meetingStoppedAtLimit": "The meeting reached the 3-hour limit and was saved.",
     "meetingWriteFailed": "The meeting stopped because Murmur couldn't write to disk. What was recorded is kept.",
     "meetingLowDiskSpace": "Less than 1.5 GB is free on this Mac. A long meeting may stop early; what is recorded is kept.",
+    "meetingLowDiskSpaceWindows": "Less than 1.5 GB is free on this PC. A long meeting may stop early; what is recorded is kept.",
     "meetingSystemAudioInterrupted": "System audio stopped after the sound output changed. Murmur keeps trying to bring it back; your microphone is still recorded.",
     "meetingMicrophoneInterrupted": "The microphone stopped recording. Murmur keeps trying to bring it back; check that it's still connected.",
     "meetingMicrophoneDenied": "Microphone access is off, so this meeting isn't recording your voice. Allow Murmur in System Settings → Privacy & Security → Microphone.",
+    "meetingMicrophoneDeniedWindows": "Microphone access is off, so this meeting isn't recording your voice. Allow desktop apps in Windows Settings → Privacy & security → Microphone.",
     "meetingSystemAudioDenied": "System audio recording is off, so this meeting isn’t recording the other side of the call. Allow Murmur in System Settings → Privacy & Security → Screen & System Audio Recording.",
     "meetingRecovered": "A meeting was cut off when Murmur closed unexpectedly. What was recorded is being transcribed.",
     "meetingsRecovered": "{{count}} meetings were cut off when Murmur closed unexpectedly. What was recorded is being transcribed.",
     "meetingsReset": "Your meetings list was damaged and has been reset. Its recordings are kept for 30 days.",
     "meetingPausedWhileAsleep": "Your Mac slept during the meeting. Nothing was recorded from {{from}} to {{to}}.",
-    "meetingAudioDropped": "Some meeting audio was lost because your Mac was too busy."
+    "meetingPausedWhileAsleepWindows": "Your PC slept during the meeting. Nothing was recorded from {{from}} to {{to}}.",
+    "meetingAudioDropped": "Some meeting audio was lost because your Mac was too busy.",
+    "meetingAudioDroppedWindows": "Some meeting audio was lost because your PC was too busy."
   },
   "sidebar": {
     "general": "General",
@@ -361,9 +365,6 @@
         "description": "AI apps you connect, such as Claude or Codex, can list, search and read your meeting transcripts and summaries. They may send what they read to their own servers. Murmur never changes anything through this.",
         "dictations": "Include dictation history",
         "dictationsDescription": "Also lets them read your latest dictations, which are more personal than meetings.",
-        "labelWindows": "Let AI agents connect (MCP)",
-        "descriptionWindows": "AI apps you connect, such as Claude or Codex, can ask Murmur for what you share below. Murmur never changes anything through this.",
-        "dictationsDescriptionWindows": "Lets them search and read your dictations. They may send what they read to their own servers.",
         "setupTitle": "Connect an app",
         "setupDescription": "Pick your app, then paste this into it. No window, no network port.",
         "clientsLabel": "AI app",
@@ -854,8 +855,9 @@
       "keep": "Keep recording"
     },
     "deleteDialog": {
-      "title": "Delete this meeting?",
-      "description": "Its recording is deleted and can't be recovered."
+      "title": "Move this meeting to the Trash?",
+      "description": "Its transcript and recording go to the Trash, where you can still open them. Murmur no longer lists it.",
+      "confirm": "Move to Trash"
     },
     "captureMode": {
       "title": "Audio sources",
@@ -921,8 +923,9 @@
       "deleteError": "Couldn't delete the audio.",
       "retranscribeError": "Couldn't transcribe the meeting again.",
       "deleteDialog": {
-        "title": "Delete this meeting's audio?",
-        "description": "The recording is deleted and can't be recovered. The transcript and summary stay, but the meeting can't be transcribed again."
+        "title": "Move this meeting's audio to the Trash?",
+        "description": "The recording goes to the Trash, where you can still open it. The transcript and summary stay in Murmur, but the meeting can't be transcribed again.",
+        "confirm": "Move to Trash"
       },
       "retranscribeDialog": {
         "title": "Transcribe this meeting again?",
@@ -1009,12 +1012,44 @@
             "saveFailed": "Signed in, but the session couldn't be saved on this PC."
           }
         }
+      },
+      "advanced": {
+        "meetingsToggle": {
+          "description": "Record meetings from your microphone and system audio. Adds a Meetings page, a shortcut and a tray item."
+        }
       }
     },
     "meetings": {
       "models": {
         "licence": {
           "parakeet": "Speech recognition: Parakeet Ultra by Moondream, from Parakeet TDT 0.6B v3 by NVIDIA, CC BY 4.0, converted to 8-bit GGUF by handy-computer."
+        },
+        "preparing": "Preparing the models for this PC…",
+        "unsupported": "Speaker detection needs a 64-bit Intel or AMD processor. Meetings show one speaker per audio source."
+      },
+      "recording": {
+        "description": "You can also start and stop a meeting with its shortcut or from the tray menu. A meeting stops on its own after 3 hours."
+      },
+      "live": {
+        "unsupported": "Live text needs a PC with a 64-bit Intel or AMD processor. The transcript will be made after you stop."
+      },
+      "systemAudioUnavailable": "System audio needs a PC with a 64-bit Intel or AMD processor, so meetings record your microphone only.",
+      "permission": {
+        "title": "Microphone access",
+        "description": "If a meeting doesn't record your voice, allow desktop apps in Windows Settings → Privacy & security → Microphone.",
+        "open": "Open Windows Settings"
+      },
+      "localFallback": "Codex was unavailable for {{duration}} of this meeting, so that part was transcribed on this PC.",
+      "deleteDialog": {
+        "title": "Move this meeting to the Recycle Bin?",
+        "description": "Its transcript and recording go to the Recycle Bin, where you can still open them. Murmur no longer lists it.",
+        "confirm": "Move to Recycle Bin"
+      },
+      "audio": {
+        "deleteDialog": {
+          "title": "Move this meeting's audio to the Recycle Bin?",
+          "description": "The recording goes to the Recycle Bin, where you can still open it. The transcript and summary stay in Murmur, but the meeting can't be transcribed again.",
+          "confirm": "Move to Recycle Bin"
         }
       }
     },

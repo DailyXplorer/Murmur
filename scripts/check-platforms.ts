@@ -4,8 +4,8 @@ import path from "node:path";
 const root = path.resolve(import.meta.dir, "..");
 const failures: string[] = [];
 
-// Murmur builds for macOS and, on the beta branch, for Windows: dictation
-// only. Every platform branch names one of the two.
+// Murmur builds for macOS and, on the beta branch, for Windows: dictation and
+// Meetings on both. Every platform branch names one of the two.
 const obsoletePaths = [
   ".cargo/config.toml",
   "src-tauri/capabilities/desktop.json",
@@ -71,6 +71,16 @@ const requiredPaths = [
   "src-tauri/src/local_models/verify.rs",
   "src-tauri/src/commands/local_models.rs",
   "src/hooks/useLocalModel.ts",
+  // What Meetings need on Windows, in place of the macOS pieces.
+  "src-tauri/src/meetings/capture/wasapi.rs",
+  "src-tauri/src/meetings/capture/route.rs",
+  "src-tauri/src/meetings/power_windows.rs",
+  "src-tauri/src/meetings/call_probe_windows.rs",
+  "src-tauri/src/meetings/analysis_cpp.rs",
+  "src-tauri/src/meetings/diarize/pyannote.rs",
+  "src-tauri/src/meetings/archive/media_foundation.rs",
+  "src-tauri/src/meetings/trash_windows.rs",
+  "docs/windows-meetings.md",
 ];
 
 function collectFiles(directory: string, extension: string): string[] {
@@ -482,6 +492,55 @@ if (
 }
 if (windowsConfig.bundle.externalBin.length !== 0) {
   failures.push("the Windows bundle includes the macOS meetings helper");
+}
+
+// Meetings are on for Windows: nothing hides them there. Each rule fails on
+// the line that used to keep them out.
+const rustFunctionBody = (source: string, signature: string): string => {
+  const start = source.indexOf(signature);
+  if (start === -1) return "";
+  const end = source.indexOf("\n}\n", start);
+  return source.slice(start, end === -1 ? undefined : end);
+};
+const settingsSource = read("src-tauri/src/settings.rs");
+if (
+  rustFunctionBody(settingsSource, "fn default_meetings_enabled()")
+    .replace(/\s+/g, " ")
+    .trim() !== "fn default_meetings_enabled() -> bool { true"
+) {
+  failures.push("Meetings are not on by default on every platform");
+}
+if (
+  rustFunctionBody(settingsSource, "fn restrict_to_windows(").includes(
+    "meetings_enabled",
+  )
+) {
+  failures.push("restrict_to_windows turns Meetings off on Windows");
+}
+if (!settingsSource.includes("fn turn_on_meetings_once(")) {
+  failures.push("a Windows store written with Meetings off is not migrated");
+}
+if (
+  /!isWindows[^\n]*meetings_enabled/.test(read("src/components/Sidebar.tsx"))
+) {
+  failures.push("the sidebar hides the Meetings page on Windows");
+}
+if (
+  /!isWindows[^\n]*<MeetingsToggle/.test(
+    read("src/components/settings/advanced/AdvancedSettings.tsx"),
+  )
+) {
+  failures.push("the Advanced page hides the Meetings switch on Windows");
+}
+if (
+  read("src-tauri/src/commands/meetings.rs").includes(
+    "not available on Windows",
+  )
+) {
+  failures.push("a meetings command refuses to run on Windows");
+}
+if (!/Meetings/.test(read(".github/scripts/windows-smoke.ps1"))) {
+  failures.push("the Windows smoke test does not open the Meetings page");
 }
 if (!windowsConfig.bundle.icon.includes("icons/icon.ico")) {
   failures.push("the Windows bundle has no .ico icon");

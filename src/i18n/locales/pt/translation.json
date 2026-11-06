@@ -65,15 +65,19 @@
     "meetingStoppedAtLimit": "A reunião atingiu o limite de 3 horas e foi salva.",
     "meetingWriteFailed": "A reunião parou porque o Murmur não conseguiu gravar no disco. O que foi gravado foi mantido.",
     "meetingLowDiskSpace": "Há menos de 1,5 GB livres neste Mac. Uma reunião longa pode parar mais cedo; o que foi gravado é mantido.",
+    "meetingLowDiskSpaceWindows": "Há menos de 1,5 GB livres neste PC. Uma reunião longa pode parar mais cedo; o que foi gravado é mantido.",
     "meetingSystemAudioInterrupted": "O áudio do sistema parou após a mudança da saída de som. O Murmur continua tentando recuperá-lo; seu microfone continua sendo gravado.",
     "meetingMicrophoneInterrupted": "O microfone parou de gravar. O Murmur continua tentando recuperá-lo; verifique se ele ainda está conectado.",
     "meetingMicrophoneDenied": "O acesso ao microfone está desativado, então a reunião não grava sua voz. Permita o Murmur em Ajustes do Sistema → Privacidade e Segurança → Microfone.",
+    "meetingMicrophoneDeniedWindows": "O acesso ao microfone está desativado, então a reunião não grava sua voz. Permita os aplicativos da área de trabalho em Configurações do Windows → Privacidade e segurança → Microfone.",
     "meetingSystemAudioDenied": "A gravação de áudio do sistema está desativada, então a reunião não grava os outros participantes. Permita o Murmur em Ajustes do Sistema → Privacidade e Segurança → Gravação de Tela e Áudio do Sistema.",
     "meetingRecovered": "Uma reunião foi interrompida porque o Murmur fechou inesperadamente. O que foi gravado está sendo transcrito.",
     "meetingsRecovered": "{{count}} reuniões foram interrompidas porque o Murmur fechou inesperadamente. O que foi gravado está sendo transcrito.",
     "meetingsReset": "A sua lista de reuniões estava danificada e foi redefinida. As gravações ficam guardadas por 30 dias.",
     "meetingPausedWhileAsleep": "Seu Mac entrou em repouso durante a reunião. Nada foi gravado entre {{from}} e {{to}}.",
-    "meetingAudioDropped": "Parte do áudio da reunião foi perdida porque o Mac estava muito ocupado."
+    "meetingPausedWhileAsleepWindows": "Seu PC entrou em suspensão durante a reunião. Nada foi gravado entre {{from}} e {{to}}.",
+    "meetingAudioDropped": "Parte do áudio da reunião foi perdida porque o Mac estava muito ocupado.",
+    "meetingAudioDroppedWindows": "Parte do áudio da reunião foi perdida porque o PC estava muito ocupado."
   },
   "sidebar": {
     "general": "Geral",
@@ -361,9 +365,6 @@
         "description": "Os aplicativos de IA que você conectar, como Claude ou Codex, podem listar, pesquisar e ler as transcrições e os resumos das suas reuniões. Eles podem enviar o que leem para os próprios servidores. O Murmur nunca altera nada por esse caminho.",
         "dictations": "Incluir o histórico de ditados",
         "dictationsDescription": "Também permite que leiam seus últimos ditados, mais pessoais que as reuniões.",
-        "labelWindows": "Permitir que agentes de IA se conectem (MCP)",
-        "descriptionWindows": "Os aplicativos de IA que você conectar, como Claude ou Codex, podem pedir ao Murmur o que você compartilha abaixo. O Murmur nunca altera nada por esse caminho.",
-        "dictationsDescriptionWindows": "Permite que pesquisem e leiam seus ditados. Eles podem enviar o que leem para os próprios servidores.",
         "setupTitle": "Conectar um aplicativo",
         "setupDescription": "Escolha seu aplicativo e cole isto nele. Sem janela e sem porta de rede.",
         "clientsLabel": "Aplicativo de IA",
@@ -854,8 +855,9 @@
       "keep": "Continuar gravando"
     },
     "deleteDialog": {
-      "title": "Excluir esta reunião?",
-      "description": "A gravação é excluída e não pode ser recuperada."
+      "title": "Mover esta reunião para a Lixeira?",
+      "description": "A transcrição e a gravação vão para a Lixeira, onde você ainda pode abri-las. O Murmur não a lista mais.",
+      "confirm": "Mover para a Lixeira"
     },
     "captureMode": {
       "title": "Fontes de áudio",
@@ -921,8 +923,9 @@
       "deleteError": "Não foi possível apagar o áudio.",
       "retranscribeError": "Não foi possível transcrever a reunião de novo.",
       "deleteDialog": {
-        "title": "Apagar o áudio desta reunião?",
-        "description": "A gravação é apagada e não pode ser recuperada. A transcrição e o resumo continuam, mas a reunião não poderá ser transcrita de novo."
+        "title": "Mover o áudio desta reunião para a Lixeira?",
+        "description": "A gravação vai para a Lixeira, onde você ainda pode abri-la. A transcrição e o resumo continuam no Murmur, mas a reunião não poderá ser transcrita de novo.",
+        "confirm": "Mover para a Lixeira"
       },
       "retranscribeDialog": {
         "title": "Transcrever esta reunião de novo?",
@@ -1009,12 +1012,44 @@
             "saveFailed": "Sessão iniciada, mas não foi possível salvá-la neste PC."
           }
         }
+      },
+      "advanced": {
+        "meetingsToggle": {
+          "description": "Grave reuniões pelo microfone e pelo áudio do sistema. Adiciona uma página de reuniões, um atalho e um item na área de notificação."
+        }
       }
     },
     "meetings": {
       "models": {
         "licence": {
           "parakeet": "Reconhecimento de fala: Parakeet Ultra da Moondream, baseado no Parakeet TDT 0.6B v3 da NVIDIA, CC BY 4.0, convertido para GGUF de 8 bits por handy-computer."
+        },
+        "preparing": "A preparar os modelos para este PC…",
+        "unsupported": "A deteção de participantes requer um processador Intel ou AMD de 64 bits. As reuniões mostram um participante por fonte de áudio."
+      },
+      "recording": {
+        "description": "Você também pode iniciar e parar uma reunião pelo atalho ou pelo menu da área de notificação. A reunião para sozinha após 3 horas."
+      },
+      "live": {
+        "unsupported": "O texto ao vivo precisa de um PC com processador Intel ou AMD de 64 bits. A transcrição será feita depois de parar."
+      },
+      "systemAudioUnavailable": "O áudio do sistema exige um PC com processador Intel ou AMD de 64 bits, então as reuniões gravam apenas o microfone.",
+      "permission": {
+        "title": "Acesso ao microfone",
+        "description": "Se uma reunião não gravar sua voz, permita os aplicativos da área de trabalho em Configurações do Windows → Privacidade e segurança → Microfone.",
+        "open": "Abrir Configurações do Windows"
+      },
+      "localFallback": "O Codex ficou indisponível por {{duration}} desta reunião, então essa parte foi transcrita neste PC.",
+      "deleteDialog": {
+        "title": "Mover esta reunião para a Lixeira?",
+        "description": "A transcrição e a gravação vão para a Lixeira, onde você ainda pode abri-las. O Murmur não a lista mais.",
+        "confirm": "Mover para a Lixeira"
+      },
+      "audio": {
+        "deleteDialog": {
+          "title": "Mover o áudio desta reunião para a Lixeira?",
+          "description": "A gravação vai para a Lixeira, onde você ainda pode abri-la. A transcrição e o resumo continuam no Murmur, mas a reunião não poderá ser transcrita de novo.",
+          "confirm": "Mover para a Lixeira"
         }
       }
     },

@@ -80,7 +80,13 @@ test("deleting asks first, then removes the meeting", async ({ page }) => {
 
   await items.nth(1).getByRole("button", { name: "Delete meeting" }).click();
   const dialog = page.getByRole("dialog");
-  await expect(dialog).toContainText("Delete this meeting?");
+  await expect(dialog).toContainText("Move this meeting to the Trash?");
+  await expect(dialog).toContainText(
+    "Its transcript and recording go to the Trash, where you can still open them. Murmur no longer lists it.",
+  );
+  await expect(
+    dialog.getByRole("button", { name: "Move to Trash" }),
+  ).toBeVisible();
   await dialog.getByRole("button", { name: "Cancel" }).click();
   await expect(items).toHaveCount(3);
   expect(await calls(page)).not.toContain("delete_meeting");
@@ -88,7 +94,7 @@ test("deleting asks first, then removes the meeting", async ({ page }) => {
   await items.nth(1).getByRole("button", { name: "Delete meeting" }).click();
   await page
     .getByRole("dialog")
-    .getByRole("button", { name: "Delete" })
+    .getByRole("button", { name: "Move to Trash" })
     .click();
   await expect(items).toHaveCount(2);
   await expect(items.nth(1)).toContainText("Interrupted");
@@ -117,12 +123,12 @@ test("a double click on a meeting's trash leaves the confirmation open", async (
   await page.mouse.down({ clickCount: 1 });
   await page.mouse.up({ clickCount: 1 });
   const dialog = page.getByRole("dialog");
-  await expect(dialog).toContainText("Delete this meeting?");
+  await expect(dialog).toContainText("Move this meeting to the Trash?");
   await page.mouse.down({ clickCount: 2 });
   await page.mouse.up({ clickCount: 2 });
   await page.waitForTimeout(100);
 
-  await expect(dialog).toContainText("Delete this meeting?");
+  await expect(dialog).toContainText("Move this meeting to the Trash?");
   expect(await calls(page)).not.toContain("delete_meeting");
 });
 
@@ -146,7 +152,7 @@ test("a list load already on its way does not bring a deleted meeting back", asy
   await items.nth(1).getByRole("button", { name: "Delete meeting" }).click();
   await page
     .getByRole("dialog")
-    .getByRole("button", { name: "Delete" })
+    .getByRole("button", { name: "Move to Trash" })
     .click();
   await expect(items).toHaveCount(2);
 

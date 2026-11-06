@@ -16,6 +16,7 @@ import {
 } from "@/bindings";
 import { formatDuration, formatMeetingDate } from "@/lib/meetings/format";
 import { findMatches } from "@/lib/meetings/search";
+import { isWindows } from "@/lib/platform";
 import { LiveMeetingView } from "./LiveMeetingView";
 import { MeetingView } from "./MeetingView";
 import { SpeakerModels } from "./SpeakerModels";
@@ -363,14 +364,18 @@ const MeetingsList: React.FC<MeetingsListProps> = ({
             }
           />
         </SettingContainer>
-        {systemAudioAvailable && (
+        {(systemAudioAvailable || isWindows) && (
           <SettingContainer
             title={t("meetings.permission.title")}
             description={t("meetings.permission.description")}
             grouped={true}
           >
             <Button
-              onClick={() => void commands.openSystemAudioPrivacySettings()}
+              onClick={() =>
+                void (isWindows
+                  ? commands.openMicrophoneSettings()
+                  : commands.openSystemAudioPrivacySettings())
+              }
             >
               {t("meetings.permission.open")}
             </Button>
@@ -509,7 +514,7 @@ const MeetingsList: React.FC<MeetingsListProps> = ({
             <Button
               onClick={() => pendingDelete && void deleteMeeting(pendingDelete)}
             >
-              {t("common.delete")}
+              {t("meetings.deleteDialog.confirm")}
             </Button>
           </>
         }

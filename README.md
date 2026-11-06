@@ -43,6 +43,9 @@ key.
 - A working microphone
 - Codex signed in with a ChatGPT account
 - Network access while transcribing
+- For meetings with system audio: nothing more. Windows asks for no
+  permission to record what the PC plays. Windows 10 before build 20348 also
+  records Murmur's own sounds on that track
 
 For Codex, Murmur reads the authentication cache from `CODEX_HOME/auth.json`,
 or else `~/.codex/auth.json` on macOS and `%USERPROFILE%\.codex\auth.json` on
@@ -159,8 +162,9 @@ The Windows beta has dictation, transcription on the PC or in the cloud, AI
 cleanup with styles, names read from the active window, history you can search
 by words, Insights, custom words, a space added after a word, shortcut keys
 shown for your keyboard layout, sounds, launch at login, and read-only access to
-your dictation history for AI assistants, and it updates itself. It does not
-have Meetings yet.
+your dictations and meetings for AI assistants, and it updates itself. It also
+has Meetings, described below. FaceTime calls are the one thing it cannot offer,
+since FaceTime has no Windows version.
 
 ## Getting started
 
@@ -203,7 +207,8 @@ length.
 ### Meetings
 
 Meetings are on by default and can be turned off in Settings → Advanced.
-Press Control+Option+Command+M, or choose Start meeting in the menu bar, to
+Press Control+Option+Command+M (Alt+Shift+M on Windows), or choose Start
+meeting in the menu bar (the tray menu on Windows), to
 start recording; press it again to stop. You can pick other keys in Settings;
 if another app already holds them, the shortcut field says so. A red pill
 shows the elapsed time. A meeting stops by itself after 3 hours, with a
@@ -236,7 +241,12 @@ warning 5 minutes before.
   speaker.
 - Once the transcript is complete, Codex writes a title and a summary. The
   two tracks are then kept as one compressed `audio.m4a` (about 30 MB per
-  hour), which you can delete while keeping the text.
+  hour), which you can delete while keeping the text. Deleting a meeting, or
+  its audio, moves it to the macOS Trash (the Recycle Bin on Windows) with
+  the transcript as a Markdown file, so you can still open it without Murmur.
+  If Windows cannot recycle it, for instance when the Recycle Bin is turned
+  off for that drive, it asks before deleting for good, and the meeting stays
+  when you say no. Audio you set to delete after some days is erased for good.
 - Murmur warns at the start of a meeting when less than 1.5 GB is free on
   the disk. Three hours take about 700 MB before compression.
 - On Apple silicon with macOS 14 or later, when a call app (Zoom, Teams,
@@ -248,6 +258,17 @@ warning 5 minutes before.
   unanswered, the panel stays and the meeting goes on. Keep recording asks
   again only if a call comes back and leaves again. **Offer to record calls**
   in Settings > Advanced turns both off.
+- On Windows the same prompt appears for Zoom, Teams, Slack, Webex, Discord and
+  Google Meet, Teams, Zoom or Webex pages in Chrome, Edge, Brave, Firefox,
+  Vivaldi, Opera and the other browsers listed in
+  [docs/windows-meetings.md](docs/windows-meetings.md). Murmur reads which app
+  holds the microphone from the Windows privacy records, and the address bar of
+  a browser through UI Automation; nothing is recorded without your answer.
+- On Windows, system audio is everything the PC plays except Murmur's own
+  sounds, and it follows the default output when you plug in a headset.
+  Speaker detection (any number of speakers, in any language) and the live
+  transcript run on the PC's processor with the local model, and the
+  models are fetched during the first meeting if they aren't there yet.
 
 ### Use your meetings from an AI assistant
 
@@ -277,11 +298,10 @@ claude mcp add murmur -- /Applications/Murmur.app/Contents/MacOS/murmur mcp
 - If Murmur was updated and not opened since, open it once: the server never
   changes your data to catch up.
 
-On Windows the assistant has the same five tools. Meetings are not available
-on Windows yet, so the meeting tools find nothing there, and it reads your
-dictation history through `search` and `recent_dictations`. They are off until
-you turn on "Let AI agents connect (MCP)" and then "Include dictation history"
-in Settings → Advanced. Settings shows
+On Windows the assistant has the same five tools, with the same two switches:
+meetings are read once you turn on "Let AI agents read your meetings (MCP)",
+and dictations only after "Include dictation history" in Settings → Advanced.
+Settings shows
 the command with the real path of your `murmur.exe`. For Claude Code, for
 example, in PowerShell or cmd (keep the quotes if the path holds spaces):
 
