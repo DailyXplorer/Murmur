@@ -64,12 +64,11 @@ pub fn init_shortcuts(app: &AppHandle) {
             },
         );
     }
-    if meeting_shortcut_yields(&settings::get_settings(app)) {
-        record_registration_error(
-            app,
-            crate::meetings::BINDING_ID,
-            ShortcutRegistrationError::UsedByAnotherAction,
-        );
+    let settings = settings::get_settings(app);
+    for id in MEETING_BINDINGS {
+        if meeting_shortcut_yields(&settings, id) {
+            record_registration_error(app, id, ShortcutRegistrationError::UsedByAnotherAction);
+        }
     }
 }
 
@@ -150,30 +149,47 @@ async fn read_keyboard_layout<T: Default + Send + 'static>(
     }
 }
 
-/// Whether `id` is in use: the meeting shortcut exists only while meetings
+/// The shortcuts that exist only while meetings are on.
+pub const MEETING_BINDINGS: [&str; 2] = [
+    crate::meetings::BINDING_ID,
+    crate::meetings::live::PASTE_BINDING_ID,
+];
+
+/// Whether `id` is in use: the meeting shortcuts exist only while meetings
 /// are on. A binding that is not in use never blocks another one's keys.
 pub fn binding_active(settings: &settings::AppSettings, id: &str) -> bool {
-    id != crate::meetings::BINDING_ID || settings.meetings_enabled
+    !MEETING_BINDINGS.contains(&id) || settings.meetings_enabled
 }
 
-/// Whether the meeting shortcut gives up its keys because another action
+/// Whether the meeting shortcut `id` gives up its keys because another action
 /// already uses them, for example an older dictation shortcut. The other
 /// action always keeps them, whatever order the shortcuts register in.
-pub fn meeting_shortcut_yields(settings: &settings::AppSettings) -> bool {
-    let id = crate::meetings::BINDING_ID;
-    binding_active(settings, id)
+pub fn meeting_shortcut_yields(settings: &settings::AppSettings, id: &str) -> bool {
+    MEETING_BINDINGS.contains(&id)
+        && binding_active(settings, id)
         && settings.bindings.get(id).is_some_and(|meeting| {
             tauri_impl::conflicting_binding(settings, id, &meeting.current_binding).is_some()
         })
 }
 
 /// Whether `id` holds a global hotkey of its own. Cancel is registered only
-/// while recording; the meeting shortcut only while meetings are on and its
+/// while recording; a meeting shortcut only while meetings are on and its
 /// keys are free.
 pub fn binding_registers(settings: &settings::AppSettings, id: &str) -> bool {
     id != "cancel"
         && binding_active(settings, id)
-        && !(id == crate::meetings::BINDING_ID && meeting_shortcut_yields(settings))
+        && !meeting_shortcut_yields(settings, id)
+        && settings
+            .bindings
+            .get(id)
+            .is_none_or(|binding| !binding.current_binding.trim().is_empty())
+}
+
+fn may_be_unbound(id: &str) -> bool {
+    settings::get_default_settings()
+        .bindings
+        .get(id)
+        .is_some_and(|binding| binding.default_binding.is_empty())
 }
 
 pub fn register_cancel_shortcut(app: &AppHandle) {
@@ -219,7 +235,9 @@ pub fn change_binding(
     binding: String,
 ) -> Result<BindingResponse, String> {
     let _registrations = hold_registrations();
-    tauri_impl::validate_binding(&binding)?;
+    if !(binding.trim().is_empty() && may_be_unbound(&id)) {
+        tauri_impl::validate_binding(&binding)?;
+    }
 
     if let Some(other) =
         tauri_impl::conflicting_binding(&settings::get_settings(&app), &id, &binding)
@@ -284,6 +302,8 @@ pub fn change_binding(
                 error: Some(error),
             });
         }
+    } else if held {
+        let _ = unregister_shortcut(&app, previous.clone());
     }
 
     clear_registration_error(&app, &id);
@@ -305,10 +325,11 @@ fn frees_meeting_keys(
     current: &settings::AppSettings,
     next: &settings::AppSettings,
     id: &str,
+    meeting: &str,
 ) -> bool {
-    id != crate::meetings::BINDING_ID
-        && meeting_shortcut_yields(current)
-        && !meeting_shortcut_yields(next)
+    id != meeting
+        && meeting_shortcut_yields(current, meeting)
+        && !meeting_shortcut_yields(next, meeting)
 }
 
 fn give_back_meeting_keys(
@@ -317,15 +338,16 @@ fn give_back_meeting_keys(
     next: &settings::AppSettings,
     id: &str,
 ) {
-    if !frees_meeting_keys(current, next, id) {
-        return;
-    }
-    let meeting = crate::meetings::BINDING_ID;
-    if let Some(binding) = next.bindings.get(meeting).cloned() {
-        match register_shortcut(app, binding) {
-            Ok(()) => clear_registration_error(app, meeting),
-            Err(_) => {
-                record_registration_error(app, meeting, ShortcutRegistrationError::Unavailable)
+    for meeting in MEETING_BINDINGS {
+        if !frees_meeting_keys(current, next, id, meeting) {
+            continue;
+        }
+        if let Some(binding) = next.bindings.get(meeting).cloned() {
+            match register_shortcut(app, binding) {
+                Ok(()) => clear_registration_error(app, meeting),
+                Err(_) => {
+                    record_registration_error(app, meeting, ShortcutRegistrationError::Unavailable)
+                }
             }
         }
     }
@@ -731,9 +753,12 @@ pub fn change_show_tray_icon_setting(app: AppHandle, enabled: bool) -> Result<()
 mod tests {
     use super::{
         binding_registers, frees_meeting_keys, meeting_shortcut_yields,
-        tauri_impl::conflicting_binding, ShortcutRegistrationError,
+        tauri_impl::conflicting_binding, ShortcutRegistrationError, MEETING_BINDINGS,
     };
+    use crate::meetings::live::PASTE_BINDING_ID;
     use crate::meetings::{BINDING_ID, DEFAULT_BINDING};
+
+    const MEETING_KEYS: &str = "ctrl+shift+f8";
 
     fn bound(settings: &mut crate::settings::AppSettings, id: &str, keys: &str) {
         settings.bindings.get_mut(id).unwrap().current_binding = keys.to_string();
@@ -751,51 +776,72 @@ mod tests {
         assert_eq!(other.map(|binding| binding.id.as_str()), Some(BINDING_ID));
     }
 
+    fn meeting_keys_taken_by(meeting: &str, id: &str) -> crate::settings::AppSettings {
+        let mut settings = crate::settings::get_default_settings();
+        settings.meetings_enabled = false;
+        bound(&mut settings, meeting, MEETING_KEYS);
+        bound(&mut settings, id, MEETING_KEYS);
+        settings.meetings_enabled = true;
+        settings
+    }
+
     #[test]
     fn an_action_already_on_the_meeting_keys_keeps_them_when_meetings_turn_on() {
-        for id in ["transcribe", "paste_last", "cancel"] {
-            let mut settings = crate::settings::get_default_settings();
-            settings.meetings_enabled = false;
-            bound(&mut settings, id, DEFAULT_BINDING);
-            settings.meetings_enabled = true;
+        for meeting in MEETING_BINDINGS {
+            for id in ["transcribe", "paste_last", "cancel"] {
+                let mut settings = meeting_keys_taken_by(meeting, id);
 
-            assert!(meeting_shortcut_yields(&settings), "{id}");
-            assert!(!binding_registers(&settings, BINDING_ID), "{id}");
-            assert_eq!(binding_registers(&settings, id), id != "cancel");
-            // Spelled differently, the keys are the same.
-            bound(&mut settings, BINDING_ID, "control+alt+cmd+m");
-            assert!(meeting_shortcut_yields(&settings), "{id}");
+                assert!(
+                    meeting_shortcut_yields(&settings, meeting),
+                    "{meeting} {id}"
+                );
+                assert!(!binding_registers(&settings, meeting), "{meeting} {id}");
+                assert_eq!(binding_registers(&settings, id), id != "cancel");
+                // Spelled differently, the keys are the same.
+                bound(&mut settings, meeting, "control+shift+f8");
+                assert!(
+                    meeting_shortcut_yields(&settings, meeting),
+                    "{meeting} {id}"
+                );
 
-            bound(&mut settings, id, "ctrl+shift+f9");
-            assert!(!meeting_shortcut_yields(&settings), "{id}");
-            assert!(binding_registers(&settings, BINDING_ID), "{id}");
+                bound(&mut settings, id, "ctrl+shift+f9");
+                assert!(
+                    !meeting_shortcut_yields(&settings, meeting),
+                    "{meeting} {id}"
+                );
+                assert!(binding_registers(&settings, meeting), "{meeting} {id}");
+            }
         }
     }
 
     #[test]
     fn moving_any_other_action_off_the_meeting_keys_gives_them_back() {
-        for id in ["transcribe", "paste_last", "cancel"] {
-            let mut current = crate::settings::get_default_settings();
-            current.meetings_enabled = false;
-            bound(&mut current, id, DEFAULT_BINDING);
-            current.meetings_enabled = true;
-            let mut next = current.clone();
-            bound(&mut next, id, "ctrl+shift+f9");
-            assert!(frees_meeting_keys(&current, &next, id), "{id}");
+        for meeting in MEETING_BINDINGS {
+            for id in ["transcribe", "paste_last", "cancel"] {
+                let current = meeting_keys_taken_by(meeting, id);
+                let mut next = current.clone();
+                bound(&mut next, id, "ctrl+shift+f9");
+                assert!(
+                    frees_meeting_keys(&current, &next, id, meeting),
+                    "{meeting} {id}"
+                );
+            }
         }
     }
 
     #[test]
     fn new_keys_for_a_yielded_meeting_shortcut_are_registered_only_once() {
-        let mut current = crate::settings::get_default_settings();
-        current.meetings_enabled = false;
-        bound(&mut current, "transcribe", DEFAULT_BINDING);
-        current.meetings_enabled = true;
-        let mut next = current.clone();
-        bound(&mut next, BINDING_ID, "ctrl+shift+f9");
+        for meeting in MEETING_BINDINGS {
+            let current = meeting_keys_taken_by(meeting, "transcribe");
+            let mut next = current.clone();
+            bound(&mut next, meeting, "ctrl+shift+f9");
 
-        assert!(binding_registers(&next, BINDING_ID));
-        assert!(!frees_meeting_keys(&current, &next, BINDING_ID));
+            assert!(binding_registers(&next, meeting), "{meeting}");
+            assert!(
+                !frees_meeting_keys(&current, &next, meeting, meeting),
+                "{meeting}"
+            );
+        }
     }
 
     #[test]
@@ -807,14 +853,26 @@ mod tests {
     }
 
     #[test]
-    fn the_meeting_shortcut_holds_its_keys_only_while_meetings_are_on() {
+    fn the_meeting_shortcuts_hold_their_keys_only_while_meetings_are_on() {
         let mut settings = crate::settings::get_default_settings();
+        bound(&mut settings, PASTE_BINDING_ID, MEETING_KEYS);
         settings.meetings_enabled = false;
         assert!(binding_registers(&settings, "transcribe"));
         assert!(!binding_registers(&settings, "cancel"));
-        assert!(!binding_registers(&settings, crate::meetings::BINDING_ID));
+        for meeting in MEETING_BINDINGS {
+            assert!(!binding_registers(&settings, meeting), "{meeting}");
+        }
         settings.meetings_enabled = true;
-        assert!(binding_registers(&settings, crate::meetings::BINDING_ID));
+        for meeting in MEETING_BINDINGS {
+            assert!(binding_registers(&settings, meeting), "{meeting}");
+        }
         assert!(!binding_registers(&settings, "cancel"));
+    }
+
+    #[test]
+    fn the_paste_shortcut_ships_unbound_so_it_holds_no_keys() {
+        let mut settings = crate::settings::get_default_settings();
+        settings.meetings_enabled = true;
+        assert!(!binding_registers(&settings, PASTE_BINDING_ID));
     }
 }

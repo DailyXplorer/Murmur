@@ -12,7 +12,7 @@ use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader, Lines};
 use tokio::process::{Child, ChildStdin, ChildStdout, Command};
 
 use super::session::{BoxFuture, Loaded, Runtime};
-use crate::meetings::protocol::{parse_reply, Reply, Request};
+use crate::meetings::protocol::{parse_reply, Reply, Request, Word};
 
 /// A load from compiled models takes about 2 s; a first one after a macOS
 /// update compiles them again, about 15 s.
@@ -154,36 +154,58 @@ impl Loaded for Serve {
         samples: &'a [f32],
         terms: &'a [String],
     ) -> BoxFuture<'a, anyhow::Result<String>> {
-        Box::pin(async move {
-            let id = NEXT_ID.fetch_add(1, Ordering::Relaxed);
-            let wav = Scratch(self.scratch.join(format!("piece-{id}.wav")));
-            crate::audio_toolkit::save_wav_file(&wav.0, samples)?;
-            let mut line = serde_json::to_string(&Request::Transcribe {
-                id,
-                wav: &wav.0,
-                terms,
-            })?;
-            line.push('\n');
-            self.stdin.write_all(line.as_bytes()).await?;
-            self.stdin.flush().await?;
-            // Answers to an abandoned request may come first.
-            loop {
-                match self.reply().await? {
-                    Reply::Text { id: answered, text } if answered == id => return Ok(text),
-                    Reply::Error {
-                        id: Some(answered),
-                        code,
-                        message,
-                    } if answered == id => {
-                        anyhow::bail!("Local transcription failed ({code:?}): {message}")
-                    }
-                    Reply::Error {
-                        id: None, message, ..
-                    } => anyhow::bail!("The local transcription helper failed: {message}"),
-                    _ => {}
+        Box::pin(async move { Ok(self.request(samples, terms, false).await?.0) })
+    }
+
+    fn transcribe_words<'a>(
+        &'a mut self,
+        samples: &'a [f32],
+    ) -> BoxFuture<'a, anyhow::Result<Vec<Word>>> {
+        Box::pin(async move { Ok(self.request(samples, &[], true).await?.1) })
+    }
+}
+
+impl Serve {
+    async fn request(
+        &mut self,
+        samples: &[f32],
+        terms: &[String],
+        live: bool,
+    ) -> anyhow::Result<(String, Vec<Word>)> {
+        let id = NEXT_ID.fetch_add(1, Ordering::Relaxed);
+        let wav = Scratch(self.scratch.join(format!("piece-{id}.wav")));
+        crate::audio_toolkit::save_wav_file(&wav.0, samples)?;
+        let mut line = serde_json::to_string(&Request::Transcribe {
+            id,
+            wav: &wav.0,
+            terms,
+            background: live.then_some(true),
+            words: live.then_some(true),
+        })?;
+        line.push('\n');
+        self.stdin.write_all(line.as_bytes()).await?;
+        self.stdin.flush().await?;
+        // Answers to an abandoned request may come first.
+        loop {
+            match self.reply().await? {
+                Reply::Text {
+                    id: answered,
+                    text,
+                    words,
+                } if answered == id => return Ok((text, words.unwrap_or_default())),
+                Reply::Error {
+                    id: Some(answered),
+                    code,
+                    message,
+                } if answered == id => {
+                    anyhow::bail!("Local transcription failed ({code:?}): {message}")
                 }
+                Reply::Error {
+                    id: None, message, ..
+                } => anyhow::bail!("The local transcription helper failed: {message}"),
+                _ => {}
             }
-        })
+        }
     }
 }
 

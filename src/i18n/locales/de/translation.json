@@ -53,6 +53,9 @@
     "callEndedStop": "Beenden und transkribieren",
     "callEndedKeep": "Weiter aufnehmen",
     "noticeNothingToPaste": "Es gibt noch keine Transkription zum Einfügen.",
+    "noticeNothingNewInMeeting": "Noch nichts Neues.",
+    "liveYou": "Du",
+    "liveOthers": "Die anderen",
     "startMeeting": "Meeting starten",
     "stopMeeting": "Meeting beenden",
     "meetingSystemAudioUnavailable": "Systemton ist nicht verfügbar, daher nimmt das Meeting nur dein Mikrofon auf.",
@@ -194,6 +197,7 @@
         "none": "Keine Tastenkürzel konfiguriert",
         "notFound": "Tastenkürzel nicht gefunden",
         "pressKeys": "Tasten drücken...",
+        "notSet": "Nicht festgelegt",
         "bindings": {
           "transcribe": {
             "name": "Transkriptions-Tastenkürzel",
@@ -210,6 +214,10 @@
           "meeting_toggle": {
             "name": "Meeting-Kurzbefehl",
             "description": "Startet die Aufnahme eines Meetings oder beendet das laufende."
+          },
+          "meeting_paste_new": {
+            "name": "Neuen Meeting-Text einfügen",
+            "description": "Fügt ein, was im Meeting seit dem letzten Einfügen oder in der letzten Minute gesagt wurde."
           }
         },
         "errors": {
@@ -375,6 +383,11 @@
         "label": "Aufnahme von Anrufen anbieten",
         "description": "Wenn Zoom, Google Meet, Teams, Slack, FaceTime, Webex oder Discord einen Anruf startet, fragen, ob er aufgenommen werden soll. Die Frage bleibt, bis du antwortest oder der Anruf endet. Murmur nimmt nie ohne Klick auf. Während eines Meetings außerdem fragen, ob es beendet werden soll, sobald der Anruf endet. Murmur beendet nie ohne Klick.",
         "descriptionWindows": "Wenn Zoom, Google Meet, Teams, Slack, Webex oder Discord einen Anruf startet, fragen, ob er aufgenommen werden soll. Die Frage bleibt, bis du antwortest oder der Anruf endet. Murmur nimmt nie ohne Klick auf. Während eines Meetings außerdem fragen, ob es beendet werden soll, sobald der Anruf endet. Murmur beendet nie ohne Klick."
+      },
+      "meetingLiveTranscript": {
+        "label": "Live-Transkript von Meetings",
+        "description": "Zeigt den Text des Meetings während der Aufnahme. Er entsteht auf diesem Mac mit dem lokalen Modell, nie in der Cloud.",
+        "descriptionWindows": "Zeigt den Text des Meetings während der Aufnahme. Er entsteht auf diesem PC mit dem lokalen Modell, nie in der Cloud."
       },
       "meetingsAudio": {
         "title": "Meeting-Audio löschen",
@@ -915,7 +928,22 @@
         "description": "Codex transkribiert die Aufnahme erneut, und Transkript und Zusammenfassung werden ersetzt. Ein von dir gewählter Titel bleibt erhalten."
       }
     },
-    "localFallback": "Codex war {{duration}} dieses Meetings nicht verfügbar, daher wurde dieser Teil auf diesem Mac transkribiert."
+    "localFallback": "Codex war {{duration}} dieses Meetings nicht verfügbar, daher wurde dieser Teil auf diesem Mac transkribiert.",
+    "live": {
+      "title": "Live-Transkript",
+      "you": "Du",
+      "others": "Die anderen",
+      "starting": "Hört zu… der Text erscheint einige Sekunden, nachdem jemand spricht.",
+      "catchingUp": "Holt auf",
+      "gap": "… (Lücke, das endgültige Transkript enthält sie)",
+      "unavailable": "Der Live-Text braucht das lokale Sprachmodell.",
+      "off": "Das Live-Transkript ist aus. Das Transkript entsteht nach dem Beenden.",
+      "unsupported": "Der Live-Text braucht einen Mac mit Apple Silicon. Das Transkript entsteht nach dem Beenden.",
+      "failed": "Der Live-Text wurde angehalten. Die Aufnahme läuft weiter und das Transkript entsteht nach dem Beenden.",
+      "copyAll": "Alles kopieren",
+      "pasteHint": "Um das gerade Gesagte in eine andere App einzufügen, lege auf der Seite Meetings Tasten zum Einfügen des neuen Meeting-Texts fest.",
+      "draftNotice": "Entwurf. Das endgültige Transkript ersetzt ihn, sobald die Verarbeitung fertig ist."
+    }
   },
   "localSttCard": {
     "title": "Neu: lokale Transkription, ohne Kontingent.",

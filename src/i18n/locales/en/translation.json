@@ -53,6 +53,9 @@
     "callEndedStop": "Stop and transcribe",
     "callEndedKeep": "Keep recording",
     "noticeNothingToPaste": "There is no transcription to paste yet.",
+    "noticeNothingNewInMeeting": "Nothing new yet.",
+    "liveYou": "You",
+    "liveOthers": "Others",
     "startMeeting": "Start meeting",
     "stopMeeting": "Stop meeting",
     "meetingSystemAudioUnavailable": "System audio isn't available, so this meeting records your microphone only.",
@@ -194,6 +197,7 @@
         "none": "No shortcuts configured",
         "notFound": "Shortcut not found",
         "pressKeys": "Press keys...",
+        "notSet": "Not set",
         "bindings": {
           "transcribe": {
             "name": "Transcribe shortcut",
@@ -210,6 +214,10 @@
           "meeting_toggle": {
             "name": "Meeting shortcut",
             "description": "Starts recording a meeting, or stops the one in progress."
+          },
+          "meeting_paste_new": {
+            "name": "Paste new meeting text",
+            "description": "Pastes what was said in the meeting since the last paste, or in the last minute."
           }
         },
         "errors": {
@@ -375,6 +383,11 @@
         "label": "Offer to record calls",
         "description": "When Zoom, Google Meet, Teams, Slack, FaceTime, Webex or Discord starts a call, ask whether to record it. The question stays until you answer it or the call ends. Murmur never records without a click. While a meeting records, also ask whether to stop it once the call ends. Murmur never stops it without a click.",
         "descriptionWindows": "When Zoom, Google Meet, Teams, Slack, Webex or Discord starts a call, ask whether to record it. The question stays until you answer it or the call ends. Murmur never records without a click. While a meeting records, also ask whether to stop it once the call ends. Murmur never stops it without a click."
+      },
+      "meetingLiveTranscript": {
+        "label": "Live meeting transcript",
+        "description": "Shows the meeting's text while you record. It is made on this Mac by the local model, never in the cloud.",
+        "descriptionWindows": "Shows the meeting's text while you record. It is made on this PC by the local model, never in the cloud."
       },
       "meetingsAudio": {
         "title": "Delete meeting audio",
@@ -915,7 +928,22 @@
         "description": "Codex transcribes the recording again, and the transcript and summary are replaced. A title you set stays."
       }
     },
-    "localFallback": "Codex was unavailable for {{duration}} of this meeting, so that part was transcribed on this Mac."
+    "localFallback": "Codex was unavailable for {{duration}} of this meeting, so that part was transcribed on this Mac.",
+    "live": {
+      "title": "Live transcript",
+      "you": "You",
+      "others": "Others",
+      "starting": "Listening… text appears a few seconds after someone speaks.",
+      "catchingUp": "Catching up",
+      "gap": "… (gap, the final transcript will include it)",
+      "unavailable": "Live text needs the on-device speech model.",
+      "off": "Live transcript is off. The transcript will be made after you stop.",
+      "unsupported": "Live text needs a Mac with Apple silicon. The transcript will be made after you stop.",
+      "failed": "Live text stopped. The recording continues and the transcript will be made after you stop.",
+      "copyAll": "Copy all",
+      "pasteHint": "To paste what was just said into another app, pick keys for pasting new meeting text on the Meetings page.",
+      "draftNotice": "Draft. The final transcript replaces it when processing ends."
+    }
   },
   "localSttCard": {
     "title": "New: local transcription, no quota.",

@@ -373,6 +373,10 @@ pub struct AppSettings {
     /// while meetings are on.
     #[serde(default = "default_meeting_call_prompt")]
     pub meeting_call_prompt: bool,
+    /// Shows the meeting's text while it records, made on this Mac when the
+    /// local model is ready.
+    #[serde(default = "default_meeting_live_transcript")]
+    pub meeting_live_transcript: bool,
     /// Which engine transcribes dictations.
     #[serde(default)]
     pub transcription_engine: Engine,
@@ -419,6 +423,10 @@ fn default_meetings_enabled() -> bool {
 }
 
 fn default_meeting_call_prompt() -> bool {
+    true
+}
+
+fn default_meeting_live_transcript() -> bool {
     true
 }
 
@@ -647,6 +655,16 @@ pub fn get_default_settings() -> AppSettings {
             current_binding: crate::meetings::DEFAULT_BINDING.to_string(),
         },
     );
+    bindings.insert(
+        crate::meetings::live::PASTE_BINDING_ID.to_string(),
+        ShortcutBinding {
+            id: crate::meetings::live::PASTE_BINDING_ID.to_string(),
+            name: "Paste new meeting text".to_string(),
+            description: "Pastes what was said in the meeting since the last paste.".to_string(),
+            default_binding: String::new(),
+            current_binding: String::new(),
+        },
+    );
 
     AppSettings {
         bindings,
@@ -700,6 +718,7 @@ pub fn get_default_settings() -> AppSettings {
         meeting_capture_mode: MeetingCaptureMode::default(),
         meeting_audio_retention: MeetingAudioRetention::default(),
         meeting_call_prompt: default_meeting_call_prompt(),
+        meeting_live_transcript: default_meeting_live_transcript(),
         transcription_engine: Engine::default(),
         local_stt_card_dismissed: false,
         local_model_download_wanted: false,
@@ -900,7 +919,8 @@ fn reconcile_bindings(bindings: &mut HashMap<String, ShortcutBinding>) -> bool {
             }
             std::collections::hash_map::Entry::Occupied(mut entry) => {
                 let current = &entry.get().current_binding;
-                if crate::shortcut::tauri_impl::validate_binding(current).is_err() {
+                let unbound = current.is_empty() && default.default_binding.is_empty();
+                if !unbound && crate::shortcut::tauri_impl::validate_binding(current).is_err() {
                     warn!(
                         "Resetting unsupported shortcut for binding '{}'",
                         entry.key()
@@ -1791,7 +1811,13 @@ mod tests {
         ids.sort_unstable();
         assert_eq!(
             ids,
-            ["cancel", "meeting_toggle", "paste_last", "transcribe"]
+            [
+                "cancel",
+                "meeting_paste_new",
+                "meeting_toggle",
+                "paste_last",
+                "transcribe"
+            ]
         );
     }
 
@@ -1834,6 +1860,32 @@ mod tests {
         assert!(get_default_settings().meeting_call_prompt);
         stored["meeting_call_prompt"] = serde_json::json!(false);
         assert!(!parse_stored_settings(&stored).0.meeting_call_prompt);
+    }
+
+    #[test]
+    fn settings_saved_before_live_transcripts_show_them_and_leave_the_paste_unbound() {
+        let mut stored = default_settings_json();
+        stored
+            .as_object_mut()
+            .unwrap()
+            .remove("meeting_live_transcript");
+        stored["bindings"]
+            .as_object_mut()
+            .unwrap()
+            .remove(crate::meetings::live::PASTE_BINDING_ID);
+
+        let (settings, updated) = parse_stored_settings(&stored);
+        assert!(updated);
+        assert!(settings.meeting_live_transcript);
+        assert!(get_default_settings().meeting_live_transcript);
+        let paste = &settings.bindings[crate::meetings::live::PASTE_BINDING_ID];
+        assert_eq!(paste.current_binding, "");
+        assert!(!crate::shortcut::binding_registers(
+            &settings,
+            crate::meetings::live::PASTE_BINDING_ID
+        ));
+        stored["meeting_live_transcript"] = serde_json::json!(false);
+        assert!(!parse_stored_settings(&stored).0.meeting_live_transcript);
     }
 
     #[test]

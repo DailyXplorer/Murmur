@@ -136,6 +136,8 @@ const APP_COMMANDS: &[&str] = &[
     "answer_call_prompt",
     "fit_call_prompt",
     "get_call_prompt",
+    "change_meeting_live_transcript_setting",
+    "get_live_transcript",
 ];
 
 fn main() {
