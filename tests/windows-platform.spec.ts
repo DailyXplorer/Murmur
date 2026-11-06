@@ -126,13 +126,34 @@ test.describe("Windows build", () => {
   });
 
   test("credits only the speech model it downloads", async ({ page }) => {
-    await openWindows(page);
+    await page.goto(
+      "/tests/fixtures/settings-pages.html?platform=windows&meetings=0",
+    );
+    await expect(page.getByRole("navigation")).toBeVisible();
     await nav(page, "About").click();
     await page.getByRole("button", { name: "View licences" }).click();
 
     const dialog = page.getByRole("dialog");
     await expect(dialog.getByRole("listitem")).toHaveCount(1);
     await expect(dialog).toContainText("Parakeet TDT 0.6B v3 by NVIDIA");
+    await expect(dialog).not.toContainText("Core ML");
+    await expect(dialog).not.toContainText("pyannote");
+  });
+
+  test("credits the speaker model and its runtime once Meetings are on", async ({
+    page,
+  }) => {
+    await openWindows(page);
+    await nav(page, "About").click();
+    await page.getByRole("button", { name: "View licences" }).click();
+
+    const dialog = page.getByRole("dialog");
+    await expect(dialog.getByRole("listitem")).toHaveCount(3);
+    await expect(dialog).toContainText("Parakeet TDT 0.6B v3 by NVIDIA");
+    await expect(dialog).toContainText("pyannote Community-1, CC BY 4.0");
+    await expect(dialog).toContainText("converted to ONNX by altunenes");
+    await expect(dialog).toContainText("ONNX Runtime: Microsoft, MIT License.");
+    await expect(dialog).not.toContainText("Sortformer");
     await expect(dialog).not.toContainText("Core ML");
   });
 

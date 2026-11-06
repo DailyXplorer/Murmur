@@ -250,23 +250,67 @@ jobs:
             [System.IO.File]::WriteAllText((Join-Path $dialogue "u$number.txt"), $utterance.Words)
           }
 
-      # The analysis the app runs after a meeting, on that dialogue: word
+      # The same dialogue in French, with two French voices when the runner
+      # has them (a Server image usually has none: then the step says so and
+      # the French test skips itself). With one voice the speakers are not
+      # checked. ASCII text: Windows PowerShell reads the script as ANSI.
+      - name: Record the French dialogue
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          Add-Type -AssemblyName System.Speech
+          $dialogue = Join-Path $env:RUNNER_TEMP "dialogue-fr"
+          New-Item -ItemType Directory -Force $dialogue | Out-Null
+          $voices = @((New-Object System.Speech.Synthesis.SpeechSynthesizer).GetInstalledVoices() | Where-Object { $_.Enabled -and $_.VoiceInfo.Culture.Name -eq "fr-FR" })
+          $voices | ForEach-Object { Write-Output "voice: $($_.VoiceInfo.Name) ($($_.VoiceInfo.Gender))" }
+          if ($voices.Count -eq 0) {
+            Write-Output "no fr-FR voice on this runner: the French dialogue is skipped"
+            exit 0
+          }
+          $first = $voices[0]
+          $second = $voices | Where-Object { $_.VoiceInfo.Gender -ne $first.VoiceInfo.Gender } | Select-Object -First 1
+          if (-not $second) { $second = $voices | Where-Object { $_.VoiceInfo.Name -ne $first.VoiceInfo.Name } | Select-Object -First 1 }
+          if (-not $second) {
+            $second = $first
+            New-Item -ItemType File -Force (Join-Path $dialogue "one-voice") | Out-Null
+          }
+          $utterances = @(
+            @{ Voice = $first; Text = "Bonjour a tous, merci de participer a la reunion de planification aujourd'hui."; Words = "bonjour`nmerci`nparticiper`nreunion`nplanification`n" },
+            @{ Voice = $second; Text = "Merci, j'ai relu le budget hier et les chiffres me semblent tout a fait raisonnables."; Words = "merci`nrelu`nbudget`nhier`nchiffres`nsemblent`nraisonnables`n" },
+            @{ Voice = $first; Text = "Parfait, alors fixons la prochaine revue a jeudi apres-midi."; Words = "parfait`nfixons`nprochaine`nrevue`njeudi`n" }
+          )
+          $format = New-Object System.Speech.AudioFormat.SpeechAudioFormatInfo(16000, [System.Speech.AudioFormat.AudioBitsPerSample]::Sixteen, [System.Speech.AudioFormat.AudioChannel]::Mono)
+          $number = 0
+          foreach ($utterance in $utterances) {
+            $number++
+            $synth = New-Object System.Speech.Synthesis.SpeechSynthesizer
+            $synth.SelectVoice($utterance.Voice.VoiceInfo.Name)
+            $synth.SetOutputToWaveFile((Join-Path $dialogue "u$number.wav"), $format)
+            $synth.Speak($utterance.Text)
+            $synth.Dispose()
+            [System.IO.File]::WriteAllText((Join-Path $dialogue "u$number.txt"), $utterance.Words)
+          }
+
+      # The analysis the app runs after a meeting, on those dialogues: word
       # times in order and inside the clip, most words timed, two speakers
-      # with the change near the splice. The second test opens a folder
-      # with no model, which needs the CPU modules.
+      # with the change near the splice, told apart by pyannote Community-1
+      # through ONNX Runtime. The French test skips itself when the runner
+      # has no French voice. The folder test opens a folder with no model,
+      # which needs the CPU modules.
       - name: Time the words and tell the voices apart
         working-directory: src-tauri
         shell: bash
         env:
           MURMUR_SMOKE_MODELS: ${{ runner.temp }}/models
           MURMUR_SMOKE_DIALOGUE: ${{ runner.temp }}/dialogue
+          MURMUR_SMOKE_DIALOGUE_FR: ${{ runner.temp }}/dialogue-fr
         run: |
           set -euo pipefail
           cargo nextest run --locked --lib --profile ci --color never \
             --run-ignored only --no-capture \
-            -E 'test(=meetings::analysis_cpp::tests::two_voices_are_timed_and_told_apart) | test(=meetings::analysis_cpp::tests::a_folder_without_the_speech_model_ends_the_analysis_without_a_panic)' \
+            -E 'test(=meetings::analysis_cpp::tests::two_voices_are_timed_and_told_apart) | test(=meetings::analysis_cpp::tests::two_french_voices_are_timed_and_told_apart) | test(=meetings::analysis_cpp::tests::a_folder_without_the_speech_model_ends_the_analysis_without_a_panic)' \
             2>&1 | tee "$RUNNER_TEMP/analysis.txt"
-          grep -q "2 tests run: 2 passed" "$RUNNER_TEMP/analysis.txt"
+          grep -q "3 tests run: 3 passed" "$RUNNER_TEMP/analysis.txt"
 
   # Meeting system audio against a real sound output: a tone is played and
   # the WASAPI loopback must hear it, and the process loopback must not hear

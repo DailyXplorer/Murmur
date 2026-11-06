@@ -10,29 +10,29 @@ Meetings stay hidden on the Windows beta (no sidebar entry, no tray item, `meeti
 
 Status: `Not yet` is not built. `Built, hidden` is built and tested but no screen reaches it.
 
-| #   | Feature on macOS                                                                   | Windows                                            | Status                                                                           |
-| --- | ---------------------------------------------------------------------------------- | -------------------------------------------------- | -------------------------------------------------------------------------------- |
-| 1   | Start/stop a meeting from the tray item, the shortcut or the Meetings page         | Code on `beta`, enabled last                       | Not yet                                                                          |
-| 2   | Record the microphone ("Me")                                                       | The microphone path of dictation (cpal, WASAPI)    | Not yet                                                                          |
-| 3   | Record system or app audio ("Others"), Murmur's own sounds left out                | WASAPI process loopback, classic loopback fallback | Built, hidden (`meetings/capture/wasapi.rs`)                                     |
-| 4   | Capture mode: both, system only, microphone only                                   | Settings exist                                     | Not yet                                                                          |
-| 5   | Dropped-audio warning, low disk, 3 h cap, crash recovery, sleep notice, keep-awake | Code on `beta`; keep-awake is new                  | Partly: keep-awake built, hidden (`meetings/power_windows.rs`). The rest Not yet |
-| 6   | Transcript through Codex, offline fallback to the local model                      | Code on `beta`                                     | Not yet                                                                          |
-| 7   | Speaker separation, rename speakers                                                | In-process analyzer, at most 4 speakers            | Built, hidden (`meetings/analysis_cpp.rs`)                                       |
-| 8   | Word-aligned merge, echo removal, headphone awareness                              | Neutral code; the output route is new              | Partly: route built, hidden (`loopback_logic::route_facts`). The rest Not yet    |
-| 9   | AI title and summary, retry                                                        | Code on `beta`                                     | Not yet                                                                          |
-| 10  | Compressed audio (`audio.m4a`), re-transcribe, retention, delete audio             | AAC through Media Foundation                       | Built, hidden (`meetings/archive/`)                                              |
-| 11  | Export and copy Markdown (save dialog)                                             | `IFileSaveDialog`                                  | Built, hidden (`meetings/save_panel.rs`); copy Not yet                           |
-| 12  | Meetings list, detail, search, delete                                              | UI and FTS5 search on `beta`                       | Not yet                                                                          |
-| 13  | Live transcript, "Catching up", paste-new-text shortcut                            | Port of the live transcript                        | Built, hidden (`meetings/live/`, `engine/local/cpu.rs`)                          |
-| 14  | Call detected, prompt to record (Zoom, Teams, Slack, Webex, Discord, browser Meet) | Microphone consent store, shared state machine     | Built, hidden (`meetings/call_probe_windows.rs`)                                 |
-| 15  | "Call ended" prompt                                                                | Port                                               | Built, hidden (`meetings/call_watch.rs`)                                         |
-| 16  | Transcript-ready pill, open from the notice                                        | Port                                               | Built, hidden (`overlay/meeting_notice.rs`)                                      |
-| 17  | MCP meeting tools                                                                  | Flip the Windows switch                            | Built, hidden (`mcp/`, the same five tools). Settings copy: at enable            |
-| 18  | Models fetched with a meeting unless declined, licences dialog                     | New speaker model source                           | Partly: speaker model source built, hidden (`pinned::WINDOWS`). The rest Not yet |
-| 19  | Settings: enable, call prompt, live transcript, retention, capture mode            | Port with Windows copy                             | Partly: the call prompt row has its Windows text. The rest Not yet               |
-| 20  | FaceTime calls                                                                     | Not applicable on Windows                          | Not applicable                                                                   |
-| 21  | Windows 10 before build 20348: system audio includes Murmur's own sounds           | Known limit, see below                             | Documented                                                                       |
+| #   | Feature on macOS                                                                   | Windows                                                            | Status                                                                                                     |
+| --- | ---------------------------------------------------------------------------------- | ------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------- |
+| 1   | Start/stop a meeting from the tray item, the shortcut or the Meetings page         | Code on `beta`, enabled last                                       | Not yet                                                                                                    |
+| 2   | Record the microphone ("Me")                                                       | The microphone path of dictation (cpal, WASAPI)                    | Not yet                                                                                                    |
+| 3   | Record system or app audio ("Others"), Murmur's own sounds left out                | WASAPI process loopback, classic loopback fallback                 | Built, hidden (`meetings/capture/wasapi.rs`)                                                               |
+| 4   | Capture mode: both, system only, microphone only                                   | Settings exist                                                     | Not yet                                                                                                    |
+| 5   | Dropped-audio warning, low disk, 3 h cap, crash recovery, sleep notice, keep-awake | Code on `beta`; keep-awake is new                                  | Partly: keep-awake built, hidden (`meetings/power_windows.rs`). The rest Not yet                           |
+| 6   | Transcript through Codex, offline fallback to the local model                      | Code on `beta`                                                     | Not yet                                                                                                    |
+| 7   | Speaker separation, rename speakers                                                | In-process analyzer, pyannote Community-1 (any number of speakers) | Built, hidden (`meetings/analysis_cpp.rs`, `meetings/diarize/`)                                            |
+| 8   | Word-aligned merge, echo removal, headphone awareness                              | Neutral code; the output route is new                              | Partly: route built, hidden (`loopback_logic::route_facts`). The rest Not yet                              |
+| 9   | AI title and summary, retry                                                        | Code on `beta`                                                     | Not yet                                                                                                    |
+| 10  | Compressed audio (`audio.m4a`), re-transcribe, retention, delete audio             | AAC through Media Foundation                                       | Built, hidden (`meetings/archive/`)                                                                        |
+| 11  | Export and copy Markdown (save dialog)                                             | `IFileSaveDialog`                                                  | Built, hidden (`meetings/save_panel.rs`); copy Not yet                                                     |
+| 12  | Meetings list, detail, search, delete                                              | UI and FTS5 search on `beta`                                       | Not yet                                                                                                    |
+| 13  | Live transcript, "Catching up", paste-new-text shortcut                            | Port of the live transcript                                        | Built, hidden (`meetings/live/`, `engine/local/cpu.rs`)                                                    |
+| 14  | Call detected, prompt to record (Zoom, Teams, Slack, Webex, Discord, browser Meet) | Microphone consent store, shared state machine                     | Built, hidden (`meetings/call_probe_windows.rs`)                                                           |
+| 15  | "Call ended" prompt                                                                | Port                                                               | Built, hidden (`meetings/call_watch.rs`)                                                                   |
+| 16  | Transcript-ready pill, open from the notice                                        | Port                                                               | Built, hidden (`overlay/meeting_notice.rs`)                                                                |
+| 17  | MCP meeting tools                                                                  | Flip the Windows switch                                            | Built, hidden (`mcp/`, the same five tools). Settings copy: at enable                                      |
+| 18  | Models fetched with a meeting unless declined, licences dialog                     | New speaker model source                                           | Partly: speaker model source (ONNX files) and licences built, hidden (`pinned::WINDOWS`). The rest Not yet |
+| 19  | Settings: enable, call prompt, live transcript, retention, capture mode            | Port with Windows copy                                             | Partly: the call prompt row has its Windows text. The rest Not yet                                         |
+| 20  | FaceTime calls                                                                     | Not applicable on Windows                                          | Not applicable                                                                                             |
+| 21  | Windows 10 before build 20348: system audio includes Murmur's own sounds           | Known limit, see below                                             | Documented                                                                                                 |
 
 ## System audio on Windows
 
@@ -65,61 +65,153 @@ said. The pipeline after the analysis is the Mac one: `Analysis::absorb`,
 `align/`, `speakers.rs` and `bleed.rs` read the same `protocol` messages.
 
 **Where it runs.** In the app, in a background thread, with no helper
-process (`meetings/analysis_cpp.rs`). Two models run on the CPU through
-transcribe.cpp:
+process (`meetings/analysis_cpp.rs`). Two models run on the CPU:
 
-- **Parakeet Ultra**, the model dictation already uses, with word timestamps.
-  Each track is cut at pauses into pieces of at most 20 s
-  (`engine::local::MAX_PIECE`), the pieces without speech are skipped, and
-  each word is placed at its time on the track.
-- **Sortformer v2.1** (`diar_streaming_sortformer_4spk-v2.1`, Q8_0, 139 MB),
-  in its offline operating point, on the track `analysis::diarized_track`
-  picks: system audio when the remote side was heard speaking there, else the
-  microphone.
+- **Parakeet Ultra**, the model dictation already uses, through
+  transcribe.cpp with word timestamps. Each track is cut at pauses into
+  pieces of at most 20 s (`engine::local::MAX_PIECE`), the pieces without
+  speech are skipped, and each word is placed at its time on the track.
+- **pyannote Community-1**, the speaker model of the Mac, through ONNX
+  Runtime, on the track `analysis::diarized_track` picks: system audio when
+  the remote side was heard speaking there, else the microphone.
 
-The decisions (pieces, times, which track, turns named `S1`…`S4` in a stable
-order, how a failure ends the run) are in `meetings/analysis_local.rs`, which
-has no model in it and is tested with fakes. `analysis_cpp.rs` holds the
-models, the cancel token, a `catch_unwind` around them and a time limit that
-grows with the audio.
+The decisions (pieces, times, which track, turns named `S1`, `S2`… with no
+maximum in a stable order, how a failure ends the run) are in
+`meetings/analysis_local.rs`, which has no model in it and is tested with
+fakes. `analysis_cpp.rs` holds the models, the cancel token, a `catch_unwind`
+around them and a time limit that grows with the audio.
 
-**The speaker model.** It is a second, optional source of the Windows
-manifest (`local_models/pinned.rs`, folder `sortformer`), pinned to a
-Hugging Face commit and a SHA-256 like the others. Dictation never waits for
-it, and a models folder ready before it was added stays ready. It is fetched
-when a meeting starts (unless the user deleted the models or cancelled their
-download) and, for a user who has Meetings on, after a dictation download
-and at launch. Until Meetings are on, nothing fetches it. The analysis of a
-meeting waits for that fetch to end.
+**The speaker pipeline** (`meetings/diarize/`). `main` runs the offline
+diarization of FluidAudio 0.17.7 (Apache-2.0) in the Swift helper, through Core
+ML. Windows runs the same pipeline, re-implemented in Rust from that source,
+with the same weights and the same values (`config.rs` names each one with its
+line in `OfflineDiarizerTypes.swift`; none is tuned):
 
-**When it degrades.** Without the speaker model, or when the file is missing
-or damaged, the words are still timed and each track keeps one speaker, as on
-an Intel Mac. The analysis is then not kept as final, so it runs again once
-the model is there. A failure in either model, a track that cannot be read or
-a run past its time limit ends the analysis the same way. It never fails the
-meeting.
+| Stage                                                              | File           | Mac value kept                                                                                                                                                                   |
+| ------------------------------------------------------------------ | -------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Windows of 10 s every 2 s; 589 frames, 3 local speakers (powerset) | `segmentation` | `Segmentation.community`; a network, ONNX Runtime                                                                                                                                |
+| 80 mel bins, 25 ms / 10 ms, Hamming, per-window mean               | `fbank`        | the `FBank` graph, read from its MIL: same values within 1.4e-5                                                                                                                  |
+| Embedding per window and local speaker, overlapped frames left out | `embedding`    | `Embedding.community`: pooling weighted by the speaker's frames, so a plain filter of frames is not the same (other variance denominator); the ResNet is a network, ONNX Runtime |
+| 256 to 128 values                                                  | `plda`         | the same two JSON files; output equal to the Core ML graph up to the sign of some dimensions, which VBx does not see                                                             |
+| Agglomerative clustering, cut at 0.6                               | `ahc`          | `Clustering.community`                                                                                                                                                           |
+| VBx, Fa 0.07, Fb 0.8, 20 iterations, tolerance 1e-4                | `vbx`          | `Clustering.community`, `VBx.community`                                                                                                                                          |
+| Centroids, constrained assignment                                  | `assign`       | two local speakers of a window never share a cluster                                                                                                                             |
+| Votes per frame, one speaker at a time, gaps under 0.1 s closed    | `reconstruct`  | `PostProcessing.community`                                                                                                                                                       |
+
+The number of speakers is whatever the clustering finds: the 3 of the model
+are the local speakers of one window, not a cap. There is no maximum anywhere
+in the pipeline, the turns, the keys (`s1`…), the names or the colours.
+
+**Runtime.** The `ort` crate (`=2.0.0-rc.15`), the CPU provider only (no
+DirectML, CUDA or other provider), under `cfg(all(windows, x86_64))` like
+`transcribe-cpp`, so macOS and Intel builds are unchanged.
+
+- It uses `download-binaries`: the build downloads ONNX Runtime's prebuilt CPU
+  binaries from the crate's CDN, checks them against the hash `ort-sys`
+  pins, and links them statically. No `onnxruntime.dll` ships beside the app
+  and none can be picked up by name from `System32`. The other choice,
+  `load-dynamic` with a pinned DLL, needs a second download in the build, a
+  place for the DLL in the installer and an absolute-path load to keep the
+  system copy out; it stays the fallback if the static link fails on a runner.
+- The binary needs AVX2. `Pyannote` checks it before the first call and a
+  processor without it keeps one speaker per track (the log says `the speaker
+model cannot run`).
+- The arena allocator is off (it never gives memory back) and the encoder
+  runs one window at a time, which is also the fastest per window on a CPU.
+- A native error or panic is a `Failure`, never a crash: every call is inside
+  `catch_unwind` (`analysis_cpp.rs`), and the messages carry fixed words, never
+  a path or text.
+
+**The speaker model files.** Three optional sources of the Windows manifest
+(`local_models/pinned.rs`, folder `pyannote`, 32.7 MB together), pinned to
+Hugging Face commits and SHA-256 like the others: the segmentation network
+(5.9 MB), the embedding encoder split before its statistics pooling (21.3 MB)
+with the weight and bias of its last layer (5.2 MB), and the two PLDA files
+(0.27 MB, the files the Mac pins). Dictation never waits for them, and a
+models folder ready before they were added stays ready. They are fetched when
+a meeting starts (unless the user deleted the models or cancelled their
+download) and, for a user who has Meetings on, after a dictation download and
+at launch. Until Meetings are on, nothing fetches them. The analysis of a
+meeting waits for that fetch to end. The analysis hashes the six files when it
+opens them, so a file that is missing, partial or damaged is "no speaker
+model".
+
+**Sortformer is gone.** The first Windows speaker model (Sortformer v2.1:
+at most 4 voices, trained on English) was a stepping stone and is not Mac
+quality. Its source, accessor, code, licence lines and CI step are removed.
+Nobody had fetched it: it was only downloaded for a user with Meetings on, and
+they are hidden on Windows. A `sortformer` folder that an earlier build left
+is deleted once the new optional files are in place.
+
+**When it degrades.** Without the speaker model, or when a file is missing or
+damaged, the words are still timed and each track keeps one speaker, as on an
+Intel Mac. The analysis is then not kept as final, so it runs again once the
+model is there. A runtime that cannot start (no AVX2), a failure in either
+model, a track that cannot be read or a run past its time limit ends the
+analysis the same way. It never fails the meeting.
 
 **Limits.**
 
-- Sortformer tells up to **4 voices** apart on the track it is given. A fifth
-  remote speaker is merged into another. The Mac models have no such limit.
-- It was trained on **English** speech. Other languages are timed by
-  Parakeet as usual, but the voices are told apart less reliably.
-- A track is read whole into memory for the speaker model: about 230 MB of
-  samples per hour of audio, and about as much again for its features. The
-  longest meeting (3 hours) peaks near 1.3 GB while it is analysed (an
-  estimate from the sizes, not a measurement).
+- There is no maximum number of speakers and the speaker model is not tied to
+  English. How well it does on French, on crosstalk and on a headset is a
+  real-PC check (`OWNER_CHECKS.md` of the lane).
+- Memory (measured, Linux x86_64, release, see below): a 2.9-hour track peaks at
+  1.13 GB of working set, 0.68 GB of which is the track itself, read whole
+  into memory as before. The pipeline adds about 0.45 GB at that length: the
+  embeddings (about 4.5 KB each, at most three per window) and the speaker
+  weights of 5,300 windows kept for the reconstruction. Everything else is
+  freed window group by group: 32 windows of features and encoder output are
+  50 MB, and one encoder run holds under 100 MB. A 6-minute track peaks at
+  0.37 GB. Nothing grows with the track but the embeddings and the weights.
+- Time (measured on 2 threads of a server CPU, see below): 0.057 s per second of audio on a
+  quiet machine (352 s of audio in 20 s on 2 threads), 0.076 on a 2.9-hour
+  track while other jobs loaded the machine (799 s). The encoder is 100 ms
+  per window of 10 s taken every 2 s, the segmentation 15 to 25 ms, the
+  fbank 1.3 ms; clustering 16,000 embeddings takes about 30 s on one thread
+  and 67 MB. A processor 5 times slower than that server takes about 1 h for
+  a 3-hour meeting.
 - The models use half of the cores, so a dictation made during the analysis
   still runs. A slow processor takes longer; the time limit is twice the audio
-  it reads plus 10 minutes.
+  it reads plus 10 minutes, so that a 3-hour meeting still
+  ends on a processor 20 times slower than measured (the limit for two
+  tracks of 3 hours is 18 h 10 min, and a hung model still ends it). The
+  limit is unchanged; `a_three_hour_meeting_on_a_very_slow_processor_fits_the_limit`
+  holds the arithmetic.
 
-**Tests.** `analysis_local.rs` runs everywhere. The Windows `cpu model` job
-speaks a three-utterance dialogue with two of the runner's own voices, runs
-the analysis on it and checks that word times are in order and inside the
-clip, that at least 80 % of the words said are timed, and that two speakers
-are found with the change of speaker within 1.5 s of the splice. It cannot
-prove accuracy on real calls (accents, crosstalk, more than four speakers) or
-speed on a weak processor.
+**Tests.**
+
+- `meetings/diarize/` runs on every host: each stage against the Swift
+  source's formulas with hand-checkable values; clustering on fixture
+  embeddings (2, 3, 5 and 8 speakers recovered, one speaker over many windows
+  stays one, two local speakers of a window never share a cluster, a stray
+  embedding makes no speaker, same input same labels, empty and short input);
+  the PLDA transform and the fbank against the Core ML graphs' constants.
+- The Windows `rust` job opens the speaker model with missing and damaged
+  files. `analysis_local.rs` covers turns for 12 speakers and a failing,
+  missing or silent speaker model.
+- The Windows `cpu model` job speaks a three-utterance dialogue with two of
+  the runner's own voices (and in French when the runner has French voices),
+  runs the analysis on it and checks that word times are in order and inside
+  the clip, that at least 80 % of the words said are timed, and that two
+  speakers are found with the change of speaker within 1.5 s of the splice,
+  through ONNX Runtime and the files the app downloads.
+- On a Linux machine, the real pipeline and the real models were run on a
+  7-speaker recording made of public-domain read speech with known turns
+  (not committed): 7 speakers
+  in 18 turns over 352 s were recovered with 99.3 % of the frames agreeing
+  with the known speaker after the best mapping, at 0.057 times real time and
+  0.37 GB; the same recording repeated to 2.9 hours gave 7 speakers
+  (799 s, 1.13 GB). This is accuracy against known turns on English read
+  speech, not parity with the Mac and not French.
+- The comparison with the Mac's own answer on the same audio
+  (`diarize/parity.rs`: same number of speakers, change points within 1 s,
+  at least 90 % of frames agreeing after the best mapping) waits for the
+  file the Mac makes: the `meetings helper` workflow keeps the dialogue and
+  the turns of a manual run, and `OWNER_CHECKS.md` says how to commit them.
+
+CI cannot prove accuracy on real calls (accents, crosstalk, more than four
+speakers), French accuracy when the runner has no French voice, or speed and
+memory on a weak laptop.
 
 ## Audio file and export on Windows
 

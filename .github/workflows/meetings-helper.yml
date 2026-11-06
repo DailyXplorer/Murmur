@@ -93,3 +93,32 @@ jobs:
           grep -q '"type":"ready"' <<<"$out"
           grep '"id":1' <<<"$out" | grep -q 'jeudi'
           grep '"id":2' <<<"$out" | grep -q 'quick brown fox'
+
+      # A manual run keeps the dialogue and the turns the helper found, so
+      # they can be committed as the fixture and the golden file of the
+      # parity test of the Windows speaker model
+      # (`src-tauri/src/meetings/diarize/parity.rs`; steps in the lane's
+      # OWNER_CHECKS.md). The dialogue is under 1.5 MB, 16 kHz mono.
+      - name: Keep the dialogue and its turns
+        if: github.event_name == 'workflow_dispatch'
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/parity"
+          cp "$RUNNER_TEMP/dialogue.wav" "$RUNNER_TEMP/parity/parity-dialogue.wav"
+          python3 - "$RUNNER_TEMP/analysis.jsonl" "$RUNNER_TEMP/parity/parity-dialogue.turns.json" <<'PY'
+          import json, sys
+          messages = [json.loads(line) for line in open(sys.argv[1]) if line.strip()]
+          turns = next(m for m in messages if m["type"] == "diarization")
+          json.dump(turns, open(sys.argv[2], "w"), indent=1)
+          PY
+          test "$(stat -f %z "$RUNNER_TEMP/parity/parity-dialogue.wav")" -lt 1500000
+          ls -l "$RUNNER_TEMP/parity"
+
+      - name: Upload the dialogue and its turns
+        if: github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: parity-dialogue
+          path: ${{ runner.temp }}/parity
+          if-no-files-found: error
