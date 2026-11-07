@@ -182,7 +182,7 @@ For translation contribution guidelines, see [CONTRIBUTING_TRANSLATIONS.md](CONT
 - Run `cargo fmt` and `cargo clippy` before committing
 - Handle errors explicitly (avoid unwrap in production)
 - Use descriptive names, add doc comments for public APIs
-- A source file stays under 1000 lines (aim for 800). `bun run check` (`check:file-size`) fails above it. Files already over it are in `scripts/file-size-allowlist.json` with a cap that may only go down. Split by job into `foo/` submodules (`foo.rs` stays the facade with `pub use`, tests in `foo/tests.rs`). A split is a pure move: no edit inside moved items, same test ids, `src/bindings.ts` unchanged. `src/bindings.ts` (generated) is not counted.
+- A source file has at most 1000 lines (aim for 800). `bun run check` (`check:file-size`) fails above it. Files already over it are in `scripts/file-size-allowlist.json` with a cap that may only go down. Split by job into `foo/` submodules (`foo.rs` stays the facade with `pub use`, tests in `foo/tests.rs`). A split is a pure move: no edit inside moved items, same test ids, `src/bindings.ts` unchanged. `src/bindings.ts` (generated) is not counted.
 
 **TypeScript/React:**
 
