@@ -155,13 +155,15 @@ test("drops entries deleted while the first page is in flight", async ({
   await expect(page.getByText("Added row", { exact: true })).toHaveCount(0);
 });
 
-test("empties the list when the history is cleared", async ({ page }) => {
+test("keeps starred rows when the history is cleared and reads the page again", async ({
+  page,
+}) => {
   await openRaceFixture(page);
 
   await page.evaluate(
     (entries) => window.historyRace.resolveFirstPage(entries),
     [
-      historyEntry({ id: 1, transcription_text: "One" }),
+      { ...historyEntry({ id: 1, transcription_text: "One" }), saved: true },
       historyEntry({ id: 2, transcription_text: "Two" }),
     ],
   );
@@ -169,7 +171,54 @@ test("empties the list when the history is cleared", async ({ page }) => {
 
   await page.evaluate(() => window.historyRace.emit({ action: "cleared" }));
 
-  await expect(page.getByText("One", { exact: true })).toHaveCount(0);
+  // The first page is read again; the list shows "Loading" until it answers.
+  await page.waitForFunction(
+    () => window.historyRace.historyRequestCount() === 2,
+  );
+  await expect(page.getByText("Two", { exact: true })).toHaveCount(0);
+  await page.evaluate(() =>
+    window.historyRace.resolveHistoryRequest(
+      1,
+      [
+        {
+          file_name: "history-1.wav",
+          id: 1,
+          saved: true,
+          timestamp: 1_700_000_001,
+          title: "History 1",
+          transcription_text: "One",
+          raw_text: null,
+          cleanup: null,
+          engine: "cloud",
+          fallback_reason: null,
+        },
+      ],
+      false,
+    ),
+  );
+  await expect(page.getByText("One", { exact: true })).toBeVisible();
+  await expect(page.getByText("Two", { exact: true })).toHaveCount(0);
+});
+
+test("shows the empty history when nothing was starred before the clear", async ({
+  page,
+}) => {
+  await openRaceFixture(page);
+
+  await page.evaluate(
+    (entries) => window.historyRace.resolveFirstPage(entries),
+    [historyEntry({ id: 2, transcription_text: "Two" })],
+  );
+  await expect(page.getByText("Two", { exact: true })).toBeVisible();
+
+  await page.evaluate(() => window.historyRace.emit({ action: "cleared" }));
+  await page.waitForFunction(
+    () => window.historyRace.historyRequestCount() === 2,
+  );
+  await page.evaluate(() =>
+    window.historyRace.resolveHistoryRequest(1, [], false),
+  );
+
   await expect(page.getByText("Two", { exact: true })).toHaveCount(0);
   await expect(page.getByText(/No transcriptions yet/)).toBeVisible();
 });

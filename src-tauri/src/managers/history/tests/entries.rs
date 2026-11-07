@@ -220,7 +220,7 @@ fn clear(conn: &mut Connection, recordings_dir: &std::path::Path) -> usize {
 }
 
 #[test]
-fn clearing_deletes_every_row_saved_ones_included_and_their_recordings() {
+fn clearing_deletes_every_unsaved_row_and_its_recording_and_keeps_saved_ones() {
     let temp = tempfile::tempdir().unwrap();
     let recordings_dir = temp.path().join("recordings");
     std::fs::create_dir(&recordings_dir).unwrap();
@@ -253,39 +253,70 @@ fn clearing_deletes_every_row_saved_ones_included_and_their_recordings() {
     )
     .unwrap();
 
-    assert_eq!(clear(&mut conn, &recordings_dir), 3);
+    assert_eq!(clear(&mut conn, &recordings_dir), 2);
 
-    let rows: i64 = conn
-        .query_row("SELECT COUNT(*) FROM transcription_history", [], |row| {
-            row.get(0)
-        })
+    let kept: Vec<String> = conn
+        .prepare("SELECT file_name FROM transcription_history")
+        .unwrap()
+        .query_map([], |row| row.get(0))
+        .unwrap()
+        .collect::<rusqlite::Result<_>>()
         .unwrap();
-    assert_eq!(rows, 0);
-    for file_name in &files {
-        assert!(!recordings_dir.join(file_name).exists());
-    }
+    assert_eq!(kept, vec!["murmur-0.wav".to_string()]);
+    assert!(recordings_dir.join("murmur-0.wav").exists());
+    assert!(!recordings_dir.join("murmur-1.wav").exists());
+    assert!(!recordings_dir.join("murmur-2.wav").exists());
     assert_eq!(clear(&mut conn, &recordings_dir), 0);
+    assert!(recordings_dir.join("murmur-0.wav").exists());
+}
+
+#[test]
+fn clearing_a_history_of_only_saved_rows_deletes_nothing() {
+    let temp = tempfile::tempdir().unwrap();
+    let recordings_dir = temp.path().join("recordings");
+    std::fs::create_dir(&recordings_dir).unwrap();
+    std::fs::write(recordings_dir.join("a.wav"), "wav").unwrap();
+    let (_db, mut conn) = history_db();
+    let id = dictate(&conn, 1, "keep this one");
+    conn.execute(
+        "UPDATE transcription_history SET saved = 1 WHERE id = ?1",
+        [id],
+    )
+    .unwrap();
+
+    assert_eq!(clear(&mut conn, &recordings_dir), 0);
+
+    assert_eq!(found(&conn, "keep"), vec![id]);
+    assert!(recordings_dir.join("a.wav").exists());
 }
 
 #[test]
 fn clearing_keeps_the_search_index_in_step_with_the_rows() {
     let temp = tempfile::tempdir().unwrap();
     let (_db, mut conn) = history_db();
-    dictate(&conn, 1, "quarterly budget review");
+    let starred = dictate(&conn, 1, "quarterly budget review");
     dictate(&conn, 2, "budget for the offsite");
+    conn.execute(
+        "UPDATE transcription_history SET saved = 1 WHERE id = ?1",
+        [starred],
+    )
+    .unwrap();
     assert_eq!(found(&conn, "budget").len(), 2);
 
     clear(&mut conn, temp.path());
 
-    assert!(found(&conn, "budget").is_empty());
+    assert_eq!(found(&conn, "budget"), vec![starred]);
+    assert!(found(&conn, "offsite").is_empty());
     conn.execute(
         "INSERT INTO history_fts(history_fts) VALUES ('integrity-check')",
         [],
     )
-    .expect("the index matches the (now empty) table");
-    // A dictation saved after the clear is found again.
+    .expect("the index matches the remaining rows");
+    // A dictation made after the clear is found next to the starred one.
     let id = dictate(&conn, 3, "budget again");
-    assert_eq!(found(&conn, "budget"), vec![id]);
+    let mut ids = found(&conn, "budget");
+    ids.sort();
+    assert_eq!(ids, vec![starred, id]);
     conn.execute(
         "INSERT INTO history_fts(history_fts) VALUES ('integrity-check')",
         [],

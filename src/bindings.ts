@@ -784,8 +784,8 @@ async deleteHistoryEntry(id: number) : Promise<Result<null, string>> {
 }
 },
 /**
- * Deletes every dictation in the history, starred ones included, and their
- * recordings. Meetings are not part of it.
+ * Deletes every dictation in the history that is not starred, and their
+ * recordings. Starred dictations and meetings are kept.
  */
 async clearHistory() : Promise<Result<null, string>> {
     try {
@@ -1483,7 +1483,8 @@ export type HistoryHit = { entry: HistoryEntry;
 ranges: ([number, number])[] }
 export type HistoryUpdatePayload = { action: "added"; entry: HistoryEntry } | { action: "updated"; entry: HistoryEntry } | { action: "deleted"; id: number } | { action: "toggled"; id: number } | 
 /**
- * Every dictation was removed at once ("Clear history").
+ * Every dictation that was not starred was removed at once ("Clear
+ * history"); starred ones remain.
  */
 { action: "cleared" }
 export type InsightsSummary = { total_dictations: number; total_words: number; 

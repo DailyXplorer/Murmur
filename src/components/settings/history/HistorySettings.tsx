@@ -287,15 +287,19 @@ export const HistorySettings: React.FC = () => {
           );
           updateHits((hits) => withoutEntry(hits, payload.id));
         } else if (payload.action === "cleared") {
-          // Every row is gone, and so is whatever a request still in flight
-          // may bring from before the clear: it is read again once it ends.
+          // Every row that was not starred is gone, and so is whatever a
+          // request still in flight may bring from before the clear. The
+          // starred rows stay; the first page is read again (once that
+          // request ends) so the list and "has more" match the database.
           historyEventRevisionRef.current += 1;
           pendingHistoryEntriesByIdRef.current.clear();
           if (activeHistoryRequestRevisionRef.current !== null) {
             queuedFirstPageRefreshRef.current = true;
+          } else {
+            setHasQueuedFirstPageRefresh(true);
           }
-          setEntries([]);
-          updateHits(() => []);
+          setEntries((prev) => prev.filter((entry) => entry.saved));
+          updateHits((hits) => hits.filter((hit) => hit.entry.saved));
         }
         // "toggled" is handled by optimistic updates only, so we
         // intentionally ignore it here to avoid double-mutation.

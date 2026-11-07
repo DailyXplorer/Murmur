@@ -364,22 +364,23 @@ impl HistoryManager {
         Ok(())
     }
 
-    /// Deletes every row, saved ones included, and then the recording of each
-    /// row it deleted. The rows are read and deleted in one write
-    /// transaction, so a dictation saved meanwhile either is cleared with the
-    /// rest or lands after the clear with its recording intact. Only files a
-    /// deleted row names are removed: a recording that has no row yet (a
+    /// Deletes every row that is not saved (starred), and then the recording
+    /// of each row it deleted. Saved rows and their recordings stay. The rows
+    /// are read and deleted in one write transaction, so a dictation made
+    /// meanwhile either is cleared with the rest or lands after the clear with
+    /// its recording intact. Only files a deleted row names are removed: a recording that has no row yet (a
     /// dictation still being transcribed) is left alone. The search index
     /// follows through the delete trigger of each row. Returns the number of
     /// rows deleted.
     pub(super) fn clear_with_conn(conn: &mut Connection, recordings_dir: &Path) -> Result<usize> {
         let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
         let file_names = {
-            let mut stmt = tx.prepare("SELECT file_name FROM transcription_history")?;
+            let mut stmt =
+                tx.prepare("SELECT file_name FROM transcription_history WHERE saved = 0")?;
             let rows = stmt.query_map([], |row| row.get::<_, String>(0))?;
             rows.collect::<rusqlite::Result<Vec<_>>>()?
         };
-        tx.execute("DELETE FROM transcription_history", [])?;
+        tx.execute("DELETE FROM transcription_history WHERE saved = 0", [])?;
         tx.commit()?;
 
         for file_name in &file_names {
@@ -388,8 +389,9 @@ impl HistoryManager {
         Ok(file_names.len())
     }
 
-    /// "Clear history": every dictation and its recording. Meetings have
-    /// their own library and are not touched.
+    /// "Clear history": every dictation that is not starred, and its
+    /// recording. Starred dictations and meetings (their own library) are not
+    /// touched.
     pub async fn clear_history(&self) -> Result<usize> {
         let mut conn = self.get_connection()?;
         let cleared = Self::clear_with_conn(&mut conn, &self.recordings_dir)?;

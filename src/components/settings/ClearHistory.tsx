@@ -10,8 +10,9 @@ interface ClearHistoryProps {
   grouped?: boolean;
 }
 
-/** Deletes every dictation and its recording after a confirmation. Meetings
- * have their own library and are left alone, which the dialog says. */
+/** Deletes every dictation that is not starred, and its recording, after a
+ * confirmation. Starred dictations and meetings (their own library) are left
+ * alone, which the dialog says. */
 export const ClearHistory: React.FC<ClearHistoryProps> = ({
   grouped = false,
 }) => {
@@ -58,7 +59,11 @@ export const ClearHistory: React.FC<ClearHistoryProps> = ({
             <Button disabled={clearing} onClick={() => setOpen(false)}>
               {t("meetings.cancel")}
             </Button>
-            <Button disabled={clearing} onClick={() => void clear()}>
+            <Button
+              variant="destructive"
+              disabled={clearing}
+              onClick={() => void clear()}
+            >
               {t("settings.history.clear.confirm")}
             </Button>
           </>
