@@ -33,6 +33,9 @@ pub const SILENT_AFTER: Duration = Duration::from_secs(10);
 /// The loudest sample that still counts as silence (about -70 dBFS): a muted
 /// or disconnected input sends zeros, a live one has at least a noise floor.
 pub const SILENT_PEAK: f32 = 3e-4;
+/// How long a call's device that failed to open, or stopped delivering, is
+/// left alone before the track may move to it again.
+pub const AVOID: Duration = Duration::from_secs(60);
 /// How often the system is asked which devices the call apps use.
 pub const POLL: Duration = Duration::from_secs(1);
 
@@ -119,6 +122,9 @@ pub struct Router {
     route: Route,
     /// A device the call uses that differs from the open one, and since when.
     pending: Option<(String, Instant)>,
+    /// A call's device that failed, and when: the track stays on the settings
+    /// for `AVOID` instead of trying it again at once.
+    avoided: Option<(String, Instant)>,
 }
 
 impl Router {
@@ -130,6 +136,7 @@ impl Router {
     /// it; otherwise the call's device is taken at once.
     pub fn start(&mut self, calls: &[String], explicit: bool) -> &Route {
         self.pending = None;
+        self.avoided = None;
         self.route = match calls.first() {
             Some(device) if !explicit => Route::Call(device.clone()),
             _ => Route::Settings,
@@ -137,9 +144,18 @@ impl Router {
         &self.route
     }
 
-    /// The device the track should move to, if any, given `look`.
-    fn wanted<'a>(&self, look: &Look<'a>) -> Option<&'a String> {
-        let first = look.calls.first()?;
+    /// The call's device that failed, and the track went back to the settings
+    /// for: it is not tried again before `AVOID` has passed.
+    pub fn failed(&mut self, now: Instant) {
+        if let Route::Call(device) = std::mem::take(&mut self.route) {
+            self.avoided = Some((device, now));
+        }
+        self.pending = None;
+    }
+
+    /// The device the track should move to, if any, among `calls`.
+    fn wanted<'a>(&self, look: &Look, calls: &'a [&'a String]) -> Option<&'a String> {
+        let first = calls.first().copied()?;
         match &self.route {
             Route::Call(current) => (!look.calls.contains(current)).then_some(first),
             Route::Settings => {
@@ -154,7 +170,20 @@ impl Router {
 
     /// Looks once; returns the new route when the track must reopen on it.
     pub fn observe(&mut self, now: Instant, look: &Look) -> Option<Route> {
-        let Some(wanted) = self.wanted(look) else {
+        if self
+            .avoided
+            .as_ref()
+            .is_some_and(|(_, since)| now.saturating_duration_since(*since) >= AVOID)
+        {
+            self.avoided = None;
+        }
+        let avoided = self.avoided.as_ref().map(|(device, _)| device);
+        let calls: Vec<&String> = look
+            .calls
+            .iter()
+            .filter(|device| Some(*device) != avoided)
+            .collect();
+        let Some(wanted) = self.wanted(look, &calls) else {
             self.pending = None;
             return None;
         };
@@ -541,5 +570,52 @@ mod tests {
         ]);
         assert_eq!(app_of(1, &long), None);
         assert_eq!(app_of(7, &long).as_deref(), Some("zoom.exe"));
+    }
+
+    #[test]
+    fn a_call_device_that_fails_is_left_for_a_minute_and_the_settings_take_over() {
+        let mut router = Router::default();
+        let calls = names(&["AirPods"]);
+        let t = Instant::now();
+        assert_eq!(router.start(&calls, false), &Route::Call("AirPods".into()));
+        router.failed(t);
+        assert_eq!(router.route(), &Route::Settings);
+        // The call still lists it, and the track is not on it: no move.
+        let look = look(&calls, "Built-in", false, 0);
+        for second in 0..60 {
+            let at = t + Duration::from_secs(second);
+            assert_eq!(router.observe(at, &look), None);
+        }
+        // Later it is tried again, after the usual wait.
+        let later = t + AVOID;
+        assert_eq!(router.observe(later, &look), None);
+        assert_eq!(
+            router.observe(later + SETTLE, &look),
+            Some(Route::Call("AirPods".into()))
+        );
+    }
+
+    #[test]
+    fn another_device_is_still_followed_while_one_is_avoided() {
+        let mut router = Router::default();
+        let t = Instant::now();
+        router.start(&names(&["AirPods"]), false);
+        router.failed(t);
+        let calls = names(&["AirPods", "Headset"]);
+        let look = look(&calls, "Built-in", false, 0);
+        assert_eq!(router.observe(t, &look), None);
+        assert_eq!(
+            router.observe(t + SETTLE, &look),
+            Some(Route::Call("Headset".into()))
+        );
+    }
+
+    #[test]
+    fn a_failure_on_the_settings_route_avoids_nothing() {
+        let mut router = Router::default();
+        router.start(&[], false);
+        router.failed(Instant::now());
+        assert_eq!(router.route(), &Route::Settings);
+        assert!(router.avoided.is_none());
     }
 }

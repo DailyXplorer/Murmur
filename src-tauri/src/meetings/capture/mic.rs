@@ -130,7 +130,7 @@ fn supervise(
 ) {
     let mut ready = Some(ready);
     let mut router = Router::default();
-    router.start(&call_devices(), input.device.is_some());
+    router.start(&first_call_devices(), input.device.is_some());
     while !stop.load(Ordering::SeqCst) {
         let broken = Arc::new(AtomicBool::new(false));
         let mut rerouted = false;
@@ -150,6 +150,12 @@ fn supervise(
                     let silent_for = heard.silent_for(now).min(now - began);
                     if broken.load(Ordering::SeqCst) || silent_for > STALL {
                         log::warn!("Meeting microphone stopped delivering audio; reopening it");
+                        // A call's device that stalls gives way to the
+                        // settings instead of being reopened for good.
+                        if *router.route() != Route::Settings {
+                            router.failed(now);
+                            rerouted = true;
+                        }
                         break;
                     }
                     if now.duration_since(looked) < call_input::POLL {
@@ -171,6 +177,12 @@ fn supervise(
                 }
                 drop(opened);
             }
+            Err(error) if *router.route() != Route::Settings => {
+                // The call's device cannot be opened: the settings decide.
+                log::warn!("Cannot open the call app's microphone: {error}");
+                router.failed(Instant::now());
+                rerouted = true;
+            }
             Err(error) => {
                 if let Some(ready) = ready.take() {
                     let _ = ready.send(Err(error));
@@ -183,6 +195,19 @@ fn supervise(
             std::thread::sleep(REOPEN_DELAY);
         }
     }
+}
+
+/// The first look at the call apps' devices, before the microphone opens.
+/// The system is read on a thread of its own and given a second: a driver
+/// that hangs must not delay the start of the meeting.
+fn first_call_devices() -> Vec<String> {
+    let (send, receive) = mpsc::sync_channel(1);
+    std::thread::spawn(move || {
+        let _ = send.send(call_devices());
+    });
+    receive
+        .recv_timeout(Duration::from_secs(1))
+        .unwrap_or_default()
 }
 
 /// The input devices the call apps record from now; empty where the system

@@ -116,7 +116,7 @@ The "Me" track records the microphone the call app records from, not always the 
 - **Which app.** The session's process is mapped to a call app (`WINDOWS_EXECUTABLES` in `calls.rs`) by its executable, else by the nearest ancestor that is one (`app_of`): Teams records in a web view process, a browser in a utility process. Murmur's own sessions are skipped. Call apps rank before browsers, since a browser holds the microphone for any page.
 - **Device.** The endpoint's friendly name, which is the name cpal gives it. A name shared by two endpoints cannot be told apart and falls back to the Settings choice.
 - **Rule.** The microphone chosen in Settings (or the clamshell microphone) is respected unless it delivers digital silence for 10 s while a call app records from another endpoint; "Default" follows the call app once the same endpoint has been seen for 2 s, and follows it again if the app switches mid-call. A call app that stops recording leaves the track where it is. The Windows default device is never changed.
-- **Fallback.** Any failed read, a missing or ambiguous device, or no call app on the microphone keeps the previous behaviour: the Settings microphone, else the default.
+- **Fallback.** Any failed read, a missing or ambiguous device, a device that fails to open or stops delivering audio (not tried again for a minute), or no call app on the microphone keeps the previous behaviour: the Settings microphone, else the default.
 - **Not proven in CI.** The sessions of real Teams, Zoom, Discord and browser calls on real headsets (including the default communications device), and what an app does with its session while muted. [windows-meetings-owner-checks.md](windows-meetings-owner-checks.md) lists them.
 
 ## Speakers and word times
