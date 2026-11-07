@@ -885,6 +885,25 @@
       "active": "Aufnahme · {{time}}",
       "description": "Du kannst ein Meeting auch mit dem Kurzbefehl oder über die Menüleiste starten und beenden. Nach 3 Stunden endet es von selbst."
     },
+    "import": {
+      "title": "Audio importieren",
+      "button": "Audio importieren…",
+      "active": "{{name}} wird importiert · {{percent}} %",
+      "description": "Macht aus einer Audiodatei (WAV, MP3, M4A, AIFF, CAF oder FLAC, bis zu 3 Stunden) ein Meeting mit Transkript, Zusammenfassung und Suche. Die Datei wird auf diesem Computer gelesen und bleibt, wo sie ist.",
+      "filterAudio": "Audiodateien",
+      "filterAll": "Alle Dateien",
+      "errors": {
+        "disabled": "Meetings sind ausgeschaltet.",
+        "busy": "Es läuft bereits ein anderer Import.",
+        "unreadable": "Die Datei konnte nicht gelesen werden.",
+        "unsupported": "Diese Datei hat kein unterstütztes Audioformat.",
+        "empty": "Diese Datei enthält kein Audio.",
+        "too_long": "Dieses Audio ist länger als 3 Stunden.",
+        "corrupt": "Diese Datei ist beschädigt und konnte nicht gelesen werden.",
+        "low_disk": "Für den Import dieser Datei ist nicht genug Speicherplatz frei.",
+        "failed": "Die Datei konnte nicht importiert werden."
+      }
+    },
     "start": "Meeting starten",
     "stop": "Beenden",
     "discard": "Verwerfen",

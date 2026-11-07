@@ -459,3 +459,80 @@ test("the speaker models' licences open from About", async ({ page }) => {
   await expect(dialog).toContainText("pyannote, CC BY 4.0");
   await expect(dialog).toContainText("Murmur doesn't include them.");
 });
+
+test("Import audio asks for a file, shows its progress and can be cancelled", async ({
+  page,
+}) => {
+  await openMeetings(page);
+  const importButton = page.getByRole("button", { name: "Import audio…" });
+  await expect(importButton).toBeVisible();
+  await expect(importButton.locator("svg")).toHaveCount(0);
+
+  await importButton.click();
+  const progress = page.getByRole("progressbar", { name: "Import audio" });
+  await expect(progress).toHaveAttribute("aria-valuenow", "42");
+  await expect(
+    page.getByText("Importing Quarterly review.m4a · 42%"),
+  ).toBeVisible();
+  // One import at a time: the button is the cancel button meanwhile.
+  await expect(importButton).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Cancel" }).click();
+  await expect(progress).toHaveCount(0);
+  await expect(importButton).toBeEnabled();
+  expect(
+    (await calls(page)).filter((command) => command.includes("import")),
+  ).toEqual([
+    "get_meeting_import",
+    "import_meeting_audio",
+    "cancel_meeting_import",
+  ]);
+});
+
+test("a page opened during an import shows it", async ({ page }) => {
+  await openMeetings(page, "&import=running");
+  await expect(
+    page.getByRole("progressbar", { name: "Import audio" }),
+  ).toHaveAttribute("aria-valuenow", "42");
+  await expect(page.getByRole("button", { name: "Import audio…" })).toHaveCount(
+    0,
+  );
+});
+
+test("a refused import says why and leaves the button ready", async ({
+  page,
+}) => {
+  await openMeetings(page, "&import=fails=unsupported");
+  const importButton = page.getByRole("button", { name: "Import audio…" });
+  await importButton.click();
+  await expect(
+    page.getByText("That file isn't a supported audio format."),
+  ).toBeVisible();
+  await expect(importButton).toBeEnabled();
+  await expect(page.getByRole("progressbar")).toHaveCount(0);
+});
+
+test("a double click on Import audio asks for one file", async ({ page }) => {
+  await openMeetings(page);
+  await page.getByRole("button", { name: "Import audio…" }).dblclick();
+  await page.waitForTimeout(100);
+  expect(
+    (await calls(page)).filter((command) => command === "import_meeting_audio"),
+  ).toEqual(["import_meeting_audio"]);
+});
+
+test("a refused import because another one runs keeps that import on screen", async ({
+  page,
+}) => {
+  await openMeetings(page, "&import=busy");
+  await page.getByRole("button", { name: "Import audio…" }).click();
+  await expect(
+    page.getByText("Another import is already running."),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("progressbar", { name: "Import audio" }),
+  ).toHaveAttribute("aria-valuenow", "42");
+  await expect(page.getByRole("button", { name: "Import audio…" })).toHaveCount(
+    0,
+  );
+});

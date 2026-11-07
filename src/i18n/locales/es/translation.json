@@ -885,6 +885,25 @@
       "active": "Grabando · {{time}}",
       "description": "También puede iniciar y detener una reunión con su atajo o desde la barra de menús. Una reunión se detiene sola a las 3 horas."
     },
+    "import": {
+      "title": "Importar audio",
+      "button": "Importar audio…",
+      "active": "Importando {{name}} · {{percent}} %",
+      "description": "Convierte un archivo de audio (WAV, MP3, M4A, AIFF, CAF o FLAC, de hasta 3 horas) en una reunión con transcripción, resumen y búsqueda. El archivo se lee en este equipo y permanece donde está.",
+      "filterAudio": "Archivos de audio",
+      "filterAll": "Todos los archivos",
+      "errors": {
+        "disabled": "Las reuniones están desactivadas.",
+        "busy": "Ya hay otra importación en curso.",
+        "unreadable": "No se pudo leer ese archivo.",
+        "unsupported": "Ese archivo no tiene un formato de audio compatible.",
+        "empty": "Ese archivo no contiene audio.",
+        "too_long": "Ese audio dura más de 3 horas.",
+        "corrupt": "Ese archivo está dañado y no se pudo leer.",
+        "low_disk": "No hay suficiente espacio libre en el disco para importar este archivo.",
+        "failed": "No se pudo importar el archivo."
+      }
+    },
     "start": "Iniciar reunión",
     "stop": "Detener",
     "discard": "Descartar",

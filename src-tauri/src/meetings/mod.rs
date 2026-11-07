@@ -37,10 +37,12 @@ pub mod coordinator;
 pub mod diarize;
 pub mod export;
 pub mod helper;
+pub mod import_audio;
 pub mod live;
 pub mod merge;
 pub mod models;
 pub mod offline;
+pub mod open_panel;
 pub mod paths;
 #[cfg(target_os = "macos")]
 pub mod power;
@@ -74,6 +76,7 @@ pub mod wav_recovery;
 
 use std::collections::{HashSet, VecDeque};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime};
 
@@ -92,6 +95,7 @@ use capture::system::SystemAudioSupport;
 use capture::DeviceCapture;
 use coordinator::{Clock, Coordinator, MeetingAlert, MeetingRuntime, Notifier};
 use helper::AnalysisSupport;
+use import_audio::{ImportError, MeetingImport, MeetingImportChanged, Stopped};
 use models::Models;
 use offline::{CodexHost, OfflineHold, Reachability};
 use processor::{MeetingProgress, ProcessEvents, Processor};
@@ -804,6 +808,11 @@ impl Library {
         #[cfg(target_os = "windows")]
         let root = crate::data_dirs_windows::meetings_dir(app_data);
         std::fs::create_dir_all(&root)?;
+        // No import runs yet: what an earlier run left of one is abandoned.
+        match import_audio::sweep(&root) {
+            0 => {}
+            count => info!("Removed {count} abandoned audio import(s)"),
+        }
         let now = chrono::Utc::now();
         let database = app_data.join("meetings.db");
         let had_database = database.exists();
@@ -878,6 +887,24 @@ pub struct MeetingsManager {
     models: Arc<Models>,
     /// Meetings a crash cut off before this launch, left to process.
     recovered: Vec<i64>,
+    /// The audio file being imported, if any: one at a time.
+    import: Mutex<Option<ActiveImport>>,
+}
+
+/// An import under way: what the page shows, and how to stop it.
+struct ActiveImport {
+    cancel: Arc<AtomicBool>,
+    shown: MeetingImport,
+}
+
+/// Frees the import slot when the import ends, however it ends.
+struct ImportSlot<'a>(&'a MeetingsManager);
+
+impl Drop for ImportSlot<'_> {
+    fn drop(&mut self) {
+        *self.0.import_slot() = None;
+        self.0.announce_import(None);
+    }
 }
 
 impl MeetingsManager {
@@ -925,6 +952,7 @@ impl MeetingsManager {
             root,
             models,
             recovered,
+            import: Mutex::new(None),
         })
     }
 
@@ -939,6 +967,99 @@ impl MeetingsManager {
             .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
             .clone()
+    }
+
+    fn import_slot(&self) -> std::sync::MutexGuard<'_, Option<ActiveImport>> {
+        self.import
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
+
+    fn announce_import(&self, import: Option<MeetingImport>) {
+        if let Err(error) = MeetingImportChanged(import).emit(&self.app) {
+            error!("Failed to emit the audio import: {error}");
+        }
+    }
+
+    /// The audio import under way, for a page opened meanwhile.
+    pub fn current_import(&self) -> Option<MeetingImport> {
+        self.import_slot()
+            .as_ref()
+            .map(|active| active.shown.clone())
+    }
+
+    /// Stops the audio import under way, if any; it leaves nothing behind.
+    pub fn cancel_import(&self) {
+        if let Some(active) = self.import_slot().as_ref() {
+            active.cancel.store(true, Ordering::Relaxed);
+        }
+    }
+
+    /// Makes a meeting of the audio file `file` and queues it for
+    /// processing. Blocks until the file is decoded. `Ok(None)`: the user
+    /// cancelled.
+    pub fn import_audio(&self, file: &Path) -> Result<Option<i64>, ImportError> {
+        if !get_settings(&self.app).meetings_enabled {
+            return Err(ImportError::Disabled);
+        }
+        let cancel = Arc::new(AtomicBool::new(false));
+        let file_name = file
+            .file_name()
+            .map(|name| name.to_string_lossy().into_owned())
+            .unwrap_or_default();
+        let shown = MeetingImport {
+            file_name,
+            fraction: 0.0,
+        };
+        {
+            let mut slot = self.import_slot();
+            if slot.is_some() {
+                return Err(ImportError::Busy);
+            }
+            *slot = Some(ActiveImport {
+                cancel: Arc::clone(&cancel),
+                shown: shown.clone(),
+            });
+        }
+        let _slot = ImportSlot(self);
+        self.announce_import(Some(shown.clone()));
+        let source = import_audio::Source {
+            file,
+            free_bytes: capture::free_bytes(&self.root),
+            now_ms: chrono::Utc::now().timestamp_millis(),
+        };
+        let result = import_audio::import(
+            &self.store,
+            &self.root,
+            &source,
+            &cancel,
+            import_audio::throttled(|fraction| {
+                let shown = MeetingImport {
+                    fraction,
+                    ..shown.clone()
+                };
+                if let Some(active) = self.import_slot().as_mut() {
+                    active.shown = shown.clone();
+                }
+                self.announce_import(Some(shown));
+            }),
+        );
+        match result {
+            Ok(id) => {
+                info!("Meeting {id} imported from an audio file");
+                self.queue.enqueue(id);
+                self.updated(id);
+                Ok(Some(id))
+            }
+            Err(Stopped::Cancelled) => {
+                info!("Audio import cancelled");
+                Ok(None)
+            }
+            Err(Stopped::Failed(error)) => {
+                warn!("Audio import failed: {error}");
+                Err(error)
+            }
+        }
     }
 
     pub fn is_recording(&self) -> bool {
@@ -1626,6 +1747,25 @@ mod tests {
         // A folder no meeting points to, in a library that opened.
         std::fs::create_dir_all(first_launch.path().join("meetings").join("9")).unwrap();
         assert!(!Library::open(first_launch.path()).unwrap().reset);
+    }
+
+    /// An import a quit or a crash cut off left a staging folder; opening
+    /// the library at the next launch deletes it, and only it.
+    #[test]
+    fn opening_the_library_deletes_an_abandoned_import() {
+        let data = tempfile::tempdir().unwrap();
+        let meetings = data.path().join("meetings");
+        let abandoned = meetings.join("import-1-0");
+        std::fs::create_dir_all(&abandoned).unwrap();
+        std::fs::write(abandoned.join(import_audio::MARKER), b"").unwrap();
+        std::fs::write(abandoned.join("system.wav"), b"half a track").unwrap();
+        let someone_elses = meetings.join("import-mine");
+        std::fs::create_dir_all(&someone_elses).unwrap();
+
+        let library = Library::open(data.path()).unwrap();
+        assert!(!library.reset);
+        assert!(!abandoned.exists());
+        assert!(someone_elses.exists());
     }
 
     #[test]

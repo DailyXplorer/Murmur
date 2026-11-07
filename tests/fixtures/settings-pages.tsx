@@ -19,6 +19,7 @@ import type {
   LiveTranscript,
   LocalModelStatus,
   MeetingHit,
+  MeetingImport,
   MeetingListItem,
   MeetingLiveUpdated,
   MeetingProgress,
@@ -84,6 +85,17 @@ const setAsideBytes = Number(params.get("setAsideBytes") ?? 0);
 const meetingRecording = params.get("meeting") === "recording";
 const systemAudio = params.get("systemAudio") ?? "available";
 const meetingFailed = params.get("meetingFailed") === "1";
+/** `running`: an audio import is already under way when the page opens.
+ * `fails=<error>`: the import is refused with that error. Otherwise it runs
+ * at 42% until it is cancelled. */
+const importMode = params.get("import");
+const IMPORT_RUNNING = {
+  file_name: "Quarterly review.m4a",
+  fraction: 0.42,
+};
+let importResolve: ((id: number | null) => void) | null = null;
+/** `busy`: another window's import is running, so the call is refused. */
+let importBusyRefused = false;
 /** Why the failed meeting failed; `parts_failed` by default. */
 const meetingError = (params.get("meetingError") ??
   "parts_failed") as ProcessingError;
@@ -1089,6 +1101,32 @@ mockIPC(
       onEvent.onmessage({ data: { contentLength: 100 }, event: "Started" });
       onEvent.onmessage({ data: { chunkLength: 42 }, event: "Progress" });
       return new Promise(() => {});
+    }
+    if (command === "get_meeting_import") {
+      return importMode === "running" ||
+        (importMode === "busy" && importBusyRefused)
+        ? IMPORT_RUNNING
+        : null;
+    }
+    if (command === "import_meeting_audio") {
+      if (importMode === "busy") {
+        importBusyRefused = true;
+        return Promise.reject("busy");
+      }
+      if (importMode?.startsWith("fails=")) {
+        return Promise.reject(importMode.slice("fails=".length));
+      }
+      const shown: MeetingImport = { ...IMPORT_RUNNING, fraction: 0.42 };
+      void events.meetingImportChanged.emit(shown);
+      return new Promise((resolve) => {
+        importResolve = resolve;
+      });
+    }
+    if (command === "cancel_meeting_import") {
+      void events.meetingImportChanged.emit(null);
+      importResolve?.(null);
+      importResolve = null;
+      return null;
     }
     if (command === "plugin:updater|check" && updateWithdrawn) return null;
     if (command === "check_for_updates" && updateWithdrawn) {

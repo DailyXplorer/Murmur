@@ -3,6 +3,7 @@ use tauri::{AppHandle, Manager};
 use tauri_plugin_clipboard_manager::ClipboardExt;
 
 use crate::meetings::coordinator::MeetingRuntime;
+use crate::meetings::import_audio::{ImportError, MeetingImport};
 use crate::meetings::paths::MeetingsStorage;
 use crate::meetings::store::{MeetingDetail, MeetingHit, MeetingsPage};
 use crate::meetings::{self, MeetingCapabilities, MeetingMarkdownKind, MeetingsManager};
@@ -176,6 +177,63 @@ pub async fn export_meeting_markdown(
     })
     .await
     .map_err(|error| format!("Export task failed: {error}"))?
+}
+
+/// Asks which audio file to import, then makes a meeting of it. The labels
+/// name the file filters of the Windows dialog. Returns the meeting's id, or
+/// `None` when the user closes the dialog or cancels the import.
+#[tauri::command]
+#[specta::specta]
+pub async fn import_meeting_audio(
+    app: AppHandle,
+    audio_label: String,
+    all_label: String,
+) -> Result<Option<i64>, ImportError> {
+    let manager = app
+        .try_state::<Arc<MeetingsManager>>()
+        .map(|manager| Arc::clone(&manager))
+        .ok_or(ImportError::Failed)?;
+    // Before the dialog: a file chosen for nothing would be a waste.
+    if manager.current_import().is_some() {
+        return Err(ImportError::Busy);
+    }
+    let (sender, receiver) = tokio::sync::oneshot::channel();
+    app.run_on_main_thread(move || {
+        let _ = sender.send(meetings::open_panel::ask_audio_path(
+            &meetings::import_audio::decode::EXTENSIONS,
+            &audio_label,
+            &all_label,
+        ));
+    })
+    .map_err(|error| {
+        log::error!("Cannot show the open dialog: {error}");
+        ImportError::Failed
+    })?;
+    let Some(path) = receiver.await.map_err(|_| ImportError::Failed)? else {
+        return Ok(None);
+    };
+    tauri::async_runtime::spawn_blocking(move || manager.import_audio(&path))
+        .await
+        .map_err(|error| {
+            log::error!("Audio import task failed: {error}");
+            ImportError::Failed
+        })?
+}
+
+/// Stops the audio import under way.
+#[tauri::command]
+#[specta::specta]
+pub fn cancel_meeting_import(app: AppHandle) {
+    if let Some(manager) = app.try_state::<Arc<MeetingsManager>>() {
+        manager.cancel_import();
+    }
+}
+
+/// The audio import under way, for a page opened meanwhile.
+#[tauri::command]
+#[specta::specta]
+pub fn get_meeting_import(app: AppHandle) -> Option<MeetingImport> {
+    app.try_state::<Arc<MeetingsManager>>()?.current_import()
 }
 
 /// Asks Codex again for a summary that failed.

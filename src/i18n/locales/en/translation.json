@@ -885,6 +885,25 @@
       "active": "Recording · {{time}}",
       "description": "You can also start and stop a meeting with its shortcut or from the menu bar. A meeting stops on its own after 3 hours."
     },
+    "import": {
+      "title": "Import audio",
+      "button": "Import audio…",
+      "active": "Importing {{name}} · {{percent}}%",
+      "description": "Turns an audio file (WAV, MP3, M4A, AIFF, CAF or FLAC, up to 3 hours) into a meeting with a transcript, a summary and search. The file is read on this computer and stays where it is.",
+      "filterAudio": "Audio files",
+      "filterAll": "All files",
+      "errors": {
+        "disabled": "Meetings are turned off.",
+        "busy": "Another import is already running.",
+        "unreadable": "Couldn't read that file.",
+        "unsupported": "That file isn't a supported audio format.",
+        "empty": "That file has no audio in it.",
+        "too_long": "That audio is longer than 3 hours.",
+        "corrupt": "That file is damaged and couldn't be read.",
+        "low_disk": "There isn't enough free disk space to import this file.",
+        "failed": "Couldn't import the file."
+      }
+    },
     "start": "Start meeting",
     "stop": "Stop",
     "discard": "Discard",

@@ -277,6 +277,18 @@ warning 5 minutes before.
   If Windows cannot recycle it, for instance when the Recycle Bin is turned
   off for that drive, it asks before deleting for good, and the meeting stays
   when you say no. Audio you set to delete after some days is erased for good.
+- **Import audio…** (Meetings page, macOS and Windows) turns an audio file you
+  already have into a meeting: WAV, MP3, M4A (AAC or Apple Lossless), AIFF,
+  CAF or FLAC, up to 3 hours. The file is decoded on the computer a piece at a
+  time, so a long recording does not fill the memory, and a progress bar with
+  Cancel shows how far it is. The result is one track, treated like system
+  audio: speaker detection tells its voices apart where it is available, and
+  the meeting then gets a transcript, a title (the file's name until the summary
+  writes one), a summary, search, the MCP tools and the Markdown export like a
+  recorded one. The meeting is dated when you import it, not when the file was
+  made, so "delete audio after some days" counts from the import. Murmur keeps
+  its own 16 kHz copy and never changes the file. An import stopped by a quit
+  or a crash leaves nothing: the next launch deletes what it had decoded.
 - Murmur warns at the start of a meeting when less than 1.5 GB is free on
   the disk. Three hours take about 700 MB before compression.
 - On Apple silicon with macOS 14 or later, when a call app (Zoom, Teams,

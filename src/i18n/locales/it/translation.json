@@ -885,6 +885,25 @@
       "active": "Registrazione · {{time}}",
       "description": "Puoi anche avviare e interrompere una riunione con la scorciatoia o dalla barra dei menu. Una riunione si interrompe da sola dopo 3 ore."
     },
+    "import": {
+      "title": "Importa audio",
+      "button": "Importa audio…",
+      "active": "Importazione di {{name}} · {{percent}}%",
+      "description": "Trasforma un file audio (WAV, MP3, M4A, AIFF, CAF o FLAC, fino a 3 ore) in una riunione con trascrizione, riassunto e ricerca. Il file viene letto su questo computer e resta dov’è.",
+      "filterAudio": "File audio",
+      "filterAll": "Tutti i file",
+      "errors": {
+        "disabled": "Le riunioni sono disattivate.",
+        "busy": "È già in corso un’altra importazione.",
+        "unreadable": "Impossibile leggere il file.",
+        "unsupported": "Questo file non è in un formato audio supportato.",
+        "empty": "Questo file non contiene audio.",
+        "too_long": "Questo audio dura più di 3 ore.",
+        "corrupt": "Questo file è danneggiato e non è stato possibile leggerlo.",
+        "low_disk": "Non c’è abbastanza spazio libero su disco per importare questo file.",
+        "failed": "Impossibile importare il file."
+      }
+    },
     "start": "Avvia riunione",
     "stop": "Interrompi",
     "discard": "Elimina",
