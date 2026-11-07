@@ -333,6 +333,10 @@ fn symbols_corpus() {
                 "I underscore the importance of tests",
             ),
             ("i underscore index", "i_index"),
+            ("it underscore value", "it_value"),
+            ("will underscore power", "will_power"),
+            ("he forward slash she", "he/she"),
+            ("may forward slash june", "may/june"),
             ("docs forward slash guide", "docs/guide"),
             ("and forward slash or", "and/or"),
             ("24 forward slash 7", "24/7"),
@@ -453,6 +457,10 @@ fn quotes_corpus() {
             ),
             ("open quotes yes close quotes", "“yes”"),
             (
+                "He said open quote hello close quote, and left.",
+                "He said “hello”, and left.",
+            ),
+            (
                 "open quote hello close quote open quote there close quote",
                 "“hello” “there”",
             ),
@@ -489,6 +497,11 @@ fn quotes_corpus() {
             "The unquote word is rare.",
             "Use the open quote character.",
             "He asked to end quote",
+            "Open quote character is shown.",
+            "He said open quote hello there",
+            "Say quote hello there the unquote",
+            "Close quote key sits here.",
+            "Say open quote hello\nclose quote then go",
             "Open quote",
         ]),
     );
@@ -500,6 +513,7 @@ fn quotes_corpus() {
             "Il faut des guillemets ici.",
             "Fermez les guillemets pour finir.",
             "Ouvrez les guillemets",
+            "Il a dit ouvrez les guillemets bonjour",
         ]),
     );
 }

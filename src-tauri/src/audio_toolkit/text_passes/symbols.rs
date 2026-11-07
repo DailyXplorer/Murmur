@@ -20,6 +20,8 @@ struct Symbol {
     kind: Kind,
     /// Words that make the phrase something else: "do dièse" is a note.
     not_after: &'static [&'static str],
+    /// The name is also an English verb: "we underscore the risk".
+    verb: bool,
 }
 
 const fn symbol(phrase: &'static [&'static str], mark: &'static str, kind: Kind) -> Symbol {
@@ -28,6 +30,7 @@ const fn symbol(phrase: &'static [&'static str], mark: &'static str, kind: Kind)
         mark,
         kind,
         not_after: &[],
+        verb: false,
     }
 }
 
@@ -38,7 +41,10 @@ const EN: &[Symbol] = &[
     symbol(&["at", "sign"], "@", Kind::Affix),
     symbol(&["hashtag"], "#", Kind::Prefix),
     symbol(&["hash", "sign"], "#", Kind::Prefix),
-    symbol(&["underscore"], "_", Kind::Between),
+    Symbol {
+        verb: true,
+        ..symbol(&["underscore"], "_", Kind::Between)
+    },
     symbol(&["forward", "slash"], "/", Kind::Affix),
     symbol(&["back", "slash"], "\\", Kind::Affix),
     symbol(&["backslash"], "\\", Kind::Affix),
@@ -58,6 +64,7 @@ const FR: &[Symbol] = &[
         mark: "#",
         kind: Kind::Prefix,
         not_after: FR_NOTES,
+        verb: false,
     },
     symbol(&["tiret", "bas"], "_", Kind::Between),
     symbol(&["tiret", "du", "huit"], "_", Kind::Between),
@@ -74,7 +81,7 @@ const FR: &[Symbol] = &[
 
 /// Words that turn the symbol's name into a noun about the key itself: "the
 /// underscore key", "ce symbole".
-const EN_NAMED: &[&str] = &[
+pub(super) const EN_NAMED: &[&str] = &[
     "key",
     "keys",
     "character",
@@ -83,7 +90,7 @@ const EN_NAMED: &[&str] = &[
     "symbols",
     "button",
 ];
-const FR_NAMED: &[&str] = &[
+pub(super) const FR_NAMED: &[&str] = &[
     "touche",
     "touches",
     "caractère",
@@ -100,11 +107,16 @@ const FR_ARTICLES: &[&str] = &[
     "un", "une", "le", "la", "les", "du", "des", "ce", "cet", "cette", "ces",
 ];
 
-/// A word before that makes "underscore" a verb: "we underscore the risk",
-/// "to underscore". "I" counts only capitalised, since `i` is an identifier.
+/// A word before "underscore" that makes it a verb when an object follows:
+/// "we underscore the risk". Without the object it is an identifier part:
+/// "it underscore value" is `it_value`.
 const EN_VERB_CONTEXT: &[&str] = &[
     "to", "we", "you", "they", "he", "she", "it", "i", "will", "would", "can", "could", "should",
     "must", "may", "might", "shall", "not", "also", "just",
+];
+const EN_OBJECT_STARTS: &[&str] = &[
+    "the", "a", "an", "this", "that", "these", "those", "our", "their", "his", "her", "its", "my",
+    "your", "how", "what", "why", "all", "both", "each",
 ];
 
 /// Turns spoken symbols into the character, stuck to the neighbouring words
@@ -168,13 +180,19 @@ fn fires(words: &Words, index: usize, symbol: &Symbol, language: PassLanguage) -
             if symbol.kind == Kind::Between && !has_before {
                 return false;
             }
+            let verb_use = symbol.verb
+                && language == PassLanguage::En
+                && before
+                    .as_deref()
+                    .is_some_and(|word| EN_VERB_CONTEXT.contains(&word))
+                && words
+                    .key(next)
+                    .is_some_and(|word| EN_OBJECT_STARTS.contains(&word.as_str()));
             !(has_before
-                && before.as_deref().is_some_and(|word| {
-                    articles.contains(&word)
-                        || (language == PassLanguage::En
-                            && EN_VERB_CONTEXT.contains(&word)
-                            && !(word == "i" && words.items[index - 1].word == "i"))
-                }))
+                && (verb_use
+                    || before
+                        .as_deref()
+                        .is_some_and(|word| articles.contains(&word))))
         }
     }
 }
