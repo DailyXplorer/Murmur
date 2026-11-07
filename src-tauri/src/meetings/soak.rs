@@ -546,6 +546,7 @@ fn process(data: &Path, codex: Option<(String, PathBuf)>, models: Option<PathBuf
             summarizer: Arc::new(CannedSummary),
             policy: RetryPolicy::default(),
             language: Some("fr".to_string()),
+            vocabulary: Vec::new(),
             events: Arc::new(NoEvents),
             compress_audio: true,
         };
@@ -1744,6 +1745,7 @@ fn echoes_without_the_models() {
             summarizer: Arc::new(CannedSummary),
             policy: RetryPolicy::default(),
             language: Some("fr".to_string()),
+            vocabulary: Vec::new(),
             events: Arc::new(NoEvents),
             compress_audio: true,
         };

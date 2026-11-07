@@ -70,6 +70,7 @@ fn every_terminal_processing_error_announces_a_failure_once() {
         summarizer: FakeSummarizer::answering(vec![]),
         policy: RetryPolicy::default(),
         language: None,
+        vocabulary: Vec::new(),
         events: Arc::clone(&h.events) as Arc<dyn ProcessEvents>,
         compress_audio: false,
     };

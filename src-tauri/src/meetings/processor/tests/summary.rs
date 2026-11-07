@@ -40,6 +40,25 @@ fn a_transcribed_meeting_gets_its_summary_title_and_small_audio() {
 }
 
 #[test]
+fn the_summary_is_told_the_custom_words_of_settings() {
+    let h = Harness {
+        vocabulary: vec!["Murmur".into(), "Zoé".into()],
+        ..harness()
+    };
+    let id = spoken_meeting(&h);
+    let summarizer = FakeSummarizer::answering(vec![]);
+    h.process_all(
+        id,
+        codex(|_| Ok("Le budget est validé.".into())),
+        Arc::new(FakeAnalyzer::without_models()),
+        Arc::clone(&summarizer),
+    );
+    let instructions = summarizer.instructions.lock().unwrap().clone();
+    assert_eq!(instructions.len(), 1);
+    assert!(instructions[0].contains("Names and terms that may appear: Murmur, Zoé."));
+}
+
+#[test]
 fn a_meeting_is_written_in_the_chinese_script_the_user_chose() {
     let h = Harness {
         language: Some("zh-Hant"),

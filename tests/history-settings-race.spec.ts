@@ -155,6 +155,49 @@ test("drops entries deleted while the first page is in flight", async ({
   await expect(page.getByText("Added row", { exact: true })).toHaveCount(0);
 });
 
+test("empties the list when the history is cleared", async ({ page }) => {
+  await openRaceFixture(page);
+
+  await page.evaluate(
+    (entries) => window.historyRace.resolveFirstPage(entries),
+    [
+      historyEntry({ id: 1, transcription_text: "One" }),
+      historyEntry({ id: 2, transcription_text: "Two" }),
+    ],
+  );
+  await expect(page.getByText("Two", { exact: true })).toBeVisible();
+
+  await page.evaluate(() => window.historyRace.emit({ action: "cleared" }));
+
+  await expect(page.getByText("One", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("Two", { exact: true })).toHaveCount(0);
+  await expect(page.getByText(/No transcriptions yet/)).toBeVisible();
+});
+
+test("reads the history again when it is cleared during a page request", async ({
+  page,
+}) => {
+  await openRaceFixture(page);
+
+  await page.evaluate(() => window.historyRace.emit({ action: "cleared" }));
+  // The page request was answered from before the clear.
+  await page.evaluate(
+    (entries) => window.historyRace.resolveFirstPage(entries),
+    [historyEntry({ id: 1, transcription_text: "Before the clear" })],
+  );
+  await page.waitForFunction(
+    () => window.historyRace.historyRequestCount() === 2,
+  );
+  await page.evaluate(() =>
+    window.historyRace.resolveHistoryRequest(1, [], false),
+  );
+
+  await expect(page.getByText("Before the clear", { exact: true })).toHaveCount(
+    0,
+  );
+  await expect(page.getByText(/No transcriptions yet/)).toBeVisible();
+});
+
 test("handles an unlisten rejection during cleanup", async ({ page }) => {
   await page.goto(
     "/tests/fixtures/history-settings-race.html?mode=unlisten-reject",

@@ -44,6 +44,9 @@ pub enum HistoryUpdatePayload {
     Deleted { id: i64 },
     #[serde(rename = "toggled")]
     Toggled { id: i64 },
+    /// Every dictation was removed at once ("Clear history").
+    #[serde(rename = "cleared")]
+    Cleared,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, Type)]

@@ -134,7 +134,8 @@ and older have no updater, so install a newer build by hand once, as above.
   into breaks; spoken punctuation ("comma", "question mark", "virgule") too
   when AI cleanup did not run
 - Dictation styles for cleanup: Formal, Normal (the default) or Casual
-- A dictionary of custom words, spelled your way in each dictation
+- A dictionary of custom words, spelled your way in each dictation and in the
+  title and summary of each meeting (up to 30 of them are sent with the request)
 - A space added when you dictate right after a word, so the text does not stick
   to it. It never reads password fields or a selection, and adds nothing in an
   app that does not show where the cursor is. Settings → Transcription → Add
@@ -144,7 +145,9 @@ and older have no updater, so install a newer build by hand once, as above.
   and never stored; password fields and password managers are never read
 - Automatic level boost for quiet speech, and a Whisper mode for very quiet speech
 - Transcription history with saved recordings, keeping the raw and cleaned text; a failed
-  or unsatisfying transcription can be sent again from its recording
+  or unsatisfying transcription can be sent again from its recording, and
+  Settings → History → Clear all history… deletes every dictation and its
+  recording after a confirmation (meetings are not part of it)
 - Insights: total words, words per minute over the last 30 days, current and
   longest streak with a 20-week heatmap, and usage by app category
 - Meetings: record a call (Control+Option+Command+M or the menu bar), read

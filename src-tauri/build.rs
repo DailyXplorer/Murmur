@@ -97,6 +97,7 @@ const APP_COMMANDS: &[&str] = &[
     "toggle_history_entry_saved",
     "get_audio_file_path",
     "delete_history_entry",
+    "clear_history",
     "retry_history_entry_transcription",
     "update_history_limit",
     "update_recording_retention_period",

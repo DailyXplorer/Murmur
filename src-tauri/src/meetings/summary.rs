@@ -64,6 +64,47 @@ fn section_instructions() -> String {
     )
 }
 
+/// Most terms of the user's vocabulary a summary request names. The words
+/// are at most 50 characters each, so the line stays under 1.5 kB however
+/// long the dictionary grows.
+const MAX_VOCABULARY_TERMS: usize = 30;
+
+/// What the summary is told about the user besides the transcript.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct Hints<'a> {
+    /// The dictation language; Chinese is written in the script it chose.
+    pub language: Option<&'a str>,
+    /// The user's custom words, so a name the transcript spelled wrongly is
+    /// written as they spell it.
+    pub vocabulary: &'a [String],
+}
+
+/// "Names and terms that may appear: …", or `None` without a usable term.
+/// Terms are trimmed, deduplicated and cut at [`MAX_VOCABULARY_TERMS`], in
+/// the order the user keeps them.
+fn vocabulary_line(vocabulary: &[String]) -> Option<String> {
+    let mut seen = std::collections::HashSet::new();
+    let terms: Vec<String> = vocabulary
+        .iter()
+        .map(|term| term.split_whitespace().collect::<Vec<_>>().join(" "))
+        .filter(|term| !term.is_empty() && seen.insert(term.clone()))
+        .take(MAX_VOCABULARY_TERMS)
+        .collect();
+    (!terms.is_empty()).then(|| {
+        format!(
+            "Names and terms that may appear: {}. Spell them this way, in the title as well, when the transcript refers to them.",
+            terms.join(", ")
+        )
+    })
+}
+
+fn with_vocabulary(instructions: String, vocabulary: &[String]) -> String {
+    match vocabulary_line(vocabulary) {
+        Some(line) => format!("{instructions}\n\n{line}"),
+        None => instructions,
+    }
+}
+
 fn merge_instructions() -> String {
     format!(
         "You merge the notes of the consecutive parts of one long meeting into the notes of the whole meeting: one title, one context paragraph, sections that combine the same topic across parts, and the decisions and action items of all parts without repeats.\n\n{SHAPE}"
@@ -423,14 +464,14 @@ async fn ask(
 
 /// Summarises the transcript in one request, or section by section and then
 /// merged when it is longer than `max_chars`. Chinese is written in the
-/// script `language` chose, whichever one Codex replied in.
+/// script `hints.language` chose, whichever one Codex replied in.
 pub async fn summarize(
     summarizer: &dyn Summarizer,
     policy: &RetryPolicy,
     turns: &[MeetingTurn],
     speakers: &[MeetingSpeaker],
     max_chars: usize,
-    language: Option<&str>,
+    hints: Hints<'_>,
     operation: &ProcessingOperation,
 ) -> SummaryEnd {
     let lines = transcript_lines(turns, speakers);
@@ -439,13 +480,28 @@ pub async fn summarize(
     }
     let transcript = lines.join("\n");
     let result = if transcript.chars().count() <= max_chars {
-        ask(summarizer, policy, instructions(), transcript, operation).await
+        ask(
+            summarizer,
+            policy,
+            with_vocabulary(instructions(), hints.vocabulary),
+            transcript,
+            operation,
+        )
+        .await
     } else {
         let parts = sections(&lines, max_chars.min(SECTION_CHARS));
         let count = parts.len();
         let mut notes = Vec::with_capacity(count);
         for (index, part) in parts.into_iter().enumerate() {
-            match ask(summarizer, policy, section_instructions(), part, operation).await {
+            match ask(
+                summarizer,
+                policy,
+                with_vocabulary(section_instructions(), hints.vocabulary),
+                part,
+                operation,
+            )
+            .await
+            {
                 Ok(output) => notes.push(format!(
                     "Notes of part {} of {count}:\n\n{}",
                     index + 1,
@@ -457,13 +513,13 @@ pub async fn summarize(
         ask(
             summarizer,
             policy,
-            merge_instructions(),
+            with_vocabulary(merge_instructions(), hints.vocabulary),
             notes.join("\n\n"),
             operation,
         )
         .await
     };
-    match result.map(|output| parse(&in_chosen_script(language, &output), speakers)) {
+    match result.map(|output| parse(&in_chosen_script(hints.language, &output), speakers)) {
         Ok(Ok(summary)) => SummaryEnd::Written(summary),
         Ok(Err(error)) => SummaryEnd::Failed(error),
         Err(end) => end,
@@ -509,7 +565,7 @@ pub async fn write(
     summarizer: &dyn Summarizer,
     policy: &RetryPolicy,
     id: i64,
-    language: Option<&str>,
+    hints: Hints<'_>,
     operation: &ProcessingOperation,
 ) -> anyhow::Result<Summarized> {
     let Some(meeting) = store.get(id)? else {
@@ -525,7 +581,7 @@ pub async fn write(
         &meeting.turns,
         &meeting.speakers,
         MAX_SUMMARY_CHARS,
-        language,
+        hints,
         operation,
     )
     .await
@@ -754,7 +810,7 @@ mod tests {
             &turns,
             &speakers,
             max_chars,
-            None,
+            Hints::default(),
             &ProcessingOperation::new(OperationId(1)),
         ))
     }
@@ -850,7 +906,7 @@ mod tests {
                 &turns,
                 &speakers,
                 MAX_SUMMARY_CHARS,
-                None,
+                Hints::default(),
                 &operation,
             );
             let cancel = async {
@@ -860,6 +916,68 @@ mod tests {
             tokio::join!(summary, cancel).0
         });
         assert_eq!(end, SummaryEnd::Cancelled);
+    }
+
+    fn words(terms: &[&str]) -> Vec<String> {
+        terms.iter().map(|term| term.to_string()).collect()
+    }
+
+    #[test]
+    fn an_empty_vocabulary_adds_no_line() {
+        assert_eq!(vocabulary_line(&[]), None);
+        assert_eq!(vocabulary_line(&words(&["", "  "])), None);
+        assert_eq!(with_vocabulary(instructions(), &[]), instructions());
+    }
+
+    #[test]
+    fn the_vocabulary_line_lists_each_term_once_in_order() {
+        let line = vocabulary_line(&words(&["Murmur", " Zoé ", "Murmur", "Open  AI"])).unwrap();
+        assert!(line.starts_with("Names and terms that may appear: Murmur, Zoé, Open AI. "));
+    }
+
+    #[test]
+    fn the_vocabulary_line_stops_at_the_cap() {
+        let many: Vec<String> = (0..MAX_VOCABULARY_TERMS + 20)
+            .map(|n| format!("Term{n}"))
+            .collect();
+        let line = vocabulary_line(&many).unwrap();
+        assert_eq!(line.matches("Term").count(), MAX_VOCABULARY_TERMS);
+        assert!(line.contains(&format!("Term{}", MAX_VOCABULARY_TERMS - 1)));
+        assert!(!line.contains(&format!("Term{MAX_VOCABULARY_TERMS},")));
+        // Duplicates do not use up the cap.
+        let mut repeated = vec!["Same".to_string(); 40];
+        repeated.push("Last".into());
+        assert!(vocabulary_line(&repeated).unwrap().contains("Same, Last."));
+    }
+
+    #[test]
+    fn every_request_of_a_long_meeting_carries_the_vocabulary() {
+        let script = Script::new(vec![
+            Ok("# A\nPartie un.".into()),
+            Ok("# B\nPartie deux.".into()),
+            Ok("# C\nTout.".into()),
+        ]);
+        let (speakers, turns) = meeting();
+        let vocabulary = words(&["Murmur", "Zoé"]);
+        let end = tauri::async_runtime::block_on(summarize(
+            &script,
+            &no_retries(),
+            &turns,
+            &speakers,
+            100,
+            Hints {
+                language: None,
+                vocabulary: &vocabulary,
+            },
+            &ProcessingOperation::new(OperationId(1)),
+        ));
+        assert!(matches!(end, SummaryEnd::Written(_)));
+        let requests = script.requests.lock().unwrap();
+        assert_eq!(requests.len(), 3);
+        for (instructions, input) in requests.iter() {
+            assert!(instructions.ends_with("Names and terms that may appear: Murmur, Zoé. Spell them this way, in the title as well, when the transcript refers to them."));
+            assert!(!input.contains("Names and terms"));
+        }
     }
 
     #[test]
@@ -970,7 +1088,7 @@ mod tests {
             &[turn(PLACEHOLDER, 0, "")],
             &[],
             MAX_SUMMARY_CHARS,
-            None,
+            Hints::default(),
             &ProcessingOperation::new(OperationId(1)),
         ));
         assert_eq!(end, SummaryEnd::Failed(SummaryError::NothingToSummarize));

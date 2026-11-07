@@ -23,6 +23,7 @@ import { FailureLine } from "../../ui/FailureLine";
 import { IconButton, IconToolbar } from "../../ui/IconButton";
 import { SettingsGroup } from "../../ui/SettingsGroup";
 import { SettingsPage } from "../../ui/SettingsPage";
+import { ClearHistory } from "../ClearHistory";
 import { HistoryLimit } from "../HistoryLimit";
 import { RecordingRetentionPeriodSelector } from "../RecordingRetentionPeriod";
 
@@ -285,6 +286,16 @@ export const HistorySettings: React.FC = () => {
             prev.filter((existingEntry) => existingEntry.id !== payload.id),
           );
           updateHits((hits) => withoutEntry(hits, payload.id));
+        } else if (payload.action === "cleared") {
+          // Every row is gone, and so is whatever a request still in flight
+          // may bring from before the clear: it is read again once it ends.
+          historyEventRevisionRef.current += 1;
+          pendingHistoryEntriesByIdRef.current.clear();
+          if (activeHistoryRequestRevisionRef.current !== null) {
+            queuedFirstPageRefreshRef.current = true;
+          }
+          setEntries([]);
+          updateHits(() => []);
         }
         // "toggled" is handled by optimistic updates only, so we
         // intentionally ignore it here to avoid double-mutation.
@@ -471,6 +482,7 @@ export const HistorySettings: React.FC = () => {
       <SettingsGroup title={t("settings.history.preferences")}>
         <HistoryLimit grouped={true} />
         <RecordingRetentionPeriodSelector grouped={true} />
+        <ClearHistory grouped={true} />
       </SettingsGroup>
 
       <SettingsGroup

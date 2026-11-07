@@ -555,7 +555,8 @@ fn spawn_processing(
             }
             // Its view stops saying it waits for a hold or the connection.
             AppEvents(app.clone()).updated(id);
-            let language = get_settings(&app).selected_language;
+            let settings = get_settings(&app);
+            let (language, vocabulary) = (settings.selected_language, settings.custom_words);
             let local_tried = models.is_ready();
             let processor = Processor {
                 store: Arc::clone(&store),
@@ -578,6 +579,7 @@ fn spawn_processing(
                 }),
                 policy: RetryPolicy::default(),
                 language: Some(language),
+                vocabulary,
                 events: Arc::new(AppEvents(app.clone())),
                 compress_audio: true,
             };
