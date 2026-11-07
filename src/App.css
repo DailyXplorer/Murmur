@@ -40,6 +40,7 @@
   --color-mid-gray: var(--color-mid-gray);
   --color-warning: var(--color-warning);
   --color-error: var(--color-error);
+  --color-on-error: var(--color-on-error);
 }
 
 /* One size for every form control: fields, dropdown triggers, path fields and

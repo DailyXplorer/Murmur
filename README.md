@@ -154,7 +154,8 @@ and older have no updater, so install a newer build by hand once, as above.
 - Transcription history with saved recordings, keeping the raw and cleaned text; a failed
   or unsatisfying transcription can be sent again from its recording, and
   Settings → History → Clear all history… deletes every dictation and its
-  recording after a confirmation (meetings are not part of it)
+  recording after a confirmation, except starred ones (meetings are not part
+  of it)
 - Insights: total words, words per minute over the last 30 days, current and
   longest streak with a 20-week heatmap, and usage by app category
 - Meetings: record a call (Control+Option+Command+M or the menu bar), read

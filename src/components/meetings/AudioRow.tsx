@@ -78,7 +78,10 @@ export const AudioRow: React.FC<{
             <Button onClick={() => setPending(null)}>
               {t("meetings.cancel")}
             </Button>
-            <Button onClick={() => void confirm()}>
+            <Button
+              variant={pending === "delete" ? "destructive" : "default"}
+              onClick={() => void confirm()}
+            >
               {pending === "delete"
                 ? t("meetings.audio.deleteDialog.confirm")
                 : t("meetings.audio.retranscribe")}

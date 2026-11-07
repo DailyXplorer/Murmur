@@ -14,6 +14,9 @@
   --light-color-error: #dc2626;
   --dark-color-warning: #fbbf24;
   --dark-color-error: #f87171;
+  /* Text and icons on a solid error surface (destructive buttons). */
+  --light-color-on-error: #ffffff;
+  --dark-color-on-error: #0f0f0f;
 
   /* Pink is the original and fallback accent. `data-accent-color` overrides
      this brand palette without touching the neutral or semantic colors. */
@@ -57,6 +60,7 @@
   --color-accent-text: var(--light-color-accent-text);
   --color-warning: var(--light-color-warning);
   --color-error: var(--light-color-error);
+  --color-on-error: var(--light-color-on-error);
   --color-background-ui-hover-fallback: var(
     --light-color-background-ui-hover-fallback
   );
@@ -178,6 +182,7 @@
     --color-accent-text: var(--dark-color-accent-text);
     --color-warning: var(--dark-color-warning);
     --color-error: var(--dark-color-error);
+    --color-on-error: var(--dark-color-on-error);
     --color-background-ui-hover-fallback: var(
       --dark-color-background-ui-hover-fallback
     );
@@ -205,6 +210,7 @@
   --color-accent-text: var(--light-color-accent-text);
   --color-warning: var(--light-color-warning);
   --color-error: var(--light-color-error);
+  --color-on-error: var(--light-color-on-error);
   --color-background-ui-hover-fallback: var(
     --light-color-background-ui-hover-fallback
   );
@@ -221,6 +227,7 @@
   --color-accent-text: var(--dark-color-accent-text);
   --color-warning: var(--dark-color-warning);
   --color-error: var(--dark-color-error);
+  --color-on-error: var(--dark-color-on-error);
   --color-background-ui-hover-fallback: var(
     --dark-color-background-ui-hover-fallback
   );

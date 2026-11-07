@@ -421,13 +421,13 @@
       "preferences": "Preferências",
       "clear": {
         "title": "Limpar histórico",
-        "description": "Exclui todos os ditados da lista, inclusive os salvos, e as gravações deles. Não é possível desfazer. As reuniões não são afetadas.",
+        "description": "Exclui todos os ditados da lista, exceto os salvos, e as gravações deles. Não é possível desfazer. As reuniões não são afetadas.",
         "button": "Limpar todo o histórico…",
         "confirm": "Limpar histórico",
         "error": "Não foi possível limpar o histórico. Tente novamente.",
         "dialog": {
           "title": "Limpar todo o histórico?",
-          "description": "Todos os ditados e as gravações deles são excluídos, inclusive os salvos. Não é possível desfazer. As reuniões não são afetadas."
+          "description": "Todos os ditados e as gravações deles são excluídos, exceto os salvos. Não é possível desfazer. As reuniões não são afetadas."
         }
       },
       "noRecording": "A transcrição falhou e nenhuma gravação foi mantida.",

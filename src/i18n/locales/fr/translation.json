@@ -421,13 +421,13 @@
       "preferences": "Préférences",
       "clear": {
         "title": "Effacer l'historique",
-        "description": "Supprime toutes les dictées de la liste, y compris les favoris, ainsi que leurs enregistrements. Cette action est irréversible. Les réunions ne sont pas concernées.",
+        "description": "Supprime toutes les dictées de la liste, sauf les favoris, ainsi que leurs enregistrements. Cette action est irréversible. Les réunions ne sont pas concernées.",
         "button": "Effacer tout l'historique…",
         "confirm": "Effacer l'historique",
         "error": "Impossible d'effacer l'historique. Réessayez.",
         "dialog": {
           "title": "Effacer tout l'historique ?",
-          "description": "Toutes les dictées et leurs enregistrements sont supprimés, y compris les favoris. Cette action est irréversible. Les réunions ne sont pas concernées."
+          "description": "Toutes les dictées et leurs enregistrements sont supprimés, sauf les favoris. Cette action est irréversible. Les réunions ne sont pas concernées."
         }
       },
       "noRecording": "La transcription a échoué et aucun enregistrement n’a été conservé.",

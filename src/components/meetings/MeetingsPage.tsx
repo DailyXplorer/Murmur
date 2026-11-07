@@ -482,6 +482,7 @@ const MeetingsList: React.FC<MeetingsListProps> = ({
               {t("meetings.discardDialog.keep")}
             </Button>
             <Button
+              variant="destructive"
               onClick={(event) => {
                 if (discardId === null) return;
                 setDiscardId(null);
@@ -515,6 +516,7 @@ const MeetingsList: React.FC<MeetingsListProps> = ({
               {t("meetings.cancel")}
             </Button>
             <Button
+              variant="destructive"
               onClick={() => pendingDelete && void deleteMeeting(pendingDelete)}
             >
               {t("meetings.deleteDialog.confirm")}

@@ -421,13 +421,13 @@
       "preferences": "Einstellungen",
       "clear": {
         "title": "Verlauf löschen",
-        "description": "Löscht alle Diktate in der Liste, auch gespeicherte, samt ihren Aufnahmen. Das lässt sich nicht rückgängig machen. Meetings sind nicht betroffen.",
+        "description": "Löscht alle Diktate in der Liste außer den gespeicherten, samt ihren Aufnahmen. Das lässt sich nicht rückgängig machen. Meetings sind nicht betroffen.",
         "button": "Gesamten Verlauf löschen…",
         "confirm": "Verlauf löschen",
         "error": "Der Verlauf konnte nicht gelöscht werden. Bitte versuche es erneut.",
         "dialog": {
           "title": "Gesamten Verlauf löschen?",
-          "description": "Alle Diktate und ihre Aufnahmen werden gelöscht, auch gespeicherte. Das lässt sich nicht rückgängig machen. Meetings sind nicht betroffen."
+          "description": "Alle Diktate und ihre Aufnahmen werden gelöscht, außer den gespeicherten. Das lässt sich nicht rückgängig machen. Meetings sind nicht betroffen."
         }
       },
       "noRecording": "Transkription fehlgeschlagen, und es wurde keine Aufnahme behalten.",

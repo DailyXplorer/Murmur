@@ -81,8 +81,8 @@ pub async fn delete_history_entry(
         .map_err(|e| e.to_string())
 }
 
-/// Deletes every dictation in the history, starred ones included, and their
-/// recordings. Meetings are not part of it.
+/// Deletes every dictation in the history that is not starred, and their
+/// recordings. Starred dictations and meetings are kept.
 #[tauri::command]
 #[specta::specta]
 pub async fn clear_history(history_manager: State<'_, Arc<HistoryManager>>) -> Result<(), String> {

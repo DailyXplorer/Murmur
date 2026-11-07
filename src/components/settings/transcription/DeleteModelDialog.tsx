@@ -27,6 +27,7 @@ export const DeleteModelDialog: React.FC<{
             {t("meetings.cancel")}
           </Button>
           <Button
+            variant="destructive"
             onClick={(event) => {
               onOpenChange(false);
               onConfirm(event);
