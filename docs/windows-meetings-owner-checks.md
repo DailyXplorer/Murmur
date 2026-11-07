@@ -126,3 +126,4 @@ Run with `--debug`: the log lists the apps on the microphone, by file name or pa
 - [ ] A schedule only fires from the default branch. When the Windows work is synced to it, confirm the cron fires once.
 - [ ] Parity with the Mac: run `meetings helper` by hand (`workflow_dispatch`) for the `parity-dialogue` artifact, commit both files under `src-tauri/src/meetings/fixtures/`, remove the `#[ignore]` of `the_turns_match_the_mac_helper_on_the_same_dialogue` and add it to the `cpu-model` filter of `windows.yml` (count raised by one).
 - [ ] French needs a French voice. Check the `analysis` job's log for `no fr-FR voice`; on a PC with French voices run `two_french_voices_are_timed_and_told_apart` for real.
+<!-- ci measurement -->
