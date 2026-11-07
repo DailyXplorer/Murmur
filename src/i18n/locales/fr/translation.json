@@ -510,7 +510,7 @@
       },
       "recordingBuffer": {
         "title": "Tampon d'enregistrement supplémentaire",
-        "description": "Temps supplémentaire (en millisecondes) pour continuer l'enregistrement après avoir relâché la touche, pour capturer l'audio restant. 0 = pas de tampon supplémentaire."
+        "description": "Durée minimale (en millisecondes) pendant laquelle l'enregistrement continue après le relâchement de la touche. Murmur garde déjà une courte fin adaptative : 200 ms, jusqu'à 600 ms tant que vous parlez encore. 0 = fin adaptative seulement."
       },
       "whatsNewPreview": {
         "title": "Aperçu des nouveautés",

@@ -1,3 +1,6 @@
+use crate::audio_feedback;
+use crate::audio_toolkit::audio::ReleaseTailRequest;
+use crate::audio_toolkit::release_tail::{self, TailConfig};
 use crate::audio_toolkit::{list_input_devices, AudioRecorder, Capture};
 use crate::helpers::clamshell;
 use crate::settings::{get_settings, update_settings, AppSettings};
@@ -992,29 +995,13 @@ impl AudioRecordingManager {
                 self.set_state(&mut state, RecordingState::Stopping);
                 drop(state);
 
-                // Optionally keep recording for a bit longer to capture trailing audio.
-                let settings = get_settings(&self.app_handle);
-                let buffer_ms = settings.extra_recording_buffer_ms;
-                if buffer_ms > 0 {
-                    debug!(
-                        "Extra recording buffer: sleeping {}ms before stopping",
-                        buffer_ms
-                    );
-                    let started = Instant::now();
-                    let buffer = Duration::from_millis(buffer_ms);
-                    while started.elapsed() < buffer {
-                        if self.was_cancelled_since(cancel_generation) {
-                            debug!("Recording stop cancelled during extra buffer");
-                            break;
-                        }
-                        let remaining = buffer.saturating_sub(started.elapsed());
-                        std::thread::sleep(remaining.min(Duration::from_millis(25)));
-                    }
-                }
+                // Keep recording for a moment after the release so the last
+                // word is not cut; a cancel ends the wait at once.
+                let tail = self.release_tail_request(cancel_generation);
 
                 let Capture { samples, mic_lost } =
                     if let Some(rec) = self.recorder.lock().unwrap().as_ref() {
-                        match rec.stop() {
+                        match rec.stop_with_tail(Some(tail)) {
                             Ok(capture) => capture,
                             Err(e) => {
                                 error!("stop() failed: {e}");
@@ -1044,6 +1031,24 @@ impl AudioRecordingManager {
             _ => None,
         }
     }
+
+    /// The tail of a release: the debug buffer is its minimum, and the stop
+    /// sound, which the microphone hears, is not taken for speech.
+    fn release_tail_request(&self, cancel_generation: u64) -> ReleaseTailRequest {
+        let settings = get_settings(&self.app_handle);
+        let guard = release_tail::leak_guard_ms(audio_feedback::stop_sound_length(
+            &self.app_handle,
+            &settings,
+        ));
+        let config = TailConfig::new(settings.extra_recording_buffer_ms, guard);
+        debug!("Release tail: {config:?}");
+        let current = Arc::clone(&self.cancel_generation);
+        ReleaseTailRequest {
+            config,
+            abort: Arc::new(move || current.load(Ordering::Acquire) != cancel_generation),
+        }
+    }
+
     pub fn is_recording(&self) -> bool {
         // Lock-free: mirrors the `state` {Recording, Stopping} membership via
         // an atomic maintained by `set_state()`. Polled from the webview/main

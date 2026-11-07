@@ -7,6 +7,7 @@ use std::fs::File;
 use std::io::BufReader;
 use std::path::{Path, PathBuf};
 use std::thread;
+use std::time::Duration;
 use tauri::{AppHandle, Manager};
 
 pub enum SoundType {
@@ -51,6 +52,29 @@ fn feedback_sound_file(settings: &AppSettings, sound_type: SoundType) -> Option<
     settings
         .audio_feedback
         .then(|| get_sound_path(settings, sound_type))
+}
+
+/// How long the stop sound plays, `None` while feedback is off. A file that
+/// cannot be measured is taken to play for a second, which the release tail
+/// treats as a sound that never ends.
+pub fn stop_sound_length(app: &AppHandle, settings: &AppSettings) -> Option<Duration> {
+    let sound_file = feedback_sound_file(settings, SoundType::Stop)?;
+    let length = resolve_sound_path(app, settings, sound_file)
+        .and_then(|path| wav_length(&path))
+        .unwrap_or(UNKNOWN_SOUND_LENGTH);
+    Some(length)
+}
+
+const UNKNOWN_SOUND_LENGTH: Duration = Duration::from_secs(1);
+
+fn wav_length(path: &Path) -> Option<Duration> {
+    reader_length(&hound::WavReader::open(path).ok()?)
+}
+
+fn reader_length<R: std::io::Read>(reader: &hound::WavReader<R>) -> Option<Duration> {
+    let rate = reader.spec().sample_rate;
+    // `duration` counts the samples of one channel.
+    (rate > 0).then(|| Duration::from_secs_f64(f64::from(reader.duration()) / f64::from(rate)))
 }
 
 pub fn play_feedback_sound(app: &AppHandle, sound_type: SoundType) {
@@ -152,8 +176,11 @@ fn play_audio_file(
 
 #[cfg(test)]
 mod tests {
-    use super::{feedback_sound_file, get_sound_base_dir, get_sound_path, SoundType};
+    use super::{
+        feedback_sound_file, get_sound_base_dir, get_sound_path, reader_length, SoundType,
+    };
     use crate::settings::{get_default_settings, AppSettings, SoundTheme};
+    use std::time::Duration;
     use tauri::path::BaseDirectory;
 
     fn themed(theme: SoundTheme) -> AppSettings {
@@ -214,5 +241,26 @@ mod tests {
             feedback_sound_file(&settings, SoundType::Stop).as_deref(),
             Some("resources/marimba_stop.wav")
         );
+    }
+
+    #[test]
+    fn a_sound_is_measured_in_time_not_in_samples() {
+        let spec = hound::WavSpec {
+            channels: 2,
+            sample_rate: 44_100,
+            bits_per_sample: 16,
+            sample_format: hound::SampleFormat::Int,
+        };
+        let mut bytes = Vec::new();
+        {
+            let mut writer = hound::WavWriter::new(std::io::Cursor::new(&mut bytes), spec).unwrap();
+            // Half a second of stereo.
+            for _ in 0..22_050 * 2 {
+                writer.write_sample(0i16).unwrap();
+            }
+            writer.finalize().unwrap();
+        }
+        let reader = hound::WavReader::new(std::io::Cursor::new(bytes)).unwrap();
+        assert_eq!(reader_length(&reader), Some(Duration::from_millis(500)));
     }
 }

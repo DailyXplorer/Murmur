@@ -15,12 +15,22 @@ use cpal::{
 use crate::audio_toolkit::{
     audio::{AudioVisualiser, FrameResampler},
     constants,
+    gain::{frame_levels, FRAME},
+    release_tail::{self, ReleaseTail, Step, TailConfig},
 };
 
 enum Cmd {
     Start(Instant, mpsc::Sender<()>),
-    Stop(mpsc::Sender<Capture>),
+    Stop(mpsc::Sender<Capture>, Option<ReleaseTailRequest>),
     Shutdown,
+}
+
+/// A stop that keeps recording for a moment after it is asked (see
+/// `release_tail`). Only a user's release asks for one: a cancel does not.
+pub struct ReleaseTailRequest {
+    pub config: TailConfig,
+    /// True once the tail must end at once, as a cancel does.
+    pub abort: Arc<dyn Fn() -> bool + Send + Sync>,
 }
 
 /// What a stop hands back.
@@ -46,6 +56,9 @@ const STALL: Duration = Duration::from_secs(3);
 struct StreamHealth {
     /// Set by cpal when the stream can no longer capture.
     failed: AtomicBool,
+    /// Set when a finished clip held nothing but digital zeros: a warm stream
+    /// a call app took the device from can go on delivering only zeros.
+    delivered_only_zeros: AtomicBool,
     opened: Instant,
     /// How long after `opened` the input callback last ran, in milliseconds.
     last_callback_ms: AtomicU64,
@@ -55,6 +68,7 @@ impl StreamHealth {
     fn new(opened: Instant) -> Self {
         Self {
             failed: AtomicBool::new(false),
+            delivered_only_zeros: AtomicBool::new(false),
             opened,
             last_callback_ms: AtomicU64::new(0),
         }
@@ -354,16 +368,38 @@ impl AudioRecorder {
     /// A device cpal reported gone before its first chunk sent nothing the
     /// consumer could miss, so its report counts too.
     pub fn stop(&self) -> Result<Capture, Box<dyn std::error::Error>> {
+        self.stop_with_tail(None)
+    }
+
+    /// Like `stop`, but keeps recording for the release tail first.
+    pub fn stop_with_tail(
+        &self,
+        tail: Option<ReleaseTailRequest>,
+    ) -> Result<Capture, Box<dyn std::error::Error>> {
         let (resp_tx, resp_rx) = mpsc::channel();
         if let Some(tx) = &self.cmd_tx {
-            tx.send(Cmd::Stop(resp_tx))?;
+            tx.send(Cmd::Stop(resp_tx, tail))?;
         }
         let mut capture = resp_rx.recv()?;
         capture.mic_lost |= self
             .health
             .as_ref()
             .is_some_and(|health| health.failed.load(Ordering::Relaxed));
+        self.note_clip(&capture);
         Ok(capture)
+    }
+
+    /// A clip of exact zeros, from first sample to last, is not a quiet
+    /// room: no microphone's noise is that clean. It is what a stream that
+    /// outlived its device's owner delivers, so ask for a rebuild before the
+    /// next recording rather than discard every one until a restart.
+    fn note_clip(&self, capture: &Capture) {
+        if let Some(health) = &self.health {
+            if is_digital_silence(&capture.samples) {
+                log::warn!("The clip held only digital silence; the stream will be reopened");
+                health.delivered_only_zeros.store(true, Ordering::Relaxed);
+            }
+        }
     }
 
     /// True when the active capture stream must be rebuilt.
@@ -377,6 +413,7 @@ impl AudioRecorder {
             return false;
         };
         if health.failed.load(Ordering::Relaxed)
+            || health.delivered_only_zeros.load(Ordering::Relaxed)
             || self
                 .worker_handle
                 .as_ref()
@@ -556,6 +593,11 @@ impl AudioRecorder {
     }
 }
 
+/// A clip with samples that are all exactly 0.0.
+fn is_digital_silence(samples: &[f32]) -> bool {
+    !samples.is_empty() && samples.iter().all(|sample| *sample == 0.0)
+}
+
 pub fn is_microphone_access_denied(error_message: &str) -> bool {
     let normalized = error_message.to_lowercase();
     normalized.contains("access is denied") || normalized.contains("permission denied")
@@ -596,8 +638,10 @@ fn append_recording_frame(samples: &[f32], recording: bool, out_buf: &mut Vec<f3
 mod tests {
     use super::{
         append_recording_frame_with_limit, is_microphone_access_denied, is_no_input_device_error,
-        run_consumer, AudioChunk, AudioRecorder, Capture, Cmd, StreamHealth, STALL,
+        run_consumer, AudioChunk, AudioRecorder, Capture, Cmd, ReleaseTailRequest, StreamHealth,
+        STALL,
     };
+    use crate::audio_toolkit::release_tail::TailConfig;
     use std::{
         sync::{
             atomic::{AtomicBool, Ordering},
@@ -737,7 +781,7 @@ mod tests {
 
     fn stop(cmd_tx: &mpsc::Sender<Cmd>) -> mpsc::Receiver<Capture> {
         let (reply_tx, reply_rx) = mpsc::channel();
-        cmd_tx.send(Cmd::Stop(reply_tx)).expect("stop");
+        cmd_tx.send(Cmd::Stop(reply_tx, None)).expect("stop");
         reply_rx
     }
 
@@ -861,6 +905,177 @@ mod tests {
         assert_eq!(capture.samples.len(), 4_800);
         assert!(capture.mic_lost, "the stop says the microphone was lost");
         consumer.shut_down();
+    }
+
+    const CHUNK: usize = 320;
+
+    /// What cpal's callback does once the stop flag is up: end the stream.
+    /// Until then it delivers a 20 ms chunk at `level(index)`.
+    fn deliver_until_stopped(
+        sample_tx: mpsc::Sender<AudioChunk>,
+        stop_flag: Arc<AtomicBool>,
+        level: impl Fn(usize) -> f32 + Send + 'static,
+    ) -> thread::JoinHandle<()> {
+        thread::spawn(move || {
+            let mut index = 0;
+            while !stop_flag.load(Ordering::Relaxed) {
+                if sample_tx
+                    .send(AudioChunk::Samples(vec![level(index); CHUNK]))
+                    .is_err()
+                {
+                    return;
+                }
+                index += 1;
+                thread::sleep(Duration::from_millis(1));
+            }
+            let _ = sample_tx.send(AudioChunk::EndOfStream);
+        })
+    }
+
+    fn tail_request(abort: bool) -> ReleaseTailRequest {
+        ReleaseTailRequest {
+            config: TailConfig::new(0, 0),
+            abort: Arc::new(move || abort),
+        }
+    }
+
+    /// Records a 300 ms clip of speech, releases with a tail, and returns how
+    /// many 20 ms chunks `level` delivered into the clip after the release.
+    fn tail_chunks(
+        request: ReleaseTailRequest,
+        first_chunk: usize,
+        level: impl Fn(usize) -> f32 + Send + 'static,
+    ) -> usize {
+        let (sample_tx, cmd_tx, stop_flag, worker) = spawn_consumer();
+        let (ready_tx, ready_rx) = mpsc::channel();
+        cmd_tx
+            .send(Cmd::Start(Instant::now(), ready_tx))
+            .expect("start");
+        sample_tx
+            .send(AudioChunk::Samples(vec![0.1; first_chunk]))
+            .expect("chunk");
+        ready_rx.recv().expect("the chunk was captured");
+
+        let (reply_tx, reply_rx) = mpsc::channel();
+        cmd_tx
+            .send(Cmd::Stop(reply_tx, Some(request)))
+            .expect("stop");
+        // The consumer takes the stop within its 50 ms poll, then waits for
+        // the tail's audio.
+        thread::sleep(Duration::from_millis(120));
+        let feeder = deliver_until_stopped(sample_tx.clone(), stop_flag, level);
+        let capture = reply_rx.recv().expect("reply");
+        feeder.join().expect("join feeder");
+
+        cmd_tx.send(Cmd::Shutdown).expect("shutdown");
+        drop(sample_tx);
+        worker.join().expect("join consumer");
+        assert!(!capture.mic_lost);
+        (capture.samples.len() - first_chunk) / CHUNK
+    }
+
+    const SPEECH_SAMPLES: usize = 4_800;
+
+    #[test]
+    fn a_silent_user_is_recorded_for_the_base_tail_only() {
+        // 200 ms is 10 chunks; a chunk or two may be in flight at the end.
+        let chunks = tail_chunks(tail_request(false), SPEECH_SAMPLES, |_| 0.0);
+        assert!((10..=13).contains(&chunks), "{chunks} chunks");
+    }
+
+    #[test]
+    fn a_user_still_speaking_is_recorded_until_quiet() {
+        // 10 chunks of speech, then quiet: 200 ms of speech plus 160 ms.
+        let chunks = tail_chunks(tail_request(false), SPEECH_SAMPLES, |index| {
+            if index < 10 {
+                0.1
+            } else {
+                0.0
+            }
+        });
+        assert!((18..=21).contains(&chunks), "{chunks} chunks");
+    }
+
+    #[test]
+    fn a_user_who_never_stops_is_cut_at_the_cap() {
+        let chunks = tail_chunks(tail_request(false), SPEECH_SAMPLES, |_| 0.1);
+        assert!((30..=33).contains(&chunks), "{chunks} chunks");
+    }
+
+    #[test]
+    fn an_aborted_tail_ends_at_once() {
+        let chunks = tail_chunks(tail_request(true), SPEECH_SAMPLES, |_| 0.1);
+        assert!(chunks <= 3, "{chunks} chunks");
+    }
+
+    #[test]
+    fn a_tap_gets_no_tail() {
+        // 100 ms of audio is not a dictation.
+        let chunks = tail_chunks(tail_request(false), 1_600, |_| 0.1);
+        assert!(chunks <= 3, "{chunks} chunks");
+    }
+
+    /// An open recorder wired to a consumer, for what a stop does to it.
+    fn recorder_with_consumer() -> (
+        AudioRecorder,
+        mpsc::Sender<AudioChunk>,
+        Arc<AtomicBool>,
+        thread::JoinHandle<()>,
+    ) {
+        let (sample_tx, cmd_tx, stop_flag, worker) = spawn_consumer();
+        let mut recorder = AudioRecorder::new().expect("recorder");
+        recorder.cmd_tx = Some(cmd_tx);
+        recorder.health = Some(Arc::new(StreamHealth::new(Instant::now())));
+        (recorder, sample_tx, stop_flag, worker)
+    }
+
+    /// Records `level` for 100 ms through a real stop and returns whether the
+    /// stream then needs rebuilding.
+    fn needs_reopen_after_clip_of(level: f32) -> bool {
+        let (recorder, sample_tx, stop_flag, worker) = recorder_with_consumer();
+        let ready = recorder.start().expect("start");
+        sample_tx
+            .send(AudioChunk::Samples(vec![level; 1_600]))
+            .expect("chunk");
+        ready.recv().expect("the chunk was captured");
+        let feeder = deliver_until_stopped(sample_tx.clone(), stop_flag, move |_| level);
+        let capture = recorder.stop().expect("stop");
+        feeder.join().expect("join feeder");
+        assert!(!capture.samples.is_empty());
+
+        let needs_reopen = recorder.needs_reopen();
+        recorder
+            .cmd_tx
+            .as_ref()
+            .unwrap()
+            .send(Cmd::Shutdown)
+            .expect("shutdown");
+        drop(sample_tx);
+        worker.join().expect("join consumer");
+        needs_reopen
+    }
+
+    #[test]
+    fn a_clip_of_only_zeros_asks_for_the_stream_to_be_reopened() {
+        assert!(needs_reopen_after_clip_of(0.0));
+    }
+
+    #[test]
+    fn a_clip_with_any_signal_leaves_the_stream_alone() {
+        // One least significant bit of a 16-bit microphone is not zero.
+        assert!(!needs_reopen_after_clip_of(1.0 / 32_768.0));
+        assert!(!needs_reopen_after_clip_of(0.1));
+    }
+
+    #[test]
+    fn an_empty_clip_is_not_digital_silence() {
+        // A stop that captured nothing says nothing about the stream.
+        let recorder = AudioRecorder {
+            health: Some(Arc::new(StreamHealth::new(Instant::now()))),
+            ..AudioRecorder::new().expect("recorder")
+        };
+        recorder.note_clip(&Capture::default());
+        assert!(!recorder.needs_reopen());
     }
 
     #[cfg(target_os = "windows")]
@@ -1003,6 +1218,69 @@ fn next_command(_held: &mut Option<Cmd>, cmd_rx: &mpsc::Receiver<Cmd>) -> Option
     cmd_rx.try_recv().ok()
 }
 
+/// No chunk for this long during the tail means the device stopped
+/// delivering: the stop's own drain finds that out, so the tail gives up.
+const TAIL_STALL: Duration = Duration::from_millis(250);
+
+/// Keeps capturing after the release until `release_tail` says the user is
+/// done, the request is aborted, or the stream stalls. The clip so far sets
+/// the speech threshold; nothing is recorded as a tail for a tap.
+fn record_release_tail(
+    request: &ReleaseTailRequest,
+    sample_rx: &mpsc::Receiver<AudioChunk>,
+    frame_resampler: &mut FrameResampler,
+    processed_samples: &mut Vec<f32>,
+    capture_limit_logged: &mut bool,
+) {
+    let Some(threshold) = release_tail::threshold_for(processed_samples) else {
+        return;
+    };
+    let mut tail = ReleaseTail::new(request.config, threshold);
+    let started = Instant::now();
+    // The tail is measured in audio; this bounds it in time too.
+    let deadline = started + request.config.cap() + TAIL_STALL;
+    let mut last_chunk = started;
+    let start_len = processed_samples.len();
+    let mut judged = start_len;
+
+    'tail: while Instant::now() < deadline && !(request.abort)() {
+        match sample_rx.recv_timeout(Duration::from_millis(20)) {
+            Ok(AudioChunk::Samples(raw)) => {
+                last_chunk = Instant::now();
+                frame_resampler.push(&raw, &mut |frame: &[f32]| {
+                    if append_recording_frame(frame, true, processed_samples)
+                        && !*capture_limit_logged
+                    {
+                        log::warn!("Recording reached the 15-minute sample limit");
+                        *capture_limit_logged = true;
+                    }
+                });
+                while processed_samples.len() >= judged + FRAME {
+                    let level = frame_levels(&processed_samples[judged..judged + FRAME])[0];
+                    judged += FRAME;
+                    if tail.push_frame(level) == Step::Finish {
+                        break 'tail;
+                    }
+                }
+                if *capture_limit_logged {
+                    break;
+                }
+            }
+            Ok(AudioChunk::EndOfStream) | Err(mpsc::RecvTimeoutError::Disconnected) => break,
+            Err(mpsc::RecvTimeoutError::Timeout) => {
+                if last_chunk.elapsed() > TAIL_STALL {
+                    break;
+                }
+            }
+        }
+    }
+    log::debug!(
+        "Release tail recorded {:.0}ms",
+        (processed_samples.len() - start_len) as f64 * 1000.0
+            / f64::from(constants::TARGET_SAMPLE_RATE)
+    );
+}
+
 #[allow(clippy::too_many_arguments)]
 fn run_consumer(
     in_sample_rate: u32,
@@ -1097,13 +1375,12 @@ fn run_consumer(
                     visualizer.reset();
                     frame_resampler.reset();
                 }
-                Cmd::Stop(reply_tx) => {
+                Cmd::Stop(reply_tx, tail) => {
                     recording = false;
                     // If Stop was queued before the first chunk, dropping this
                     // sender prevents a stale ready UI event or start chime.
                     capture_ready_tx = None;
                     awaiting_first_captured_chunk = None;
-                    stop_flag.store(true, Ordering::Relaxed);
 
                     // The chunk in hand arrived before the stop; it belongs to
                     // the recording, so feed it ahead of the drain below.
@@ -1120,6 +1397,17 @@ fn run_consumer(
                             }
                         });
                     }
+
+                    if let Some(request) = tail.filter(|_| !capture_limit_logged) {
+                        record_release_tail(
+                            &request,
+                            &sample_rx,
+                            &mut frame_resampler,
+                            &mut processed_samples,
+                            &mut capture_limit_logged,
+                        );
+                    }
+                    stop_flag.store(true, Ordering::Relaxed);
 
                     // Drain all remaining audio until the producer confirms end-of-stream.
                     // The cpal callback sees the stop flag, sends EndOfStream, and goes

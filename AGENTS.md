@@ -54,7 +54,8 @@ Murmur is a macOS and Windows (beta) desktop speech-to-text application built wi
   - `transcription.rs` - Speech-to-text processing pipeline
   - `history/` - Transcription history storage: `schema.rs` (migrations, `init_database`), `startup.rs` (`open_or_reset_database`, `set_aside_recordings`), `recordings.rs` (recording paths), `retention.rs` (`cleanup_old_entries`), `entries.rs` (save, update, list, search), tests in `tests/`
 - `audio_toolkit/` - Low-level audio processing:
-  - `audio/` - Device enumeration, recording, resampling
+  - `audio/` - Device enumeration, recording, resampling. `recorder.rs` keeps the stream open and tells when it must be rebuilt (`needs_reopen`: a cpal error, no callback for 3 s, another default device, or a finished clip of exact zeros, which a warm stream a call app took the device from goes on delivering)
+  - `release_tail.rs` - How long a dictation records after the key is released: a pure state machine on 20 ms frame levels. Always 200 ms; on, up to 600 ms, while 100 ms of unbroken speech is heard, ending after 160 ms of quiet; energy during the stop sound plus 60 ms is ignored (`audio_feedback::stop_sound_length`); a recording under 250 ms or without signal gets none, a cancel (Escape) never reaches it, and `extra_recording_buffer_ms` (Debug) is a minimum. The capture runs it inside the recorder's stop (`ReleaseTailRequest`)
 - `commands/` - Tauri command handlers for frontend communication
 - `cli.rs` - CLI argument definitions (clap derive)
 - `shortcut/` - Global keyboard shortcut handling

@@ -510,7 +510,7 @@
       },
       "recordingBuffer": {
         "title": "Buffer de gravação extra",
-        "description": "Tempo extra (em milissegundos) para continuar gravando após soltar a tecla, para capturar áudio restante. 0 = sem buffer extra."
+        "description": "Tempo mínimo (em milissegundos) para continuar gravando após soltar a tecla. O Murmur já mantém uma cauda curta e adaptativa: 200 ms, até 600 ms enquanto você ainda fala. 0 = apenas a cauda adaptativa."
       },
       "whatsNewPreview": {
         "title": "Pré-visualizar novidades",
