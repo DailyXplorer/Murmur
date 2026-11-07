@@ -131,8 +131,12 @@ and older have no updater, so install a newer build by hand once, as above.
   dictations"
 - Instant fixes on English and French dictations, without AI: hesitations
   (um, uh, euh) removed, and "new line", "new paragraph" or "à la ligne" turned
-  into breaks; spoken punctuation ("comma", "question mark", "virgule") too
-  when AI cleanup did not run
+  into breaks; spoken symbols and quotes ("at sign", "hashtag", "underscore",
+  "forward slash", "open quote … close quote", "arobase", "tiret bas",
+  "ouvrez les guillemets … fermez les guillemets") written as `@`, `#`, `_`,
+  `/`, “…” or « … », stuck to the words around them (`my underscore name`
+  becomes `my_name`); spoken punctuation ("comma", "question mark", "virgule")
+  too when AI cleanup did not run
 - Dictation styles for cleanup: Formal, Normal (the default) or Casual
 - A dictionary of custom words, spelled your way in each dictation
 - A space added when you dictate right after a word, so the text does not stick
