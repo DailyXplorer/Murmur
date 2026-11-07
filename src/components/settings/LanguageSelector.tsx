@@ -17,8 +17,8 @@ import {
   FIELD_SURFACE_CLASSES,
 } from "../ui/controlClasses";
 import { useSettings } from "../../hooks/useSettings";
+import { useLanguageName } from "../../hooks/useLanguageName";
 import {
-  getLanguageLabel,
   recognitionLanguage,
   SELECTABLE_LANGUAGES,
   supportsLanguageCode,
@@ -52,7 +52,7 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({
   supportedLanguages,
   supportsLanguageDetection = true,
 }) => {
-  const { t, i18n } = useTranslation();
+  const { t } = useTranslation();
   const { getSetting, updateSetting, resetSetting, isUpdating } = useSettings();
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -89,24 +89,7 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({
     );
   }, [supportedLanguages, supportsLanguageDetection]);
 
-  // Each language in the app's language, with the English name as the
-  // fallback for a code the browser cannot name ("jw").
-  const displayNames = useMemo(
-    () => new Intl.DisplayNames([i18n.language], { type: "language" }),
-    [i18n.language],
-  );
-  const languageName = useCallback(
-    (code: string) => {
-      const englishName = getLanguageLabel(code);
-      if (code === "auto" || !englishName) {
-        return t("settings.general.language.auto");
-      }
-      const name = displayNames.of(code);
-      if (!name || name === code) return englishName;
-      return name.charAt(0).toLocaleUpperCase(i18n.language) + name.slice(1);
-    },
-    [displayNames, i18n.language, t],
-  );
+  const languageName = useLanguageName();
 
   const filteredLanguages = useMemo(() => {
     const query = searchQuery.toLowerCase();

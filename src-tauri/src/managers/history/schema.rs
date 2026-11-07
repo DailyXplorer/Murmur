@@ -72,6 +72,31 @@ pub(super) static MIGRATIONS: &[M] = &[
     ),
     // `ORDER BY timestamp DESC LIMIT 1` (last entry, paste last, search ties).
     M::up("CREATE INDEX IF NOT EXISTS idx_transcription_history_timestamp ON transcription_history(timestamp);"),
+    // Transcripts a re-transcription replaced, at most five per dictation (the
+    // cap is enforced in `versions.rs`). They are not in the search index,
+    // which follows `transcription_history` only. The trigger removes them with
+    // their dictation, whether or not foreign keys are enforced on the
+    // connection. `transcribed_at` is when the current text was produced; rows
+    // from before it read as the dictation's own time.
+    M::up(
+        "ALTER TABLE transcription_history ADD COLUMN transcribed_at INTEGER;
+        CREATE TABLE transcription_versions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            entry_id INTEGER NOT NULL,
+            produced_at INTEGER NOT NULL,
+            transcription_text TEXT NOT NULL,
+            raw_text TEXT,
+            cleanup TEXT,
+            engine TEXT NOT NULL,
+            fallback_reason TEXT
+        );
+        CREATE INDEX transcription_versions_entry
+            ON transcription_versions (entry_id, produced_at);
+        CREATE TRIGGER transcription_versions_delete
+        AFTER DELETE ON transcription_history BEGIN
+            DELETE FROM transcription_versions WHERE entry_id = old.id;
+        END;",
+    ),
 ];
 
 /// Converts the migration counter used by the former SQL plugin into SQLite's

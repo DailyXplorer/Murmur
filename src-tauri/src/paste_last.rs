@@ -121,6 +121,7 @@ mod tests {
             cleanup: None,
             engine: crate::engine::Engine::Cloud,
             fallback_reason: None,
+            version_count: 0,
         }
     }
 

@@ -16,6 +16,7 @@ const historyEntry = ({ id, transcription_text }: HistoryEntry) => ({
   cleanup: null,
   engine: "cloud" as const,
   fallback_reason: null,
+  version_count: 0,
 });
 
 const openRaceFixture = async (page: Page) => {
@@ -191,6 +192,7 @@ test("keeps starred rows when the history is cleared and reads the page again", 
           cleanup: null,
           engine: "cloud",
           fallback_reason: null,
+          version_count: 0,
         },
       ],
       false,

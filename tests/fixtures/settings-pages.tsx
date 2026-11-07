@@ -12,6 +12,7 @@ import type {
   Engine,
   HistoryEntry,
   HistoryHit,
+  HistoryVersion,
   InsightsSummary,
   MeetingDetail,
   LiveState,
@@ -386,6 +387,7 @@ const HISTORY: HistoryEntry[] = [
     timestamp: NOW,
     title: "Quarterly report",
     transcription_text: "The quarterly report is ready for review.",
+    version_count: 2,
   },
   {
     cleanup: null,
@@ -398,6 +400,7 @@ const HISTORY: HistoryEntry[] = [
     timestamp: NOW - HOUR,
     title: "Meeting notes",
     transcription_text: "Move the design review to Thursday afternoon.",
+    version_count: 0,
   },
   {
     cleanup: "failed",
@@ -410,6 +413,29 @@ const HISTORY: HistoryEntry[] = [
     timestamp: NOW - 26 * HOUR,
     title: "Reminder",
     transcription_text: "remember to water the plants",
+    version_count: 0,
+  },
+];
+
+/** The earlier transcripts of entry 3, newest first. */
+const VERSIONS: HistoryVersion[] = [
+  {
+    cleanup: null,
+    engine: "local",
+    fallback_reason: null,
+    id: 31,
+    produced_at: NOW - 2 * HOUR,
+    raw_text: null,
+    transcription_text: "The quarterly report is ready for a review.",
+  },
+  {
+    cleanup: "cleaned",
+    engine: "cloud",
+    fallback_reason: null,
+    id: 30,
+    produced_at: NOW - 3 * HOUR,
+    raw_text: "um the quarterly report ready for review",
+    transcription_text: "The quarterly report is ready for review.",
   },
 ];
 
@@ -903,6 +929,11 @@ const RESPONSES: Record<string, unknown> = {
   get_available_microphones: MICROPHONES,
   get_available_output_devices: OUTPUTS,
   get_default_settings: SETTINGS,
+  get_retranscribe_languages:
+    engine === "local"
+      ? ["en", "fr", "de", "es", "it", "pt", "nl", "pl", "sv"]
+      : null,
+  get_history_versions: VERSIONS,
   get_history_entries: {
     entries: historyFallback ? FALLBACK_HISTORY : HISTORY,
     has_more: false,
@@ -1074,6 +1105,22 @@ mockIPC(
     if (command === "get_history_entries" && historyFails) {
       historyFails = false;
       return Promise.reject("database disk image is malformed");
+    }
+    if (command === "retry_history_entry_transcription") {
+      const { id } = args as { id: number };
+      return HISTORY.find((entry) => entry.id === id);
+    }
+    if (command === "restore_history_version") {
+      const { id, versionId } = args as { id: number; versionId: number };
+      const version = VERSIONS.find((candidate) => candidate.id === versionId);
+      const entry = HISTORY.find((candidate) => candidate.id === id);
+      if (!entry || !version) return null;
+      // A restore swaps the two texts, as the backend does.
+      [entry.transcription_text, version.transcription_text] = [
+        version.transcription_text,
+        entry.transcription_text,
+      ];
+      return { ...entry };
     }
     if (command === "search_history") {
       const query = String((args as { query: string }).query);

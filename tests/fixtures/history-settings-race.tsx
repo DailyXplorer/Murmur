@@ -96,6 +96,7 @@ let databaseEntries: HistoryEntry[] = [
     cleanup: null,
     engine: "cloud",
     fallback_reason: null,
+    version_count: 0,
   },
 ];
 let deleteShouldFail = false;

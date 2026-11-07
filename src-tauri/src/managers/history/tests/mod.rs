@@ -2,6 +2,7 @@ mod entries;
 mod recordings;
 mod retention;
 mod startup;
+mod versions;
 
 use super::*;
 use rusqlite::{params, Connection};
@@ -36,6 +37,17 @@ fn setup_conn() -> Connection {
             raw_text TEXT,
             cleanup TEXT,
             engine TEXT NOT NULL DEFAULT 'cloud',
+            fallback_reason TEXT,
+            transcribed_at INTEGER
+        );
+        CREATE TABLE transcription_versions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            entry_id INTEGER NOT NULL,
+            produced_at INTEGER NOT NULL,
+            transcription_text TEXT NOT NULL,
+            raw_text TEXT,
+            cleanup TEXT,
+            engine TEXT NOT NULL,
             fallback_reason TEXT
         );",
     )

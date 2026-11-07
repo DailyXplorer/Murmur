@@ -26,6 +26,9 @@ import { SettingsPage } from "../../ui/SettingsPage";
 import { ClearHistory } from "../ClearHistory";
 import { HistoryLimit } from "../HistoryLimit";
 import { RecordingRetentionPeriodSelector } from "../RecordingRetentionPeriod";
+import { EngineLabel } from "./EngineLabel";
+import { HistoryVersions } from "./HistoryVersions";
+import { RetranscribeMenu } from "./RetranscribeMenu";
 
 const PAGE_SIZE = 30;
 
@@ -392,14 +395,29 @@ export const HistorySettings: React.FC = () => {
     }
   };
 
-  const retryHistoryEntry = async (id: number): Promise<HistoryEntry> => {
-    const result = await commands.retryHistoryEntryTranscription(id);
+  const retryHistoryEntry = async (
+    id: number,
+    language: string | null,
+  ): Promise<HistoryEntry> => {
+    const result = await commands.retryHistoryEntryTranscription(id, language);
     if (result.status !== "ok") {
       throw new Error(String(result.error));
     }
     setEntries((prev) => upsertHistoryEntry(prev, result.data, false));
     updateHits((hits) => withEntry(hits, result.data));
     return result.data;
+  };
+
+  const restoreHistoryVersion = async (
+    id: number,
+    versionId: number,
+  ): Promise<void> => {
+    const result = await commands.restoreHistoryVersion(id, versionId);
+    if (result.status !== "ok") {
+      throw new Error(String(result.error));
+    }
+    setEntries((prev) => upsertHistoryEntry(prev, result.data, false));
+    updateHits((hits) => withEntry(hits, result.data));
   };
 
   const openRecordingsFolder = async () => {
@@ -429,6 +447,7 @@ export const HistorySettings: React.FC = () => {
             getAudioUrl={getAudioUrl}
             deleteAudio={deleteAudioEntry}
             retryTranscription={retryHistoryEntry}
+            restoreVersion={restoreHistoryVersion}
           />
         ))}
       </div>
@@ -525,7 +544,12 @@ interface HistoryEntryProps {
   copyText: (text: string) => Promise<void>;
   getAudioUrl: (id: number) => Promise<string | null>;
   deleteAudio: (id: number) => Promise<void>;
-  retryTranscription: (id: number) => Promise<HistoryEntry>;
+  /** `language` is for this run only: "auto", a code, or null for the setting. */
+  retryTranscription: (
+    id: number,
+    language: string | null,
+  ) => Promise<HistoryEntry>;
+  restoreVersion: (id: number, versionId: number) => Promise<void>;
 }
 
 // Error strings returned by retry_history_entry_transcription.
@@ -541,10 +565,12 @@ const HistoryEntryComponent: React.FC<HistoryEntryProps> = ({
   getAudioUrl,
   deleteAudio,
   retryTranscription,
+  restoreVersion,
 }) => {
   const { t, i18n } = useTranslation();
   const [showCopied, setShowCopied] = useState(false);
   const [retrying, setRetrying] = useState(false);
+  const [restoring, setRestoring] = useState(false);
   const [showOriginal, setShowOriginal] = useState(false);
 
   const hasTranscription = entry.transcription_text.trim().length > 0;
@@ -580,10 +606,10 @@ const HistoryEntryComponent: React.FC<HistoryEntryProps> = ({
 
   // The target app may have changed since the dictation, so a retry offers
   // Copy instead of pasting.
-  const handleRetranscribe = async () => {
+  const handleRetranscribe = async (language: string | null = null) => {
     try {
       setRetrying(true);
-      const updated = await retryTranscription(entry.id);
+      const updated = await retryTranscription(entry.id, language);
       toast.success(t("settings.history.retrySuccess"), {
         action: {
           label: t("settings.history.copy"),
@@ -605,6 +631,19 @@ const HistoryEntryComponent: React.FC<HistoryEntryProps> = ({
     }
   };
 
+  const handleRestore = async (versionId: number) => {
+    try {
+      setRestoring(true);
+      await restoreVersion(entry.id, versionId);
+      toast.success(t("settings.history.restored"));
+    } catch (error) {
+      console.error("Failed to restore a version:", error);
+      toast.error(t("settings.history.restoreError"));
+    } finally {
+      setRestoring(false);
+    }
+  };
+
   const formattedDate = formatDateTime(String(entry.timestamp), i18n.language);
   const transcription = (
     <Highlighted text={entry.transcription_text} ranges={highlight ?? []} />
@@ -613,7 +652,14 @@ const HistoryEntryComponent: React.FC<HistoryEntryProps> = ({
   return (
     <div className="px-4 py-2 pb-5 flex flex-col gap-3">
       <div className="flex justify-between items-center">
-        <p className="text-sm font-medium">{formattedDate}</p>
+        <p className="min-w-0 truncate text-sm font-medium">
+          {formattedDate}
+          {hasTranscription && (
+            <span className="ms-2 text-xs font-normal text-text/50">
+              <EngineLabel engine={entry.engine} />
+            </span>
+          )}
+        </p>
         <IconToolbar>
           <IconButton
             onClick={handleCopyText}
@@ -643,7 +689,7 @@ const HistoryEntryComponent: React.FC<HistoryEntryProps> = ({
             />
           </IconButton>
           <IconButton
-            onClick={handleRetranscribe}
+            onClick={() => void handleRetranscribe()}
             disabled={retrying || !hasRecording}
             label={t("settings.history.retranscribe")}
           >
@@ -657,6 +703,10 @@ const HistoryEntryComponent: React.FC<HistoryEntryProps> = ({
               }
             />
           </IconButton>
+          <RetranscribeMenu
+            disabled={retrying || !hasRecording}
+            onPick={(language) => void handleRetranscribe(language)}
+          />
           <IconButton
             onClick={handleDeleteEntry}
             disabled={retrying}
@@ -733,11 +783,25 @@ const HistoryEntryComponent: React.FC<HistoryEntryProps> = ({
         </div>
       )}
       {!hasTranscription && hasRecording && !retrying && (
-        <div>
-          <Button onClick={handleRetranscribe}>
+        <div className="flex items-center gap-1">
+          <Button onClick={() => void handleRetranscribe()}>
             {t("settings.history.retry")}
           </Button>
+          <RetranscribeMenu
+            disabled={retrying}
+            onPick={(language) => void handleRetranscribe(language)}
+          />
         </div>
+      )}
+      {!retrying && (
+        <HistoryVersions
+          entryId={entry.id}
+          count={entry.version_count}
+          currentText={entry.transcription_text}
+          disabled={restoring}
+          copyText={copyText}
+          restore={(versionId) => handleRestore(versionId)}
+        />
       )}
 
       <AudioPlayer onLoadRequest={handleLoadAudio} className="w-full" />

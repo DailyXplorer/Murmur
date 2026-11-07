@@ -12,7 +12,10 @@ use crate::search::{fts_query, Snippet};
 
 /// The columns `map_history_entry` reads.
 const ENTRY_COLUMNS: &str =
-    "id, file_name, timestamp, saved, title, transcription_text, raw_text, cleanup, engine, fallback_reason";
+    "id, file_name, timestamp, saved, title, transcription_text, raw_text, \
+     cleanup, engine, fallback_reason, \
+     (SELECT COUNT(*) FROM transcription_versions \
+       WHERE entry_id = transcription_history.id) AS version_count";
 
 /// The raw transcript is kept only when cleanup changed the delivered text;
 /// a failed cleanup delivered the raw text itself.
@@ -68,7 +71,7 @@ impl HistoryManager {
         Ok(entries)
     }
 
-    fn query_entry(
+    pub(super) fn query_entry(
         conn: &Connection,
         clause: &str,
         params: impl rusqlite::Params,
@@ -96,6 +99,7 @@ impl HistoryManager {
                 .get::<_, Option<String>>("fallback_reason")?
                 .as_deref()
                 .and_then(FallbackReason::parse),
+            version_count: row.get("version_count")?,
         })
     }
 
@@ -126,6 +130,7 @@ impl HistoryManager {
             cleanup,
             engine: source.engine,
             fallback_reason: source.fallback,
+            version_count: 0,
         };
 
         debug!("Saved history entry with id {}", entry.id);
@@ -151,39 +156,31 @@ impl HistoryManager {
         Ok(entry)
     }
 
-    /// Update an existing history entry with new transcription results (used by retry).
+    /// Replaces the transcript of an existing entry (used by retry). The text
+    /// it replaces stays as a version the user can restore.
     pub fn update_transcription(
         &self,
         id: i64,
         text: ProcessedText,
         source: EngineUsed,
     ) -> Result<HistoryEntry> {
-        let (raw_text, cleanup) = cleanup_columns(&text);
-        let conn = self.get_connection()?;
-        let updated = conn.execute(
-            "UPDATE transcription_history
-                SET transcription_text = ?1, raw_text = ?2, cleanup = ?3,
-                    engine = ?4, fallback_reason = ?5
-              WHERE id = ?6",
-            params![
-                text.text,
-                raw_text,
-                cleanup.map(CleanupOutcome::as_str),
-                source.engine.as_str(),
-                source.fallback.map(FallbackReason::as_str),
-                id
-            ],
+        let mut conn = self.get_connection()?;
+        Self::replace_transcription_with_conn(
+            &mut conn,
+            id,
+            &text,
+            source,
+            Utc::now().timestamp(),
         )?;
-
-        if updated == 0 {
-            return Err(anyhow!("History entry {} not found", id));
-        }
-
         let entry = Self::query_entry(&conn, "WHERE id = ?1", params![id])?
             .ok_or_else(|| anyhow!("History entry {} not found", id))?;
 
         debug!("Updated transcription for history entry {}", id);
+        self.emit_updated(&entry);
+        Ok(entry)
+    }
 
+    pub(super) fn emit_updated(&self, entry: &HistoryEntry) {
         if let Err(e) = (HistoryUpdatePayload::Updated {
             entry: entry.clone(),
         })
@@ -191,8 +188,6 @@ impl HistoryManager {
         {
             error!("Failed to emit history-updated event: {}", e);
         }
-
-        Ok(entry)
     }
 
     pub async fn get_history_entries(

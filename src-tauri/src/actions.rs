@@ -229,7 +229,22 @@ pub(crate) async fn process_transcription_output(
     window: WindowContext,
     operation: &ProcessingOperation,
 ) -> ProcessedText {
-    let settings = get_settings(app);
+    process_transcription_output_in(app, transcription, pass_language, window, operation, None)
+        .await
+}
+
+/// Like `process_transcription_output`, with `language` standing in for the
+/// language setting when it is given: a re-transcription in a one-off language
+/// converts the Chinese variant and hints the cleanup in that language.
+pub(crate) async fn process_transcription_output_in(
+    app: &AppHandle,
+    transcription: &str,
+    pass_language: Option<PassLanguage>,
+    window: WindowContext,
+    operation: &ProcessingOperation,
+    language: Option<&str>,
+) -> ProcessedText {
+    let settings = crate::managers::transcription::with_language(get_settings(app), language);
     let final_text =
         crate::chinese_script::in_chosen_script(Some(&settings.selected_language), transcription);
 
