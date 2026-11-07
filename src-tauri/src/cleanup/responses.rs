@@ -110,9 +110,9 @@ pub async fn complete(
     let mut response = tokio::select! {
         _ = operation.cancelled() => return Err(CompletionError::Cancelled),
         response = builder.send() => response.map_err(|error| {
-            if error.is_connect() {
-                crate::http::forget(request.connect_timeout);
-            }
+            // Any transport failure may mean a dead pooled connection or a
+            // changed network or proxy: the next request starts fresh.
+            crate::http::forget(request.connect_timeout);
             CompletionError::failed(
                 FailureKind::from_transport(&error),
                 format!("cleanup request failed: {error}"),

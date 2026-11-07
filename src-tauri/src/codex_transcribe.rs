@@ -355,9 +355,9 @@ async fn transcribe_with_session_at(
     let response = tokio::select! {
         _ = operation.cancelled() => return Err(RequestError::Cancelled),
         response = request.send() => response.map_err(|error| {
-            if error.is_connect() {
-                crate::http::forget(CONNECT_TIMEOUT);
-            }
+            // Any transport failure may mean a dead pooled connection or a
+            // changed network or proxy: the next request starts fresh.
+            crate::http::forget(CONNECT_TIMEOUT);
             failed(
                 FailureKind::from_transport(&error),
                 format!("Codex transcription request failed: {error}"),

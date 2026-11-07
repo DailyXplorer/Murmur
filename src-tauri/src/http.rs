@@ -32,8 +32,7 @@ fn build(connect_timeout: Duration) -> reqwest::Result<reqwest::Client> {
 
 /// The shared client for requests that must connect within `connect_timeout`.
 /// Proxy settings are read when it is built, as for any `reqwest` client; a
-/// failed connection discards it (`forget`) so the next request reads them
-/// again.
+/// failed request discards it (`forget`) so the next request reads them again.
 pub fn client(connect_timeout: Duration) -> reqwest::Result<reqwest::Client> {
     let mut clients = clients();
     if let Some((_, client)) = clients
@@ -47,8 +46,9 @@ pub fn client(connect_timeout: Duration) -> reqwest::Result<reqwest::Client> {
     Ok(client)
 }
 
-/// Drops the shared client after a connection failure: its pooled connections
-/// may be dead and the network or proxy settings may have changed.
+/// Drops the shared client after a transport failure (connect, reset,
+/// timeout): its pooled connections may be dead after a sleep or a network
+/// change, and the proxy settings may have changed.
 pub fn forget(connect_timeout: Duration) {
     clients().retain(|(timeout, _)| *timeout != connect_timeout);
 }

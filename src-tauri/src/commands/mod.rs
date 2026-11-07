@@ -130,12 +130,7 @@ pub fn get_log_dir_path(app: AppHandle) -> Result<String, String> {
 #[specta::specta]
 #[tauri::command]
 pub fn set_log_level(app: AppHandle, level: LogLevel) -> Result<(), String> {
-    let tauri_log_level: tauri_plugin_log::LogLevel = level.into();
-    let log_level: log::Level = tauri_log_level.into();
-    crate::FILE_LOG_LEVEL.store(
-        log_level.to_level_filter() as u8,
-        std::sync::atomic::Ordering::Relaxed,
-    );
+    crate::sync_file_log_level(crate::settings::get_settings(&app).debug_mode, level);
 
     update_settings(&app, |settings| {
         settings.log_level = level;

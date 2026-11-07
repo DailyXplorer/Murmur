@@ -402,9 +402,11 @@ impl ShortcutAction for TranscribeAction {
                 recently_cancelled::wipe(app);
                 crate::window_names::capture(context_reads(&settings));
                 let tm = Arc::clone(&app.state::<Arc<TranscriptionManager>>());
+                // The connection warm-up first: it is quick, and the local
+                // warm-up can block on a model load.
                 std::thread::spawn(move || {
-                    tm.warm_if_local();
                     tm.warm_cloud_connections();
+                    tm.warm_if_local();
                 });
                 let generation = readiness.generation();
                 let app_clone = app.clone();
