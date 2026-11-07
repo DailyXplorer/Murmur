@@ -357,9 +357,10 @@ pub struct AppSettings {
     /// More input gain for quiet speech, and a hint that speech was faint.
     #[serde(default)]
     pub whisper_mode: bool,
-    /// The least time a dictation keeps recording after the key is released
-    /// (Debug panel). 0 leaves the adaptive tail of `audio_toolkit::release_tail`
-    /// alone: 200 ms, up to 600 ms while the user is still speaking.
+    // The least time a dictation keeps recording after the key is released
+    // (Debug panel). 0 leaves the adaptive tail of `audio_toolkit::release_tail`
+    // alone: 200 ms, up to 600 ms while the user is still speaking. (Not a doc
+    // comment: those are copied into src/bindings.ts.)
     #[serde(default)]
     pub extra_recording_buffer_ms: u64,
     #[serde(default = "default_overlay_style")]
