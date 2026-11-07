@@ -50,6 +50,10 @@ jobs:
       - uses: swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
         with:
           workspaces: "./src-tauri -> target"
+          # The release-profile cache windows.yml's installer job saves on
+          # main. A dry run only reads it.
+          shared-key: windows-release
+          save-if: false
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
