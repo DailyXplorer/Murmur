@@ -268,6 +268,26 @@ with `minisign.mjs`; its tests are `bun run test:windows-updater`.
 installed by hand once. The installer has no Authenticode certificate, so
 SmartScreen still asks on an install by hand.
 
+## Continuous integration
+
+Workflows live in `.github/workflows`.
+
+### Rust caches
+
+`swatinem/rust-cache` restores a cache on every run but **only a push to
+`main` saves one** (`save-if: ${{ github.ref == 'refs/heads/main' }}`, as in
+`build.yml`). A pull request reads the cache `main` saved and writes nothing.
+Before this, every pull request uploaded its own 1 to 1.4 GB copy of each
+cache: the repository sat above the 10 GB limit, GitHub evicted the caches of
+`main` first, and about one run in five started cold (9 to 12 minutes slower).
+Cargo's incremental cache is not worth uploading from a branch that is gone
+after the merge.
+
+`cache-on-failure: true` keeps a cache from a main run whose tests failed, so a
+flaky test does not discard a compile of 10 minutes or more. A workflow that
+has no run on `main` has no cache to read: `local engine` therefore also runs
+on a push to `main` that changes its own paths.
+
 ## Troubleshooting
 
 ### macOS Accessibility remains enabled after a local rebuild

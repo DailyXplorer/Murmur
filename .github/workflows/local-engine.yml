@@ -6,6 +6,14 @@ name: "local engine"
 # by the meetings helper nightly.
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "src-tauri/src/engine/local/**"
+      - "src-tauri/src/local_models/pinned.rs"
+      - "src-tauri/Cargo.toml"
+      - "src-tauri/Cargo.lock"
+      - ".github/workflows/local-engine.yml"
   pull_request:
     paths:
       - "src-tauri/src/engine/local/**"
@@ -39,6 +47,8 @@ jobs:
         with:
           workspaces: "./src-tauri -> target"
           key: x86_64-cpu-engine
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+          cache-on-failure: true
 
       - name: Cache the model
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
