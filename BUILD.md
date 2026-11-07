@@ -325,6 +325,21 @@ into the `playwright-report` artifact. `windows.yml` no longer runs the suite
 a second time. Locally, `bun run test:playwright` still uses the default
 number of workers.
 
+### macOS test job and the main build
+
+In `test.yml` the icon check and the icon generator's test run after
+`cargo nextest run`, not before: `cargo test` builds the examples too, so they
+reuse that build instead of compiling the crate a second time (a 200 s step).
+The meetings helper's SwiftPM `.build` directory is cached with the Rust
+cache (`cache-directories`, as in `build.yml`), so only `main` saves it.
+
+`main-build.yml` (Main Branch Build) is no longer started by a push to `main`:
+it runs nightly (03:47 UTC) and by hand, and still makes the unsigned
+release-profile Mac build and its 30-day artifacts. `build.yml` saves its Rust
+cache only on a push to `main`, so these runs read the cache but no longer
+refresh it; changing that means editing `build.yml`, which the release contract
+pins.
+
 ## Troubleshooting
 
 ### macOS Accessibility remains enabled after a local rebuild
