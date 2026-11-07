@@ -310,6 +310,242 @@ fn punctuation_corpus() {
 }
 
 #[test]
+fn symbols_corpus() {
+    let en = |text: &str| before_cleanup(text, PassLanguage::En);
+    let fr = |text: &str| before_cleanup(text, PassLanguage::Fr);
+    check(
+        en,
+        &[
+            ("john at sign example", "john@example"),
+            (
+                "write to john at sign example now",
+                "write to john@example now",
+            ),
+            ("at sign alice", "@alice"),
+            ("Thanks, at sign alice for this", "Thanks, @alice for this"),
+            ("use hashtag release today", "use #release today"),
+            ("Hashtag launch", "#launch"),
+            ("tag it hash sign 42", "tag it #42"),
+            ("my underscore variable", "my_variable"),
+            ("max underscore retry underscore count", "max_retry_count"),
+            (
+                "I underscore the importance of tests",
+                "I underscore the importance of tests",
+            ),
+            ("i underscore index", "i_index"),
+            ("it underscore value", "it_value"),
+            ("we underscore several risks", "we underscore several risks"),
+            ("to underscore key lessons", "to underscore key lessons"),
+            ("i underscore the point", "i underscore the point"),
+            ("will underscore power", "will_power"),
+            ("he forward slash she", "he/she"),
+            ("may forward slash june", "may/june"),
+            ("docs forward slash guide", "docs/guide"),
+            ("and forward slash or", "and/or"),
+            ("24 forward slash 7", "24/7"),
+            ("forward slash etc", "/etc"),
+            ("windows backslash system", "windows\\system"),
+            ("windows back slash system", "windows\\system"),
+            ("well hyphen known", "well-known"),
+        ],
+    );
+    check(
+        fr,
+        &[
+            ("jean arobase exemple", "jean@exemple"),
+            ("arobase marie", "@marie"),
+            (
+                "écris à jean arobase exemple maintenant",
+                "écris à jean@exemple maintenant",
+            ),
+            ("Merci, arobase paul pour ça", "Merci, @paul pour ça"),
+            ("utilise hashtag lancement", "utilise #lancement"),
+            ("signe dièse lancement", "#lancement"),
+            ("ajoute dièse projet", "ajoute #projet"),
+            ("mot-dièse projet", "#projet"),
+            ("ma tiret bas variable", "ma_variable"),
+            ("nom tiret du huit complet", "nom_complet"),
+            ("nom tiret du 8 complet", "nom_complet"),
+            ("nom underscore complet", "nom_complet"),
+            ("docs slash guide", "docs/guide"),
+            ("docs barre oblique guide", "docs/guide"),
+            ("dossier antislash système", "dossier\\système"),
+            ("dossier anti-slash système", "dossier\\système"),
+            ("dossier barre oblique inversée système", "dossier\\système"),
+            ("dossier backslash système", "dossier\\système"),
+            ("porte trait d'union monnaie", "porte-monnaie"),
+        ],
+    );
+    check(
+        en,
+        &unchanged(&[
+            "Add a hashtag to the post.",
+            "The hashtag trend ended.",
+            "My hashtag went viral.",
+            "Press the underscore key.",
+            "The underscore character is hidden.",
+            "Press underscore key twice.",
+            "An at sign is shown here.",
+            "We underscore the risk.",
+            "They want to underscore this point.",
+            "The at sign symbol is small.",
+            "They slash prices every year.",
+            "Add a dash of salt.",
+            "Eat hash browns today.",
+            "The hash function is slow.",
+            "Use a forward slash of sorts.",
+            "He hit the hashtag.",
+            "Say at sign.",
+            "hashtag",
+            "Hashtags are everywhere.",
+            "The underscores are gone.",
+            "Meet at the sign over there.",
+            "A hyphen is shorter than a dash.",
+            "A hashtag of the day.",
+            "Hashtag, release",
+            "Is it a backslash or a slash?",
+        ]),
+    );
+    check(
+        fr,
+        &unchanged(&[
+            "Ajoute un hashtag au message.",
+            "Le hashtag a explosé.",
+            "Il joue un do dièse.",
+            "La sonate en ré dièse majeur.",
+            "Un fa dièse suffit.",
+            "Appuie sur la touche slash.",
+            "Le slash est petit.",
+            "Une barre oblique sépare les deux.",
+            "La barre oblique est penchée.",
+            "Un trait d'union relie les deux mots.",
+            "Cette arobase est grande.",
+            "Un tiret bas ne se voit pas.",
+            "Le caractère arobase est rare.",
+            "Le symbole arobase est connu.",
+            "Il a mis un arobase.",
+            "arobase",
+            "Un tiret sépare les deux.",
+            "Écris dièse de la liste.",
+        ]),
+    );
+}
+
+#[test]
+fn quotes_corpus() {
+    let en = |text: &str| before_cleanup(text, PassLanguage::En);
+    let fr = |text: &str| before_cleanup(text, PassLanguage::Fr);
+    check(
+        en,
+        &[
+            (
+                "He said open quote hello world close quote and left",
+                "He said “hello world” and left",
+            ),
+            (
+                "He said open quote hello world close quote.",
+                "He said “hello world”.",
+            ),
+            (
+                "He said, open quote, hello world, close quote, and left.",
+                "He said, “hello world,” and left.",
+            ),
+            (
+                "She called it quote the best thing ever unquote yesterday",
+                "She called it “the best thing ever” yesterday",
+            ),
+            (
+                "They call it begin quote cloud end quote now",
+                "They call it “cloud” now",
+            ),
+            ("open quotes yes close quotes", "“yes”"),
+            (
+                "He said open quote I am done. Close quote and left",
+                "He said “I am done.” and left",
+            ),
+            (
+                "He said open quote hello close quote, and left.",
+                "He said “hello”, and left.",
+            ),
+            (
+                "open quote hello close quote open quote there close quote",
+                "“hello” “there”",
+            ),
+        ],
+    );
+    check(
+        fr,
+        &[
+            (
+                "Il a dit ouvrez les guillemets bonjour à tous fermez les guillemets et il est parti",
+                "Il a dit « bonjour à tous » et il est parti",
+            ),
+            (
+                "Il a dit ouvre les guillemets bonjour ferme les guillemets.",
+                "Il a dit « bonjour ».",
+            ),
+            (
+                "Il a dit, ouvrir les guillemets, bonjour, fermer les guillemets, puis il est parti.",
+                "Il a dit, « bonjour » puis il est parti.",
+            ),
+        ],
+    );
+    check(
+        en,
+        &unchanged(&[
+            "Please get a quote for the repairs.",
+            "I will quote you a fair price.",
+            "He ended with a quote from the book.",
+            "It was the quote unquote expert again.",
+            "Quote me a price today.",
+            "Close quote requests are rare.",
+            "The close quote key sits here.",
+            "At the end quote the figure.",
+            "The unquote word is rare.",
+            "Use the open quote character.",
+            "He asked to end quote",
+            "Open quote character is shown.",
+            "He said open quote hello there",
+            "Say quote hello there the unquote",
+            "Close quote key sits here.",
+            "He said open quote hi close quote key twice",
+            "Say open quote hello\nclose quote then go",
+            "Open quote",
+        ]),
+    );
+    check(
+        fr,
+        &unchanged(&[
+            "Fermez les guillemets.",
+            "Les guillemets sont mal placés.",
+            "Il faut des guillemets ici.",
+            "Fermez les guillemets pour finir.",
+            "Ouvrez les guillemets",
+            "Il a dit ouvrez les guillemets bonjour",
+        ]),
+    );
+}
+
+#[test]
+fn symbols_and_punctuation_compose() {
+    let run = |text: &str, language| raw_only(&before_cleanup(text, language), language);
+    assert_eq!(
+        run(
+            "mail john at sign example comma then hashtag release",
+            PassLanguage::En
+        ),
+        "mail john@example, then #release"
+    );
+    assert_eq!(
+        run(
+            "écris jean arobase exemple virgule puis hashtag lancement",
+            PassLanguage::Fr
+        ),
+        "écris jean@exemple, puis #lancement"
+    );
+}
+
+#[test]
 fn detect_uses_setting_first() {
     let french = "je pense que la réunion est demain et que les notes sont prêtes";
     assert_eq!(detect("en", french), Some(PassLanguage::En));

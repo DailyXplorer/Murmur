@@ -1,12 +1,14 @@
 //! Instant, deterministic text fixes for English and French dictations:
-//! fillers and spoken line breaks on every dictation, spoken punctuation on
-//! the ones AI cleanup did not edit. They run only when the language is known,
-//! because filler words are real words elsewhere ("um" in Portuguese, "er" in
-//! German).
+//! fillers, spoken line breaks, spoken symbols and quote marks on every
+//! dictation, spoken punctuation on the ones AI cleanup did not edit. They run
+//! only when the language is known, because filler words are real words
+//! elsewhere ("um" in Portuguese, "er" in German).
 
 mod breaks;
 mod fillers;
 mod punctuation;
+mod quotes;
+mod symbols;
 mod words;
 
 use words::Words;
@@ -51,11 +53,14 @@ pub fn detect(setting: &str, text: &str) -> Option<PassLanguage> {
     }
 }
 
-/// Fillers, then spoken line breaks. Runs on every dictation before cleanup.
+/// Fillers, then spoken line breaks, symbols and quotes. Runs on every
+/// dictation before cleanup.
 pub fn before_cleanup(text: &str, language: PassLanguage) -> String {
     let mut words = Words::parse(text);
     fillers::remove(&mut words, language);
     breaks::apply(&mut words, language);
+    symbols::apply(&mut words, language);
+    quotes::apply(&mut words, language);
     words.join()
 }
 
