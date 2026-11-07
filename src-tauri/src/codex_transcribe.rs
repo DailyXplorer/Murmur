@@ -357,7 +357,7 @@ async fn transcribe_with_session_at(
         response = request.send() => response.map_err(|error| {
             // Any transport failure may mean a dead pooled connection or a
             // changed network or proxy: the next request starts fresh.
-            crate::http::forget(CONNECT_TIMEOUT);
+            crate::http::forget_all();
             failed(
                 FailureKind::from_transport(&error),
                 format!("Codex transcription request failed: {error}"),

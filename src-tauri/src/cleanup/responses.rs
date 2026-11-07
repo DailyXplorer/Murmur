@@ -112,7 +112,7 @@ pub async fn complete(
         response = builder.send() => response.map_err(|error| {
             // Any transport failure may mean a dead pooled connection or a
             // changed network or proxy: the next request starts fresh.
-            crate::http::forget(request.connect_timeout);
+            crate::http::forget_all();
             CompletionError::failed(
                 FailureKind::from_transport(&error),
                 format!("cleanup request failed: {error}"),

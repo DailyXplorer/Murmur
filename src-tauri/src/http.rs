@@ -46,11 +46,11 @@ pub fn client(connect_timeout: Duration) -> reqwest::Result<reqwest::Client> {
     Ok(client)
 }
 
-/// Drops the shared client after a transport failure (connect, reset,
-/// timeout): its pooled connections may be dead after a sleep or a network
-/// change, and the proxy settings may have changed.
-pub fn forget(connect_timeout: Duration) {
-    clients().retain(|(timeout, _)| *timeout != connect_timeout);
+/// Drops every shared client after a transport failure: pooled connections may
+/// be dead after a sleep or a network change, and the proxy settings may have
+/// changed, for all of them, not only the one whose request failed.
+pub fn forget_all() {
+    clients().clear();
 }
 
 /// Opens (or refreshes) a connection to `url`'s host in the background so the
@@ -91,6 +91,10 @@ fn origin_of(url: &str) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn forget(connect_timeout: Duration) {
+        clients().retain(|(timeout, _)| *timeout != connect_timeout);
+    }
     use std::io::{Read, Write};
     use std::net::TcpListener;
     use std::sync::mpsc;
