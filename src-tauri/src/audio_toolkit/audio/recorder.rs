@@ -102,6 +102,10 @@ pub struct AudioRecorder {
     config_cache: Arc<Mutex<Option<(String, cpal::SupportedStreamConfig)>>>,
     /// The open stream's health, `None` while closed.
     health: Option<Arc<StreamHealth>>,
+    /// The last finished clip was all zeros. A reopen is asked for once per
+    /// run of such clips: a muted input delivers zeros too, and a rebuild
+    /// cannot cure that.
+    last_clip_was_zeros: AtomicBool,
     /// The name of the system default the open stream was opened on, `None`
     /// for a named device. cpal binds such a stream to the device that was
     /// the default then and reports no disconnect for it.
@@ -118,6 +122,7 @@ impl AudioRecorder {
             selected_channel: None,
             config_cache: Arc::new(Mutex::new(None)),
             health: None,
+            last_clip_was_zeros: AtomicBool::new(false),
             default_name: None,
         })
     }
@@ -392,13 +397,19 @@ impl AudioRecorder {
     /// A clip of exact zeros, from first sample to last, is not a quiet
     /// room: no microphone's noise is that clean. It is what a stream that
     /// outlived its device's owner delivers, so ask for a rebuild before the
-    /// next recording rather than discard every one until a restart.
+    /// next recording rather than discard every one until a restart. A
+    /// muted input gives zeros too, which a rebuild does not cure: only the
+    /// first clip of a run of zero clips asks for one.
     fn note_clip(&self, capture: &Capture) {
-        if let Some(health) = &self.health {
-            if is_digital_silence(&capture.samples) {
-                log::warn!("The clip held only digital silence; the stream will be reopened");
-                health.delivered_only_zeros.store(true, Ordering::Relaxed);
-            }
+        let Some(health) = &self.health else { return };
+        if capture.samples.is_empty() {
+            return;
+        }
+        let zeros = is_digital_silence(&capture.samples);
+        let repeated = self.last_clip_was_zeros.swap(zeros, Ordering::Relaxed);
+        if zeros && !repeated {
+            log::warn!("The clip held only digital silence; the stream will be reopened");
+            health.delivered_only_zeros.store(true, Ordering::Relaxed);
         }
     }
 
@@ -1065,6 +1076,34 @@ mod tests {
         // One least significant bit of a 16-bit microphone is not zero.
         assert!(!needs_reopen_after_clip_of(1.0 / 32_768.0));
         assert!(!needs_reopen_after_clip_of(0.1));
+    }
+
+    #[test]
+    fn a_run_of_zero_clips_asks_for_one_reopen() {
+        let zeros = Capture {
+            samples: vec![0.0; 1_600],
+            ..Capture::default()
+        };
+        let recorder = AudioRecorder {
+            health: Some(Arc::new(StreamHealth::new(Instant::now()))),
+            ..AudioRecorder::new().expect("recorder")
+        };
+        recorder.note_clip(&zeros);
+        assert!(recorder.needs_reopen());
+        // The rebuilt stream delivers zeros again, as a muted input does.
+        let recorder = AudioRecorder {
+            health: Some(Arc::new(StreamHealth::new(Instant::now()))),
+            ..recorder
+        };
+        recorder.note_clip(&zeros);
+        assert!(!recorder.needs_reopen());
+        // A clip with signal ends the run.
+        recorder.note_clip(&Capture {
+            samples: vec![0.1; 1_600],
+            ..Capture::default()
+        });
+        recorder.note_clip(&zeros);
+        assert!(recorder.needs_reopen());
     }
 
     #[test]

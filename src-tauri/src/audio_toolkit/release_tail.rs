@@ -75,14 +75,20 @@ pub fn leak_guard_ms(stop_sound: Option<Duration>) -> u64 {
     stop_sound.map_or(0, |length| length.as_millis() as u64 + LEAK_MARGIN_MS)
 }
 
-/// The level above which a tail frame is speech, from the recording so far.
-/// `None` for a tap, or a recording with no signal at all.
+/// How much of the end of the recording sets the threshold.
+const THRESHOLD_WINDOW_MS: u64 = 5_000;
+
+/// The level above which a tail frame is speech, from the end of the
+/// recording so far. `None` for a tap, or a recording with no signal at all.
 pub fn threshold_for(recorded: &[f32]) -> Option<f32> {
     let min_samples = (MIN_CLIP_MS * u64::from(TARGET_SAMPLE_RATE) / 1_000) as usize;
     if recorded.len() < min_samples {
         return None;
     }
-    speech_threshold(&frame_levels(recorded))
+    let window = (THRESHOLD_WINDOW_MS * u64::from(TARGET_SAMPLE_RATE) / 1_000) as usize;
+    speech_threshold(&frame_levels(
+        &recorded[recorded.len().saturating_sub(window)..],
+    ))
 }
 
 #[derive(Debug)]
