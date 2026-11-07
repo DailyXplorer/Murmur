@@ -334,6 +334,9 @@ fn symbols_corpus() {
             ),
             ("i underscore index", "i_index"),
             ("it underscore value", "it_value"),
+            ("we underscore several risks", "we underscore several risks"),
+            ("to underscore key lessons", "to underscore key lessons"),
+            ("i underscore the point", "i underscore the point"),
             ("will underscore power", "will_power"),
             ("he forward slash she", "he/she"),
             ("may forward slash june", "may/june"),
@@ -457,6 +460,10 @@ fn quotes_corpus() {
             ),
             ("open quotes yes close quotes", "“yes”"),
             (
+                "He said open quote I am done. Close quote and left",
+                "He said “I am done.” and left",
+            ),
+            (
                 "He said open quote hello close quote, and left.",
                 "He said “hello”, and left.",
             ),
@@ -501,6 +508,7 @@ fn quotes_corpus() {
             "He said open quote hello there",
             "Say quote hello there the unquote",
             "Close quote key sits here.",
+            "He said open quote hi close quote key twice",
             "Say open quote hello\nclose quote then go",
             "Open quote",
         ]),

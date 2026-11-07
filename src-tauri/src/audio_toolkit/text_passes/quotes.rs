@@ -84,7 +84,9 @@ pub(super) fn apply(words: &mut Words, language: PassLanguage) {
                             && can_open(words, index + command.phrase.len(), language)
                             && closes_ahead(words, index + 1, commands, language)
                     }
-                    Role::Close => open > 0 && can_close(words, index, language),
+                    Role::Close => {
+                        open > 0 && can_close(words, index, command.phrase.len(), language)
+                    }
                 }
         });
         let Some(command) = found else {
@@ -135,16 +137,13 @@ fn can_open(words: &Words, next: usize, language: PassLanguage) -> bool {
         && !names_the_mark(words, next, language)
 }
 
-/// The command at `index` can close: a word before it on the same line, and
-/// not a noun phrase.
-fn can_close(words: &Words, index: usize, language: PassLanguage) -> bool {
+/// The command of `len` words at `index` can close: a word before it on the
+/// same line, and not a noun phrase.
+fn can_close(words: &Words, index: usize, len: usize, language: PassLanguage) -> bool {
     index > 0
-        && words.items[index]
-            .gap
-            .chars()
-            .all(|c| matches!(c, ' ' | '\t' | ','))
+        && !words.items[index].gap.contains(['\n', '\r'])
         && !after_article(words, index, language)
-        && !names_the_mark(words, index + 1, language)
+        && !names_the_mark(words, index + len, language)
 }
 
 /// The word at `at` turns the command into a noun phrase: "close quote key".
@@ -165,7 +164,7 @@ fn closes_ahead(words: &Words, from: usize, commands: &[Command], language: Pass
             command.role == Role::Close
                 && words.matches(at, command.phrase)
                 && at > from
-                && can_close(words, at, language)
+                && can_close(words, at, command.phrase.len(), language)
         })
     })
 }

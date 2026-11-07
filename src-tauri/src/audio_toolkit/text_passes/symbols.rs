@@ -107,13 +107,14 @@ const FR_ARTICLES: &[&str] = &[
     "un", "une", "le", "la", "les", "du", "des", "ce", "cet", "cette", "ces",
 ];
 
-/// A word before "underscore" that makes it a verb when an object follows:
-/// "we underscore the risk". Without the object it is an identifier part:
-/// "it underscore value" is `it_value`.
+/// Words before "underscore" that make it a verb: "we underscore several
+/// risks", "to underscore key lessons".
 const EN_VERB_CONTEXT: &[&str] = &[
-    "to", "we", "you", "they", "he", "she", "it", "i", "will", "would", "can", "could", "should",
-    "must", "may", "might", "shall", "not", "also", "just",
+    "to", "we", "you", "they", "would", "can", "could", "should", "must", "might", "shall",
 ];
+/// Words that also start identifiers ("it underscore value" is `it_value`), so
+/// they make "underscore" a verb only when an object starts after it.
+const EN_VERB_OR_NAME: &[&str] = &["it", "i", "he", "she", "will", "may", "not", "also", "just"];
 const EN_OBJECT_STARTS: &[&str] = &[
     "the", "a", "an", "this", "that", "these", "those", "our", "their", "his", "her", "its", "my",
     "your", "how", "what", "why", "all", "both", "each",
@@ -182,12 +183,13 @@ fn fires(words: &Words, index: usize, symbol: &Symbol, language: PassLanguage) -
             }
             let verb_use = symbol.verb
                 && language == PassLanguage::En
-                && before
-                    .as_deref()
-                    .is_some_and(|word| EN_VERB_CONTEXT.contains(&word))
-                && words
-                    .key(next)
-                    .is_some_and(|word| EN_OBJECT_STARTS.contains(&word.as_str()));
+                && before.as_deref().is_some_and(|word| {
+                    EN_VERB_CONTEXT.contains(&word)
+                        || (EN_VERB_OR_NAME.contains(&word)
+                            && words
+                                .key(next)
+                                .is_some_and(|word| EN_OBJECT_STARTS.contains(&word.as_str())))
+                });
             !(has_before
                 && (verb_use
                     || before
