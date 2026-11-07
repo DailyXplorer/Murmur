@@ -9,6 +9,26 @@ fn asset_protocol_allows_only_literal_recording_wavs() {
 }
 
 #[test]
+fn windows_also_allows_the_recordings_in_local_app_data() {
+    let overlay = include_str!("../../../../tauri.windows.conf.json");
+    let overlay: serde_json::Value = serde_json::from_str(overlay).expect("parse the overlay");
+
+    // Recordings live in Local app data, or still in Roaming while their
+    // move is pending. A merge replaces a list, so the overlay holds both.
+    assert_eq!(
+        overlay["app"]["security"]["assetProtocol"]["scope"]["allow"],
+        serde_json::json!([
+            "$APPLOCALDATA/recordings/*.wav",
+            "$APPDATA/recordings/*.wav"
+        ])
+    );
+    // Nothing else of the scope is overridden.
+    assert!(overlay["app"]["security"]["assetProtocol"]["scope"]
+        .get("requireLiteralLeadingDot")
+        .is_none());
+}
+
+#[test]
 fn resolves_existing_root_level_wav_inside_canonical_recordings_directory() {
     let temp = tempfile::tempdir().expect("create temporary directory");
     let recordings_dir = temp.path().join("recordings");

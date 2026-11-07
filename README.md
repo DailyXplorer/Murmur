@@ -41,7 +41,9 @@ requires no API key and no separate Codex app.
 
 - Windows 10 or 11, x64
 - A working microphone
-- For local transcription: a one-time download of about 740 MB
+- For local transcription: a one-time download of about 740 MB, kept in
+  `%LOCALAPPDATA%\com.dailyxplorer.murmur` so it never syncs with a roaming
+  profile (see [Where Murmur keeps its files on Windows](#where-murmur-keeps-its-files-on-windows))
 - A ChatGPT account, signed in from Murmur, for cloud transcription and AI
   cleanup. Local transcription runs without it.
 - Network access for cloud transcription and AI cleanup
@@ -322,9 +324,10 @@ claude mcp add murmur -- "C:\Users\you\AppData\Local\Murmur\murmur.exe" mcp
 ```
 
 The server reads `settings_store.json` and `history.db` in
-`%APPDATA%\com.dailyxplorer.murmur`. Running `murmur.exe mcp` by hand in a
-terminal shows nothing: the Windows app has no console, so the server talks
-only through the pipes the assistant gives it.
+`%APPDATA%\com.dailyxplorer.murmur`. An assistant starts `murmur.exe mcp`
+with pipes, which the server uses as they are. Typed by hand in cmd or
+PowerShell, it joins that terminal's console, waits for requests on its input
+and prints its answers; press Ctrl+Z then Enter to end it.
 
 ### Permissions after updating to the stable signature
 
@@ -354,6 +357,32 @@ murmur mcp
 
 `murmur mcp` (`murmur.exe mcp` on Windows) is for AI assistants to launch, not to run by hand; see
 [Use your meetings from an AI assistant](#use-your-meetings-from-an-ai-assistant).
+
+On Windows, `murmur.exe --help`, `--transcribe-file` and `mcp` print to the
+cmd or PowerShell window that started them, although the app has no console of
+its own. The prompt comes back at once, so the output can appear after it;
+`murmur.exe --help | more`, or `start /wait`, keeps it in order. Starting the
+app itself (with or without `--start-hidden`) never joins the terminal, so
+closing that terminal does not close Murmur. When a program redirects the
+output (a script, an assistant), the redirection wins and the console stays out
+of the way.
+
+### Where Murmur keeps its files on Windows
+
+| Folder                                           | Holds                                                                          |
+| ------------------------------------------------ | ------------------------------------------------------------------------------ |
+| `%APPDATA%\com.dailyxplorer.murmur` (Roaming)    | `settings_store.json`, `history.db`, `meetings.db`, `insights.db`: small files |
+| `%LOCALAPPDATA%\com.dailyxplorer.murmur` (Local) | `models`, `meetings` (the audio) and `recordings`: the heavy folders           |
+
+Roaming profiles sync to a server at sign-in and sign-out, so the 740 MB model
+and your meeting audio live in Local app data, which never syncs. Earlier
+versions kept all of it in Roaming: the first launch of this version moves the
+three folders. On one drive the move is a rename and takes no time; across
+drives (a redirected Roaming folder) it copies, checks every file and then
+deletes the old one, which can take a while for a large model. If a file is
+locked or the copy fails, Murmur keeps using the old folder and tries again at
+the next launch; nothing is deleted before everything is copied. Uninstalling
+with "Delete the application data" removes both folders.
 
 On Unix systems, `SIGUSR2` also toggles transcription for a running instance:
 

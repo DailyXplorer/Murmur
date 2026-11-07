@@ -10,6 +10,10 @@ use murmur::cli::CliCommand;
 use murmur::CliArgs;
 
 fn main() {
+    // Joins the terminal's console for the commands that print.
+    #[cfg(target_os = "windows")]
+    murmur::console_windows::attach_for_cli();
+
     let cli_args = CliArgs::parse();
 
     if let Some(CliCommand::Mcp) = cli_args.command {

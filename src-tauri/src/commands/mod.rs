@@ -152,7 +152,10 @@ pub fn open_recordings_folder(app: AppHandle) -> Result<(), String> {
         .app_data_dir()
         .map_err(|e| format!("Failed to get app data directory: {}", e))?;
 
+    #[cfg(not(target_os = "windows"))]
     let recordings_dir = app_data_dir.join("recordings");
+    #[cfg(target_os = "windows")]
+    let recordings_dir = crate::data_dirs_windows::recordings_dir(&app_data_dir);
 
     let path = recordings_dir.to_string_lossy().as_ref().to_string();
     app.opener()
