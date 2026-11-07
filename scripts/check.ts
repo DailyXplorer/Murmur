@@ -29,6 +29,16 @@ export const ciSteps: CheckStep[] = [
     args: ["run", "test:platforms"],
   },
   {
+    name: "file size",
+    command: "bun",
+    args: ["run", "check:file-size"],
+  },
+  {
+    name: "file size tests",
+    command: "bun",
+    args: ["run", "test:file-size"],
+  },
+  {
     name: "updater manifest",
     command: "bun",
     args: ["run", "test:updater-manifest"],
