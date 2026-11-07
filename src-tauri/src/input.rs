@@ -1,11 +1,13 @@
 #[cfg(target_os = "macos")]
-use core_graphics::event::{CGEvent, CGEventFlags, KeyCode};
+use core_graphics::event::{CGEvent, CGEventFlags, CGEventType, KeyCode};
 #[cfg(target_os = "macos")]
 use core_graphics::event_source::{CGEventSource, CGEventSourceStateID};
 #[cfg(target_os = "macos")]
 use enigo::{Enigo, Mouse, Settings};
 #[cfg(target_os = "macos")]
 use std::sync::Mutex;
+#[cfg(target_os = "macos")]
+use std::time::Duration;
 #[cfg(target_os = "macos")]
 use tauri::{AppHandle, Manager};
 
@@ -188,6 +190,107 @@ fn modifier_event(modifier: TargetedModifier) -> (u16, CGEventFlags) {
     }
 }
 
+/// Pause between the events of one synthetic chord. Hardware delivers a
+/// modifier change and the key that follows it some milliseconds apart, and
+/// remote-desktop and VM clients that track modifiers from their own event
+/// stream need that gap to see the modifier before the key.
+#[cfg(target_os = "macos")]
+const CHORD_EVENT_GAP: Duration = Duration::from_millis(15);
+
+#[cfg(target_os = "macos")]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ChordEventKind {
+    /// A modifier press or release. A keyboard sends this as a
+    /// flags-changed event, never as a key-down or key-up, and clients that
+    /// follow the modifier state from their own events ignore the latter.
+    ModifierChange,
+    KeyDown,
+    KeyUp,
+}
+
+#[cfg(target_os = "macos")]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct ChordEvent {
+    kind: ChordEventKind,
+    keycode: u16,
+    /// Modifier flags the event carries once it is applied.
+    flags: CGEventFlags,
+    /// Time to wait after the previous event of the chord.
+    gap: Duration,
+}
+
+#[cfg(target_os = "macos")]
+fn modifier_change_event(keycode: u16, flags: CGEventFlags, gap: Duration) -> ChordEvent {
+    ChordEvent {
+        kind: ChordEventKind::ModifierChange,
+        keycode,
+        flags,
+        gap,
+    }
+}
+
+/// The events of `modifier` + `keycode`, in posting order. With
+/// `release_modifier` false the modifier stays down and the caller schedules
+/// `release_paste_modifier_to_pid` later.
+#[cfg(target_os = "macos")]
+fn chord_plan(
+    modifier: Option<TargetedModifier>,
+    keycode: u16,
+    release_modifier: bool,
+) -> Vec<ChordEvent> {
+    let modifier = modifier.map(modifier_event);
+    let flags = modifier.map_or(CGEventFlags::CGEventFlagNull, |(_, flags)| flags);
+    let mut plan = Vec::with_capacity(4);
+    if let Some((modifier_keycode, modifier_flags)) = modifier {
+        plan.push(modifier_change_event(
+            modifier_keycode,
+            modifier_flags,
+            Duration::ZERO,
+        ));
+    }
+    plan.push(ChordEvent {
+        kind: ChordEventKind::KeyDown,
+        keycode,
+        flags,
+        gap: if plan.is_empty() {
+            Duration::ZERO
+        } else {
+            CHORD_EVENT_GAP
+        },
+    });
+    plan.push(ChordEvent {
+        kind: ChordEventKind::KeyUp,
+        keycode,
+        flags,
+        // A bare key has no modifier to wait for: it goes out as before.
+        gap: if modifier.is_some() {
+            CHORD_EVENT_GAP
+        } else {
+            Duration::ZERO
+        },
+    });
+    if let (Some((modifier_keycode, _)), true) = (modifier, release_modifier) {
+        plan.push(modifier_change_event(
+            modifier_keycode,
+            CGEventFlags::CGEventFlagNull,
+            CHORD_EVENT_GAP,
+        ));
+    }
+    plan
+}
+
+#[cfg(target_os = "macos")]
+fn build_event(source: &CGEventSource, planned: &ChordEvent) -> Result<CGEvent, String> {
+    let keydown = planned.kind != ChordEventKind::KeyUp;
+    let event = CGEvent::new_keyboard_event(source.clone(), planned.keycode, keydown)
+        .map_err(|_| "Failed to create targeted keyboard event".to_string())?;
+    if planned.kind == ChordEventKind::ModifierChange {
+        event.set_type(CGEventType::FlagsChanged);
+    }
+    event.set_flags(planned.flags);
+    Ok(event)
+}
+
 #[cfg(target_os = "macos")]
 fn keyboard_event(
     source: &CGEventSource,
@@ -195,10 +298,72 @@ fn keyboard_event(
     keydown: bool,
     flags: CGEventFlags,
 ) -> Result<CGEvent, String> {
-    let event = CGEvent::new_keyboard_event(source.clone(), keycode, keydown)
-        .map_err(|_| "Failed to create targeted keyboard event".to_string())?;
-    event.set_flags(flags);
-    Ok(event)
+    let kind = if keydown {
+        ChordEventKind::KeyDown
+    } else {
+        ChordEventKind::KeyUp
+    };
+    build_event(
+        source,
+        &ChordEvent {
+            kind,
+            keycode,
+            flags,
+            gap: Duration::ZERO,
+        },
+    )
+}
+
+/// A CoreGraphics event that waits to be posted by the task that owns it.
+#[cfg(target_os = "macos")]
+struct PendingChordEvent {
+    gap: Duration,
+    event: CGEvent,
+}
+
+// SAFETY: a CGEvent is a retained CoreFoundation object. These are fully
+// built before the move, never touched again by the creating thread, and
+// `CGEventPostToPid` may run on any thread.
+#[cfg(target_os = "macos")]
+unsafe impl Send for PendingChordEvent {}
+
+/// Posts the events of the plan that need no wait now and the rest from a
+/// task, one gap apart, so neither the caller nor the main thread waits. Every event is
+/// built first: a build failure posts nothing. The tail keeps going when a
+/// post cannot be observed, so a trailing modifier release is never skipped.
+#[cfg(target_os = "macos")]
+fn post_chord_to_pid(pid: i32, plan: &[ChordEvent]) -> Result<(), String> {
+    let source = CGEventSource::new(CGEventSourceStateID::HIDSystemState)
+        .map_err(|_| "Failed to create targeted keyboard event source".to_string())?;
+    let pending = plan
+        .iter()
+        .map(|planned| {
+            build_event(&source, planned).map(|event| PendingChordEvent {
+                gap: planned.gap,
+                event,
+            })
+        })
+        .collect::<Result<Vec<_>, _>>()?
+        .into_iter();
+    // Events with no gap in front of them go out inline, so a bare Return is
+    // posted whole before this returns and spawns nothing.
+    let mut rest = Vec::new();
+    for step in pending {
+        if rest.is_empty() && step.gap.is_zero() {
+            step.event.post_to_pid(pid);
+        } else {
+            rest.push(step);
+        }
+    }
+    if !rest.is_empty() {
+        tauri::async_runtime::spawn(async move {
+            for step in rest {
+                tokio::time::sleep(step.gap).await;
+                step.event.post_to_pid(pid);
+            }
+        });
+    }
+    Ok(())
 }
 
 #[cfg(target_os = "macos")]
@@ -207,58 +372,20 @@ fn send_key_chord_to_pid(
     keycode: u16,
     modifier: Option<TargetedModifier>,
 ) -> Result<(), String> {
-    let source = CGEventSource::new(CGEventSourceStateID::HIDSystemState)
-        .map_err(|_| "Failed to create targeted keyboard event source".to_string())?;
-    let modifier_data = modifier.map(modifier_event);
-
-    let flags = modifier_data
-        .map(|(_, flags)| flags)
-        .unwrap_or(CGEventFlags::CGEventFlagNull);
-    let modifier_down = modifier_data
-        .map(|(modifier_keycode, flags)| keyboard_event(&source, modifier_keycode, true, flags))
-        .transpose()?;
-    let key_down = keyboard_event(&source, keycode, true, flags)?;
-    let key_up = keyboard_event(&source, keycode, false, flags)?;
-    let modifier_up = modifier_data
-        .map(|(modifier_keycode, _)| {
-            keyboard_event(
-                &source,
-                modifier_keycode,
-                false,
-                CGEventFlags::CGEventFlagNull,
-            )
-        })
-        .transpose()?;
-
-    if let Some(event) = modifier_down {
-        event.post_to_pid(pid);
-    }
-    key_down.post_to_pid(pid);
-    key_up.post_to_pid(pid);
-
-    if let Some(event) = modifier_up {
-        event.post_to_pid(pid);
-    }
-    Ok(())
+    post_chord_to_pid(pid, &chord_plan(modifier, keycode, true))
 }
 
 /// Posts Command+V without releasing Command. The caller must schedule
-/// `release_paste_modifier_to_pid` after the hardware-compatibility hold.
+/// `release_paste_modifier_to_pid` after the hardware-compatibility hold,
+/// which is longer than the gaps that space the three events posted here.
 /// Both calls must run on the macOS main thread.
 #[cfg(target_os = "macos")]
 pub fn send_paste_to_pid(pid: i32) -> Result<(), String> {
-    let source = CGEventSource::new(CGEventSourceStateID::HIDSystemState)
-        .map_err(|_| "Failed to create targeted keyboard event source".to_string())?;
     let keycode = macos::command_v_keycode();
-    let (_, flags) = modifier_event(TargetedModifier::Command);
-    let modifier_down = keyboard_event(&source, KeyCode::COMMAND, true, flags)?;
-    let key_down = keyboard_event(&source, keycode, true, flags)?;
-    let key_up = keyboard_event(&source, keycode, false, flags)?;
-
-    modifier_down.post_to_pid(pid);
-    key_down.post_to_pid(pid);
-    key_up.post_to_pid(pid);
-    Ok(())
+    post_chord_to_pid(
+        pid,
+        &chord_plan(Some(TargetedModifier::Command), keycode, false),
+    )
 }
 
 /// Releases the Command key for a previously posted targeted paste chord.
@@ -268,11 +395,13 @@ pub fn send_paste_to_pid(pid: i32) -> Result<(), String> {
 pub fn release_paste_modifier_to_pid(pid: i32) -> Result<(), String> {
     let source = CGEventSource::new(CGEventSourceStateID::HIDSystemState)
         .map_err(|_| "Failed to create targeted keyboard event source".to_string())?;
-    let event = keyboard_event(
+    let event = build_event(
         &source,
-        KeyCode::COMMAND,
-        false,
-        CGEventFlags::CGEventFlagNull,
+        &modifier_change_event(
+            KeyCode::COMMAND,
+            CGEventFlags::CGEventFlagNull,
+            Duration::ZERO,
+        ),
     )?;
     event.post_to_pid(pid);
     Ok(())
@@ -365,6 +494,112 @@ mod targeted_input_tests {
 #[cfg(all(test, target_os = "macos"))]
 mod macos_targeted_input_tests {
     use super::*;
+    use core_graphics::event::EventField;
+
+    const V: u16 = 9;
+
+    fn shape(plan: &[ChordEvent]) -> Vec<(ChordEventKind, u16, CGEventFlags)> {
+        plan.iter()
+            .map(|event| (event.kind, event.keycode, event.flags))
+            .collect()
+    }
+
+    #[test]
+    fn paste_plan_presses_command_as_a_flags_change_then_taps_v() {
+        let plan = chord_plan(Some(TargetedModifier::Command), V, false);
+        let command = CGEventFlags::CGEventFlagCommand;
+        assert_eq!(
+            shape(&plan),
+            vec![
+                (ChordEventKind::ModifierChange, KeyCode::COMMAND, command),
+                (ChordEventKind::KeyDown, V, command),
+                (ChordEventKind::KeyUp, V, command),
+            ]
+        );
+    }
+
+    #[test]
+    fn paste_plan_spaces_events_and_leaves_command_to_the_caller() {
+        let plan = chord_plan(Some(TargetedModifier::Command), V, false);
+        let gaps: Vec<Duration> = plan.iter().map(|event| event.gap).collect();
+        assert_eq!(gaps, vec![Duration::ZERO, CHORD_EVENT_GAP, CHORD_EVENT_GAP]);
+        assert_eq!(CHORD_EVENT_GAP, Duration::from_millis(15));
+        // The release is scheduled by the caller after the longer hold.
+        assert!(CHORD_EVENT_GAP * 2 < Duration::from_millis(100));
+    }
+
+    #[test]
+    fn modifier_return_plan_releases_the_modifier_last_with_cleared_flags() {
+        for (modifier, keycode, flag) in [
+            (
+                TargetedModifier::Command,
+                KeyCode::COMMAND,
+                CGEventFlags::CGEventFlagCommand,
+            ),
+            (
+                TargetedModifier::Control,
+                KeyCode::CONTROL,
+                CGEventFlags::CGEventFlagControl,
+            ),
+        ] {
+            let plan = chord_plan(Some(modifier), KeyCode::RETURN, true);
+            assert_eq!(
+                shape(&plan),
+                vec![
+                    (ChordEventKind::ModifierChange, keycode, flag),
+                    (ChordEventKind::KeyDown, KeyCode::RETURN, flag),
+                    (ChordEventKind::KeyUp, KeyCode::RETURN, flag),
+                    (
+                        ChordEventKind::ModifierChange,
+                        keycode,
+                        CGEventFlags::CGEventFlagNull
+                    ),
+                ]
+            );
+            assert!(plan[1..].iter().all(|event| event.gap == CHORD_EVENT_GAP));
+        }
+    }
+
+    #[test]
+    fn plain_return_plan_has_no_modifier_events() {
+        let plan = chord_plan(None, KeyCode::RETURN, true);
+        let none = CGEventFlags::CGEventFlagNull;
+        assert_eq!(
+            shape(&plan),
+            vec![
+                (ChordEventKind::KeyDown, KeyCode::RETURN, none),
+                (ChordEventKind::KeyUp, KeyCode::RETURN, none),
+            ]
+        );
+        assert!(plan.iter().all(|event| event.gap.is_zero()));
+    }
+
+    #[test]
+    fn built_events_carry_the_planned_type_keycode_and_flags() {
+        let source = CGEventSource::new(CGEventSourceStateID::HIDSystemState).unwrap();
+        let plan = chord_plan(Some(TargetedModifier::Command), V, true);
+        let types: Vec<u32> = plan
+            .iter()
+            .map(|planned| {
+                let event = build_event(&source, planned).unwrap();
+                assert_eq!(
+                    event.get_integer_value_field(EventField::KEYBOARD_EVENT_KEYCODE),
+                    i64::from(planned.keycode)
+                );
+                assert_eq!(event.get_flags(), planned.flags);
+                event.get_type() as u32
+            })
+            .collect();
+        assert_eq!(
+            types,
+            vec![
+                CGEventType::FlagsChanged as u32,
+                CGEventType::KeyDown as u32,
+                CGEventType::KeyUp as u32,
+                CGEventType::FlagsChanged as u32,
+            ]
+        );
+    }
 
     #[test]
     fn unicode_chunks_respect_utf16_limit_without_splitting_scalars() {
