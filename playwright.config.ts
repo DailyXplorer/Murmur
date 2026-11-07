@@ -7,10 +7,12 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
-  workers: process.env.CI ? 1 : undefined,
+  // The CI runner has 4 vCPUs; the suite is fullyParallel and one Vite dev
+  // server serves every worker. With 1 worker 3 of them sat idle.
+  workers: process.env.CI ? 4 : undefined,
   // On CI, failures also become annotations on the check, readable without
-  // the report artifact.
-  reporter: process.env.CI ? [["github"], ["html"]] : "html",
+  // the report artifact. The blob is what the shards' reports merge from.
+  reporter: process.env.CI ? [["github"], ["blob"]] : "html",
   use: {
     baseURL: `http://localhost:${vitePort}`,
     trace: "on-first-retry",
