@@ -42,26 +42,17 @@ jobs:
           toolchain: 1.96.0
           components: clippy
 
+      # The SwiftPM build of the meetings helper (build.rs, FluidAudio) is part
+      # of this cache, as in build.yml, so only main saves it.
       - uses: swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
         with:
           workspaces: "./src-tauri -> target"
+          key: ${{ hashFiles('src-tauri/swift/MurmurMeetingsHelper/Package.resolved') }}
+          cache-directories: src-tauri/swift/MurmurMeetingsHelper/.build
           # Only main writes the cache: a pull request restores it and never
-          # uploads its own ~1 GB copy (see BUILD.md, "CI caches").
+          # uploads its own ~1 GB copy (see BUILD.md, "Rust caches").
           save-if: ${{ github.ref == 'refs/heads/main' }}
           cache-on-failure: true
-
-      # build.rs builds the meetings helper with SwiftPM (FluidAudio).
-      - name: Cache the meetings helper build
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: src-tauri/swift/MurmurMeetingsHelper/.build
-          key: meetings-helper-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('src-tauri/swift/MurmurMeetingsHelper/Package.resolved') }}
-
-      - name: Check generated macOS icons
-        run: cargo run --locked --manifest-path src-tauri/Cargo.toml --example generate_macos_icons -- --check
-
-      - name: Test macOS icon generator
-        run: cargo test --locked --manifest-path src-tauri/Cargo.toml --example generate_macos_icons
 
       - name: Install cargo-nextest
         uses: taiki-e/install-action@1919c4a95903d2c33e4a221102edca87309fc14b # v2.89.0
@@ -77,6 +68,15 @@ jobs:
       - name: Run Rust doctests
         working-directory: src-tauri
         run: cargo test --locked --doc
+
+      # After the tests, not before: `cargo nextest run` already built the
+      # crate and the examples (cargo test builds examples), so these two reuse
+      # that build. Run first they were a 200 s compile of the same crate.
+      - name: Check generated macOS icons
+        run: cargo run --locked --manifest-path src-tauri/Cargo.toml --example generate_macos_icons -- --check
+
+      - name: Test macOS icon generator
+        run: cargo test --locked --manifest-path src-tauri/Cargo.toml --example generate_macos_icons
 
       - name: Run Clippy
         working-directory: src-tauri
