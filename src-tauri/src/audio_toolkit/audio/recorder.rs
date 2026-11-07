@@ -1006,6 +1006,36 @@ mod tests {
     }
 
     #[test]
+    fn a_release_after_a_pause_ends_the_tail_early() {
+        let (sample_tx, cmd_tx, stop_flag, worker) = spawn_consumer();
+        let (ready_tx, ready_rx) = mpsc::channel();
+        cmd_tx
+            .send(Cmd::Start(Instant::now(), ready_tx))
+            .expect("start");
+        // 300 ms of speech, then 200 ms of silence before the release.
+        let mut clip = vec![0.1_f32; SPEECH_SAMPLES];
+        clip.extend(vec![0.0_f32; 3_200]);
+        sample_tx.send(AudioChunk::Samples(clip)).expect("chunk");
+        ready_rx.recv().expect("the chunk was captured");
+
+        let (reply_tx, reply_rx) = mpsc::channel();
+        cmd_tx
+            .send(Cmd::Stop(reply_tx, Some(tail_request(false))))
+            .expect("stop");
+        thread::sleep(Duration::from_millis(120));
+        let feeder = deliver_until_stopped(sample_tx.clone(), stop_flag, |_| 0.0);
+        let capture = reply_rx.recv().expect("reply");
+        feeder.join().expect("join feeder");
+        cmd_tx.send(Cmd::Shutdown).expect("shutdown");
+        drop(sample_tx);
+        worker.join().expect("join consumer");
+
+        // 80 ms is 4 chunks; a chunk or two may be in flight at the end.
+        let chunks = (capture.samples.len() - SPEECH_SAMPLES - 3_200) / CHUNK;
+        assert!((4..=7).contains(&chunks), "{chunks} chunks");
+    }
+
+    #[test]
     fn a_user_still_speaking_is_recorded_until_quiet() {
         // 10 chunks of speech, then quiet: 200 ms of speech plus 160 ms.
         let chunks = tail_chunks(tail_request(false), SPEECH_SAMPLES, |index| {
@@ -1296,7 +1326,8 @@ fn record_release_tail(
     let Some(threshold) = release_tail::threshold_for(processed_samples) else {
         return;
     };
-    let mut tail = ReleaseTail::new(request.config, threshold);
+    let ended_quiet = release_tail::ended_quiet(processed_samples, threshold);
+    let mut tail = ReleaseTail::new(request.config, threshold, ended_quiet);
     let started = Instant::now();
     // The tail is measured in audio; this bounds it in time too.
     let deadline = started + request.config.cap() + TAIL_STALL;
@@ -1336,9 +1367,10 @@ fn record_release_tail(
         }
     }
     log::debug!(
-        "Release tail recorded {:.0}ms",
+        "Release tail recorded {:.0}ms (recording ended {})",
         (processed_samples.len() - start_len) as f64 * 1000.0
-            / f64::from(constants::TARGET_SAMPLE_RATE)
+            / f64::from(constants::TARGET_SAMPLE_RATE),
+        if ended_quiet { "quiet" } else { "in speech" }
     );
 }
 

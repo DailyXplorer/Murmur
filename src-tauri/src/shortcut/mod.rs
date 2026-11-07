@@ -536,6 +536,7 @@ pub fn change_overlay_style_setting(app: AppHandle, style: String) -> Result<(),
 pub fn change_debug_mode_setting(app: AppHandle, enabled: bool) -> Result<(), String> {
     settings::update_settings(&app, |value| value.debug_mode = enabled);
     crate::WEBVIEW_LOG_STREAMING.store(enabled, std::sync::atomic::Ordering::Relaxed);
+    crate::sync_file_log_level(enabled, settings::get_settings(&app).log_level);
     let _ = app.emit(
         "settings-changed",
         serde_json::json!({"setting": "debug_mode", "value": enabled}),

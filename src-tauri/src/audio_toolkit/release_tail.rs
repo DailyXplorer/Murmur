@@ -1,20 +1,26 @@
 //! How long a dictation keeps recording after the key is released. A person
 //! often lets go of the key while the last word is still leaving their mouth,
-//! so the capture runs a short tail: always `BASE_MS`, and while sustained
-//! speech is still heard, on until it falls quiet or `CAP_MS` is reached.
-//! A silent user pays only the base tail.
+//! so the capture runs a short tail: `BASE_MS`, and while sustained speech is
+//! still heard, on until it falls quiet or `CAP_MS` is reached. A silent user
+//! pays only the base tail. When the last `QUIET_BEFORE_MS` before the release
+//! were already quiet there is no word in flight, so the base shrinks to
+//! `QUIET_BASE_MS`; speech that does start inside the tail is still followed.
 //!
 //! The state machine is pure: it is fed the 20 ms frame levels of the audio
 //! recorded after the release (`gain::frame_levels`) and says when to stop.
 //! The speech threshold is the one meetings use (`chunking::speech_threshold`).
 
 use super::constants::TARGET_SAMPLE_RATE;
-use super::gain::frame_levels;
+use super::gain::{frame_levels, FRAME};
 use crate::meetings::chunking::{speech_threshold, FRAME_MS};
 use std::time::Duration;
 
 /// The tail every dictation gets.
 pub const BASE_MS: u64 = 200;
+/// The base when the audio just before the release was already quiet.
+pub const QUIET_BASE_MS: u64 = 80;
+/// How much of the recording's end must be quiet for the shorter base.
+pub const QUIET_BEFORE_MS: u64 = 100;
 /// Unbroken speech this long, after the release, counts as the user still
 /// talking.
 pub const SPEECH_MS: u64 = 100;
@@ -39,6 +45,7 @@ pub enum Step {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TailConfig {
     base_frames: u32,
+    quiet_base_frames: u32,
     speech_frames: u32,
     cap_frames: u32,
     quiet_frames: u32,
@@ -56,6 +63,7 @@ impl TailConfig {
     pub fn new(min_ms: u64, leak_guard_ms: u64) -> Self {
         Self {
             base_frames: frames(BASE_MS.max(min_ms)),
+            quiet_base_frames: frames(QUIET_BASE_MS.max(min_ms)),
             speech_frames: frames(SPEECH_MS),
             cap_frames: frames(CAP_MS.max(min_ms)),
             quiet_frames: frames(QUIET_MS),
@@ -87,6 +95,16 @@ pub fn threshold_for(recorded: &[f32]) -> Option<f32> {
     speech_threshold(&frame_levels(recorded))
 }
 
+/// Whether the end of `recorded` (the last `QUIET_BEFORE_MS`) was all below
+/// `threshold`: the user had stopped before releasing the key.
+pub fn ended_quiet(recorded: &[f32], threshold: f32) -> bool {
+    let window = frames(QUIET_BEFORE_MS) as usize * FRAME;
+    recorded.len() >= window
+        && frame_levels(&recorded[recorded.len() - window..])
+            .iter()
+            .all(|level| *level < threshold)
+}
+
 #[derive(Debug)]
 pub struct ReleaseTail {
     config: TailConfig,
@@ -101,9 +119,19 @@ pub struct ReleaseTail {
 }
 
 impl ReleaseTail {
-    pub fn new(config: TailConfig, threshold: f32) -> Self {
+    /// `ended_quiet` is `ended_quiet(recorded, threshold)` for the recording
+    /// the tail follows.
+    pub fn new(config: TailConfig, threshold: f32, ended_quiet: bool) -> Self {
+        let base_frames = if ended_quiet {
+            config.quiet_base_frames
+        } else {
+            config.base_frames
+        };
         Self {
-            config,
+            config: TailConfig {
+                base_frames,
+                ..config
+            },
             threshold,
             frames: 0,
             voiced_run: 0,
@@ -162,7 +190,12 @@ mod tests {
 
     /// The tail's length in ms for a level sequence, `ROOM` after its end.
     fn tail_ms(config: TailConfig, levels: &[f32]) -> u64 {
-        let mut tail = ReleaseTail::new(config, THRESHOLD);
+        tail_ms_after(config, levels, false)
+    }
+
+    /// Like `tail_ms`; `ended_quiet` says the recording's end was quiet.
+    fn tail_ms_after(config: TailConfig, levels: &[f32], ended_quiet: bool) -> u64 {
+        let mut tail = ReleaseTail::new(config, THRESHOLD, ended_quiet);
         for index in 0.. {
             let level = levels.get(index).copied().unwrap_or(ROOM);
             if tail.push_frame(level) == Step::Finish {
@@ -179,6 +212,57 @@ mod tests {
     #[test]
     fn a_silent_user_gets_only_the_base_tail() {
         assert_eq!(tail_ms(config(), &[]), BASE_MS);
+    }
+
+    #[test]
+    fn a_release_that_was_already_quiet_ends_after_the_short_base() {
+        assert_eq!(tail_ms_after(config(), &[], true), QUIET_BASE_MS);
+    }
+
+    #[test]
+    fn a_quiet_release_still_follows_a_word_that_starts_in_the_tail() {
+        // Speech from 40 ms on, sustained: the short base does not cut it.
+        let mut levels = vec![ROOM; 2];
+        levels.extend(speech_for(300));
+        assert_eq!(tail_ms_after(config(), &levels, true), 40 + 300 + QUIET_MS);
+        // A word that begins just as the short base ends is not cut either.
+        let mut word = vec![ROOM; 3];
+        word.extend(speech_for(100));
+        assert_eq!(tail_ms_after(config(), &word, true), 60 + 100 + QUIET_MS);
+        // A click right there costs one frame, then the tail ends.
+        let mut click = vec![ROOM; 3];
+        click.push(SPEECH);
+        assert_eq!(
+            tail_ms_after(config(), &click, true),
+            QUIET_BASE_MS + FRAME_MS
+        );
+        // Continuous speech still ends at the cap.
+        assert_eq!(tail_ms_after(config(), &speech_for(5_000), true), CAP_MS);
+    }
+
+    #[test]
+    fn the_debug_buffer_still_lifts_a_quiet_release() {
+        assert_eq!(tail_ms_after(TailConfig::new(400, 0), &[], true), 400);
+        assert_eq!(
+            tail_ms_after(TailConfig::new(50, 0), &[], true),
+            QUIET_BASE_MS
+        );
+    }
+
+    #[test]
+    fn only_a_recording_that_ends_in_quiet_is_a_quiet_release() {
+        let rate = TARGET_SAMPLE_RATE as usize;
+        let window = rate / 10;
+        let mut clip = vec![0.1_f32; rate];
+        assert!(!ended_quiet(&clip, THRESHOLD));
+        let len = clip.len();
+        clip[len - window..].fill(0.0);
+        assert!(ended_quiet(&clip, THRESHOLD));
+        // Speech 60 ms before the end is not quiet.
+        clip[len - window..len - window + rate / 20].fill(0.1);
+        assert!(!ended_quiet(&clip, THRESHOLD));
+        // Too short to judge.
+        assert!(!ended_quiet(&clip[..window - 1], THRESHOLD));
     }
 
     #[test]

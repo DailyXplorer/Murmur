@@ -115,7 +115,7 @@ fn migration_from_version_four_preserves_history_and_removes_retired_columns() {
     let version: i32 = conn
         .pragma_query_value(None, "user_version", |row| row.get(0))
         .expect("read migrated version");
-    assert_eq!(version, 8);
+    assert_eq!(version, 9);
 
     let columns = conn
         .prepare("PRAGMA table_info(transcription_history)")
@@ -160,7 +160,7 @@ fn fresh_migrations_create_only_the_cloud_transcription_schema() {
     let version: i32 = conn
         .pragma_query_value(None, "user_version", |row| row.get(0))
         .expect("read migrated version");
-    assert_eq!(version, 8);
+    assert_eq!(version, 9);
 
     let columns = conn
         .prepare("PRAGMA table_info(transcription_history)")
@@ -222,5 +222,26 @@ fn legacy_sql_plugin_tracking_is_converted_before_cloud_only_migration() {
     let final_version: i32 = conn
         .pragma_query_value(None, "user_version", |row| row.get(0))
         .expect("read final version");
-    assert_eq!(final_version, 8);
+    assert_eq!(final_version, 9);
+}
+
+#[test]
+fn the_newest_entry_lookup_uses_the_timestamp_index() {
+    let mut conn = Connection::open_in_memory().expect("open in-memory db");
+    Migrations::new(MIGRATIONS.to_vec())
+        .to_latest(&mut conn)
+        .expect("migrate fresh database");
+
+    let plan: String = conn
+        .query_row(
+            "EXPLAIN QUERY PLAN SELECT id FROM transcription_history \
+             ORDER BY timestamp DESC LIMIT 1",
+            [],
+            |row| row.get(3),
+        )
+        .expect("query plan");
+    assert!(
+        plan.contains("idx_transcription_history_timestamp"),
+        "{plan}"
+    );
 }

@@ -49,7 +49,7 @@ rubato = "0.16.2"
 hound = "3.5.1"
 log = "0.4.25"
 env_filter = "2.0.0"
-tokio = { version = "1.43.0", features = ["sync", "time", "process", "rt", "macros", "io-util", "net"] }
+tokio = { version = "1.43.0", features = ["sync", "time", "process", "rt", "rt-multi-thread", "macros", "io-util", "net"] }
 rodio = "0.21.1"
 reqwest = { version = "0.13", features = ["json", "query", "stream", "gzip", "brotli", "deflate", "multipart", "blocking"] }
 rustfft = "6.4.0"

@@ -317,17 +317,12 @@ async fn transcribe_with_session_at(
     operation: &ProcessingOperation,
 ) -> Result<String, RequestError> {
     let failed = |kind, detail: String| RequestError::Failed(TranscriptionError::new(kind, detail));
-    let client = reqwest::Client::builder()
-        .user_agent(user_agent())
-        .connect_timeout(CONNECT_TIMEOUT)
-        .timeout(timeout)
-        .build()
-        .map_err(|error| {
-            failed(
-                FailureKind::Other,
-                format!("failed to build transcription HTTP client: {error}"),
-            )
-        })?;
+    let client = crate::http::client(CONNECT_TIMEOUT).map_err(|error| {
+        failed(
+            FailureKind::Other,
+            format!("failed to build transcription HTTP client: {error}"),
+        )
+    })?;
 
     let part = reqwest::multipart::Part::bytes(wav.to_vec())
         .file_name("codex.wav")
@@ -346,6 +341,7 @@ async fn transcribe_with_session_at(
 
     let mut request = client
         .post(url)
+        .timeout(timeout)
         .header("Authorization", format!("Bearer {}", session.access_token))
         .multipart(form);
 
@@ -358,10 +354,15 @@ async fn transcribe_with_session_at(
 
     let response = tokio::select! {
         _ = operation.cancelled() => return Err(RequestError::Cancelled),
-        response = request.send() => response.map_err(|error| failed(
-            FailureKind::from_transport(&error),
-            format!("Codex transcription request failed: {error}"),
-        ))?,
+        response = request.send() => response.map_err(|error| {
+            // Any transport failure may mean a dead pooled connection or a
+            // changed network or proxy: the next request starts fresh.
+            crate::http::forget_all();
+            failed(
+                FailureKind::from_transport(&error),
+                format!("Codex transcription request failed: {error}"),
+            )
+        })?,
     };
     let status = response.status();
     let body = tokio::select! {

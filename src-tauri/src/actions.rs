@@ -22,7 +22,7 @@ use once_cell::sync::Lazy;
 use std::collections::HashMap;
 use std::fs::{self, OpenOptions};
 use std::future::Future;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tauri::Manager;
@@ -167,6 +167,33 @@ fn operation_was_cancelled(
 /// failed, including a clipboard-only write failure.
 fn paste_outcome_commits_history(outcome: crate::clipboard::PasteOutcome) -> bool {
     outcome != crate::clipboard::PasteOutcome::Cancelled
+}
+
+/// Waits for the WAV writer and checks the file it left. `Some` hands back
+/// the guard of a verified recording; anything else drops the guard, which
+/// removes the file, and answers `None`.
+async fn settle_wav(
+    writer: Option<tauri::async_runtime::JoinHandle<(PendingWav, anyhow::Result<()>)>>,
+    path: &Path,
+    expected_samples: usize,
+) -> Option<PendingWav> {
+    match writer?.await {
+        Ok((wav, Ok(()))) => match crate::audio_toolkit::verify_wav_file(path, expected_samples) {
+            Ok(()) => Some(wav),
+            Err(e) => {
+                error!("WAV verification failed: {}", e);
+                None
+            }
+        },
+        Ok((_, Err(e))) => {
+            error!("Failed to save WAV file: {}", e);
+            None
+        }
+        Err(e) => {
+            error!("WAV save task panicked: {}", e);
+            None
+        }
+    }
 }
 
 /// Commits a history row. `recording` names the verified WAV, if any. A
@@ -375,7 +402,12 @@ impl ShortcutAction for TranscribeAction {
                 recently_cancelled::wipe(app);
                 crate::window_names::capture(context_reads(&settings));
                 let tm = Arc::clone(&app.state::<Arc<TranscriptionManager>>());
-                std::thread::spawn(move || tm.warm_if_local());
+                // The connection warm-up first: it is quick, and the local
+                // warm-up can block on a model load.
+                std::thread::spawn(move || {
+                    tm.warm_cloud_connections();
+                    tm.warm_if_local();
+                });
                 let generation = readiness.generation();
                 let app_clone = app.clone();
                 let rm_clone = Arc::clone(&rm);
@@ -618,7 +650,7 @@ impl TranscribeAction {
                         chrono::Utc::now().timestamp_nanos_opt().unwrap_or_default()
                     );
                     let wav_path = hm.recordings_dir().join(&file_name);
-                    let mut pending_wav = match PendingWav::reserve(wav_path.clone()) {
+                    let pending_wav = match PendingWav::reserve(wav_path.clone()) {
                         Ok(wav) => Some(wav),
                         Err(error) => {
                             error!(
@@ -629,9 +661,7 @@ impl TranscribeAction {
                             None
                         }
                     };
-                    let wav_handle = pending_wav
-                        .take()
-                        .map(|wav| wav.write(Arc::clone(&samples)));
+                    let wav_handle = pending_wav.map(|wav| wav.write(Arc::clone(&samples)));
 
                     if crate::codex_transcribe::upload_size_for_samples(sample_count)
                         > crate::codex_transcribe::UPLOAD_SOFT_LIMIT_BYTES
@@ -647,32 +677,6 @@ impl TranscribeAction {
                             tm.transcribe_samples(Arc::clone(&samples), operation.clone())
                                 .await
                         }
-                    };
-
-                    let wav_saved = match wav_handle {
-                        None => false,
-                        Some(wav_handle) => match wav_handle.await {
-                            Ok((wav, Ok(()))) => {
-                                pending_wav = Some(wav);
-                                match crate::audio_toolkit::verify_wav_file(&wav_path, sample_count)
-                                {
-                                    Ok(()) => true,
-                                    Err(e) => {
-                                        error!("WAV verification failed: {}", e);
-                                        false
-                                    }
-                                }
-                            }
-                            Ok((wav, Err(e))) => {
-                                pending_wav = Some(wav);
-                                error!("Failed to save WAV file: {}", e);
-                                false
-                            }
-                            Err(e) => {
-                                error!("WAV save task panicked: {}", e);
-                                false
-                            }
-                        },
                     };
 
                     if operation_was_cancelled(&operation, &rm, cancel_generation) {
@@ -723,7 +727,6 @@ impl TranscribeAction {
                             };
                             let final_text = processed.text.clone();
 
-                            let recording = wav_saved.then_some(file_name.as_str());
                             if final_text.is_empty() {
                                 if operation_was_cancelled(&operation, &rm, cancel_generation) {
                                     debug!("Transcription operation cancelled before history save");
@@ -742,10 +745,12 @@ impl TranscribeAction {
                                     return;
                                 }
 
-                                if recording.is_some() {
+                                let mut pending_wav =
+                                    settle_wav(wav_handle, &wav_path, sample_count).await;
+                                if pending_wav.is_some() {
                                     save_history(
                                         &hm,
-                                        recording,
+                                        Some(file_name.as_str()),
                                         &mut pending_wav,
                                         processed,
                                         source,
@@ -818,9 +823,15 @@ impl TranscribeAction {
                                         dictionary_fixes,
                                     );
                                 }
-                                // The transcript is kept whatever happened to
-                                // the paste or the WAV: history first, then
-                                // the clipboard as the immediate way back.
+                                // The recording is settled only now, after the
+                                // paste: the text never waits for the WAV
+                                // writer or its check. The transcript is kept
+                                // whatever happened to the paste or the WAV:
+                                // history first, then the clipboard as the
+                                // immediate way back.
+                                let mut pending_wav =
+                                    settle_wav(wav_handle, &wav_path, sample_count).await;
+                                let recording = pending_wav.is_some().then_some(file_name.as_str());
                                 save_history(&hm, recording, &mut pending_wav, processed, source);
                                 if !delivered {
                                     error!("Transcription output could not be delivered");
@@ -850,7 +861,9 @@ impl TranscribeAction {
                             );
                             user_alert::show(&ah, Alert::Transcription(kind));
                             // Save entry with empty text so user can retry
-                            if wav_saved {
+                            let mut pending_wav =
+                                settle_wav(wav_handle, &wav_path, sample_count).await;
+                            if pending_wav.is_some() {
                                 if operation_was_cancelled(&operation, &rm, cancel_generation) {
                                     debug!("Transcription operation cancelled before failed history save");
                                     keep_cancelled(&ah, samples, captured, None, shown);
@@ -929,8 +942,8 @@ pub static ACTION_MAP: Lazy<HashMap<String, Arc<dyn ShortcutAction>>> = Lazy::ne
 mod tests {
     use super::{
         captured_audio, cleanup_context, cleanup_plan, complete_unless_cancelled, context_reads,
-        deliver, pad_short_capture, paste_outcome_commits_history, CleanupPlan, PendingWav,
-        SHORT_DICTATION_WORDS,
+        deliver, pad_short_capture, paste_outcome_commits_history, settle_wav, CleanupPlan,
+        PendingWav, SHORT_DICTATION_WORDS,
     };
     use crate::audio_toolkit::text_passes::PassLanguage;
     use crate::cleanup::{CleanupOutcome, ProcessedText, PromptContext};
@@ -941,6 +954,7 @@ mod tests {
     use std::cell::Cell;
     use std::fs;
     use std::future;
+    use std::path::Path;
     use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::Arc;
     use std::thread;
@@ -1238,6 +1252,41 @@ mod tests {
 
         drop(wav);
         assert!(!wav_path.exists());
+    }
+
+    #[test]
+    fn settle_wav_hands_back_a_verified_recording() {
+        let directory = tempfile::tempdir().unwrap();
+        let wav_path = directory.path().join("verified.wav");
+        let writer = PendingWav::reserve(wav_path.clone())
+            .unwrap()
+            .write(Arc::new(vec![0.1_f32; 160]));
+
+        let settled = tauri::async_runtime::block_on(settle_wav(Some(writer), &wav_path, 160));
+
+        let mut wav = settled.expect("a complete file is kept");
+        assert!(wav_path.exists());
+        wav.commit();
+    }
+
+    #[test]
+    fn settle_wav_removes_a_file_that_fails_its_check() {
+        let directory = tempfile::tempdir().unwrap();
+        let wav_path = directory.path().join("short.wav");
+        let writer = PendingWav::reserve(wav_path.clone())
+            .unwrap()
+            .write(Arc::new(vec![0.1_f32; 160]));
+
+        let settled = tauri::async_runtime::block_on(settle_wav(Some(writer), &wav_path, 161));
+
+        assert!(settled.is_none());
+        assert!(!wav_path.exists());
+    }
+
+    #[test]
+    fn settle_wav_without_a_writer_has_nothing_to_keep() {
+        let path = Path::new("never-written.wav");
+        assert!(tauri::async_runtime::block_on(settle_wav(None, path, 0)).is_none());
     }
 
     #[test]
