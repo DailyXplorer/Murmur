@@ -126,6 +126,38 @@ public func murmurMicUsers(_ buffer: UnsafeMutablePointer<CChar>?, _ capacity: I
         else { return nil }
         return "\(pid)\t\(processBundleID(object) ?? "")\n"
     }.joined()
+    return writeList(list, buffer, capacity)
+}
+
+/// The input devices the processes other than Murmur read from now, for the
+/// meeting's microphone track to follow the call app: one
+/// "pid<TAB>bundle id<TAB>device name" line per process and device, written
+/// like `murmur_mic_users`' list. The name is the one cpal gives the device;
+/// Core Audio's per-process list holds the device objects, and only their
+/// name reaches Rust, which never logs it. Returns the length of the whole
+/// list, or -1 before macOS 14.
+@_cdecl("murmur_mic_user_inputs")
+public func murmurMicUserInputs(_ buffer: UnsafeMutablePointer<CChar>?, _ capacity: Int32) -> Int32 {
+    guard #available(macOS 14.0, *) else { return -1 }
+    let own = getpid()
+    let list = processObjects().flatMap { object -> [String] in
+        guard property(object, kAudioProcessPropertyIsRunningInput, as: UInt32.self) == 1,
+              let pid = property(object, kAudioProcessPropertyPID, as: pid_t.self), pid != own
+        else { return [] }
+        let bundleID = processBundleID(object) ?? ""
+        return processInputDevices(object).compactMap { device -> String? in
+            guard let name = deviceName(device) else { return nil }
+            return "\(pid)\t\(bundleID)\t\(name)\n"
+        }
+    }.joined()
+    return writeList(list, buffer, capacity)
+}
+
+/// Copies `list` and a closing NUL into `buffer` when they fit, and returns
+/// the length of the list either way.
+private func writeList(_ list: String, _ buffer: UnsafeMutablePointer<CChar>?, _ capacity: Int32)
+    -> Int32
+{
     let bytes = Array(list.utf8)
     if let buffer, bytes.count < Int(capacity) {
         bytes.withUnsafeBufferPointer { source in
@@ -136,6 +168,41 @@ public func murmurMicUsers(_ buffer: UnsafeMutablePointer<CChar>?, _ capacity: I
         buffer[bytes.count] = 0
     }
     return Int32(clamping: bytes.count)
+}
+
+/// The input devices `object`, a process, reads from now (macOS 14).
+@available(macOS 14.0, *)
+private func processInputDevices(_ object: AudioObjectID) -> [AudioObjectID] {
+    var address = AudioObjectPropertyAddress(
+        mSelector: kAudioProcessPropertyDevices,
+        mScope: kAudioObjectPropertyScopeInput,
+        mElement: kAudioObjectPropertyElementMain)
+    var size: UInt32 = 0
+    guard AudioObjectGetPropertyDataSize(object, &address, 0, nil, &size) == noErr, size > 0
+    else { return [] }
+    var devices = [AudioObjectID](
+        repeating: AudioObjectID(kAudioObjectUnknown),
+        count: Int(size) / MemoryLayout<AudioObjectID>.size)
+    guard AudioObjectGetPropertyData(object, &address, 0, nil, &size, &devices) == noErr
+    else { return [] }
+    return Array(devices.prefix(Int(size) / MemoryLayout<AudioObjectID>.size))
+        .filter { $0 != kAudioObjectUnknown }
+}
+
+/// A device's name as cpal reads it, with no tab or line break so that it
+/// fits a line of the list.
+private func deviceName(_ device: AudioObjectID) -> String? {
+    var address = AudioObjectPropertyAddress(
+        mSelector: kAudioDevicePropertyDeviceNameCFString,
+        mScope: kAudioObjectPropertyScopeOutput,
+        mElement: kAudioObjectPropertyElementMain)
+    var name: Unmanaged<CFString>?
+    var size = UInt32(MemoryLayout<Unmanaged<CFString>?>.size)
+    guard AudioObjectGetPropertyData(device, &address, 0, nil, &size, &name) == noErr,
+          let name
+    else { return nil }
+    let text = name.takeRetainedValue() as String
+    return text.isEmpty ? nil : String(text.map { "\t\n\r".contains($0) ? " " : $0 })
 }
 
 /// Every process Core Audio knows of (macOS 14).

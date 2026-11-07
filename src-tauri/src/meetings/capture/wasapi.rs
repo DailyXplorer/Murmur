@@ -69,12 +69,12 @@ const START_TIMEOUT: Duration = Duration::from_secs(10);
 
 /// COM on the calling thread, balanced on drop. A thread that already chose
 /// another apartment keeps it (and its COM), and releases nothing.
-struct Com {
+pub(super) struct Com {
     owned: bool,
 }
 
 impl Com {
-    fn enter() -> Self {
+    pub(super) fn enter() -> Self {
         // SAFETY: plain COM initialisation of this thread.
         let owned = unsafe { CoInitializeEx(None, COINIT_MULTITHREADED) }.is_ok();
         Self { owned }
@@ -107,7 +107,7 @@ impl Drop for Event {
     }
 }
 
-fn enumerator() -> WinResult<IMMDeviceEnumerator> {
+pub(super) fn enumerator() -> WinResult<IMMDeviceEnumerator> {
     // SAFETY: COM is initialised on this thread by the caller.
     unsafe { CoCreateInstance(&MMDeviceEnumerator, None, CLSCTX_ALL) }
 }
@@ -138,7 +138,7 @@ fn property_u32(store: &IPropertyStore, key: &PROPERTYKEY) -> Option<u32> {
     }
 }
 
-fn property_string(store: &IPropertyStore, key: &PROPERTYKEY) -> Option<String> {
+pub(super) fn property_string(store: &IPropertyStore, key: &PROPERTYKEY) -> Option<String> {
     // SAFETY: the variant is read by its tag and cleared once.
     unsafe {
         let mut value = store.GetValue(key).ok()?;

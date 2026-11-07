@@ -28,6 +28,10 @@ Run `cargo test --lib wasapi_ -- --ignored --nocapture` from `src-tauri` first o
 - [ ] Wired headset: unplug it mid-recording, the track keeps going on the speakers within about 2 s with the gap kept as silence and no crash; plug it back in, the track follows it.
 - [ ] Bluetooth headset: connect and disconnect mid-recording (stereo and hands-free profiles), the track follows and the sound is neither sped up nor slowed down.
 - [ ] Windows plays call audio on the default communications device: set a different default communications device and note whether the call's sound reaches the system track.
+- [ ] Microphone on "Default", a USB or Bluetooth headset picked in the call app (Teams, Zoom, then Meet in Chrome) while the PC's default input is another microphone: the microphone track holds your voice, and the log says the meeting microphone follows the call app's input.
+- [ ] Switch the microphone inside the call app mid-call: the track follows within a few seconds, with the gap kept as silence.
+- [ ] A microphone picked in Murmur's Settings while the call app uses another: the track stays on the Settings microphone; mute that microphone at the hardware switch for 10 s and it moves to the call app's input.
+- [ ] Two identical headsets: the track records the Settings or default microphone instead of guessing.
 - [ ] A clap played through the speakers appears at the same time in both tracks (within about 50 ms).
 - [ ] The output route reads speakers for laptop speakers, a Bluetooth speaker and an HDMI monitor, and headphones for wired headphones and a Bluetooth headset (`output_route_facts` in the log or a debugger).
 - [ ] A 30 minute recording with a video playing: no dropped-audio warning, and the system WAV is as long as the microphone WAV.
