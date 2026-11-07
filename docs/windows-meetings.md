@@ -292,6 +292,14 @@ memory on a weak laptop.
 - **Draft.** The live text is appended to `live.ndjson` in the meeting's folder, shown as stopped after a crash, never saved as the meeting's transcript, and deleted when the processor saves the final turns. Once deleted it is sealed: a late sentence from the worker does not bring it back.
 - **Not proven in CI.** The real-time factor on a laptop CPU during a call, the effect of the thread priority on a dictation made during a piece, and pasting into Word, Notepad and a Teams chat. [windows-meetings-owner-checks.md](windows-meetings-owner-checks.md) lists them.
 
+## Where the files are
+
+- **Folders.** `meetings` (the audio of every meeting), `models` and `recordings` (dictation audio) live in Local app data, `%LOCALAPPDATA%\com.dailyxplorer.murmur`, which never roams. `settings_store.json`, `history.db`, `meetings.db` and `insights.db` stay in the Roaming app data folder, `%APPDATA%\com.dailyxplorer.murmur`, where `murmur mcp` and the docs read them. The database rows hold file names and meeting ids, never absolute paths, so moving a folder needs no migration of rows.
+- **The move.** `data_dirs_windows` runs once per launch, before anything opens the folders. For each folder: nothing to do if the old one is gone; a rename if the new one does not exist or is empty; otherwise a copy through `<name>.moving` part files, a check of every length, then the deletion of the copied originals. A copy that fails (locked file, full disk, a share that went away) deletes nothing and keeps the old folder in use until the next launch. A file the old folder holds and the new one lacks is copied; a different file of the same name replaces the copy only when the old one is newer. Links stay where they are.
+- **Set-asides.** `meetings.orphaned-*`, `meetings.corrupt-*` and `recordings.corrupt-*` are made beside the folder they come from; the 30-day purge and the storage figure look in both app data folders.
+- **Asset scope.** `tauri.windows.conf.json` allows `$APPLOCALDATA/recordings/*.wav` and, while a move is pending, `$APPDATA/recordings/*.wav`.
+- **Not proven in CI.** A Roaming folder redirected to another drive or a share (the copy path is tested on one drive), and a file held open by a virus scanner during the move. [windows-meetings-owner-checks.md](windows-meetings-owner-checks.md) lists them.
+
 ## Known limits
 
 - Before Windows 10 build 20348, Murmur's own sounds can reach the system track. The echo filter tolerates it.

@@ -16,6 +16,10 @@ mod codex_auth;
 mod codex_login;
 mod codex_transcribe;
 mod commands;
+#[cfg(target_os = "windows")]
+pub mod console_windows;
+#[cfg(target_os = "windows")]
+mod data_dirs_windows;
 mod dictation_gesture;
 mod durable;
 mod engine;
@@ -489,6 +493,9 @@ fn dispatch_single_instance_action(app: &AppHandle, action: SingleInstanceAction
 }
 
 fn initialize_core_logic(app_handle: &AppHandle) {
+    #[cfg(target_os = "windows")]
+    data_dirs_windows::prepare(app_handle);
+
     // Note: Enigo (keyboard/mouse simulation) is NOT initialized here.
     // The frontend is responsible for calling the `initialize_enigo` command
     // after onboarding completes. This avoids triggering permission dialogs
