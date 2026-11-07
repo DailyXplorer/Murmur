@@ -58,6 +58,27 @@ pub fn list_page(conn: &Connection, cursor: Option<i64>, limit: usize) -> Result
 
 impl MeetingsStore {
     pub fn insert_recording(&self, started_at_ms: i64, tracks: MeetingTracks) -> Result<i64> {
+        self.insert_meeting(started_at_ms, tracks, None)
+    }
+
+    /// Like `insert_recording`, for audio that already exists: `title` is the
+    /// meeting's name until its summary gives it a better one (the user's
+    /// own rename always wins).
+    pub fn insert_import(
+        &self,
+        started_at_ms: i64,
+        tracks: MeetingTracks,
+        title: Option<&str>,
+    ) -> Result<i64> {
+        self.insert_meeting(started_at_ms, tracks, title)
+    }
+
+    fn insert_meeting(
+        &self,
+        started_at_ms: i64,
+        tracks: MeetingTracks,
+        title: Option<&str>,
+    ) -> Result<i64> {
         let mut conn = self.connection()?;
         let tx = conn.transaction()?;
         tx.execute(
@@ -66,9 +87,9 @@ impl MeetingsStore {
             [],
         )?;
         tx.execute(
-            "INSERT INTO meetings (id, started_at_ms, capture_mode, status)
-             VALUES ((SELECT id FROM meeting_last_id), ?1, ?2, 'recording')",
-            params![started_at_ms, tracks.as_db()],
+            "INSERT INTO meetings (id, started_at_ms, capture_mode, status, title)
+             VALUES ((SELECT id FROM meeting_last_id), ?1, ?2, 'recording', ?3)",
+            params![started_at_ms, tracks.as_db(), title],
         )?;
         let id = tx.last_insert_rowid();
         tx.commit()?;

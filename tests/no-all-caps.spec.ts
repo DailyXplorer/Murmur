@@ -9,19 +9,25 @@ const fixture = "/tests/fixtures/settings-pages.html";
 /** Real acronyms, the only words allowed in full capitals. */
 const ACRONYMS = [
   "AI",
+  "AIFF", // an audio file format, in the audio import hint
   "BUT", // Brno University of Technology, in the model licences
   "BY", // the CC BY licence
+  "CAF", // an audio file format, in the audio import hint
   "CC",
+  "FLAC", // an audio file format, in the audio import hint
   "GB",
   "GGUF", // the file format of the Intel model
+  "M4A", // an audio file format, in the audio import hint
   "MB",
   "MCP", // Model Context Protocol, the name of the AI assistants' connector
   "PNG", // the image format of the Insights share card
   "MIT", // the MIT licence, in the model licences
+  "MP3", // an audio file format, in the audio import hint
   "NVIDIA",
   "ONNX", // the model file format of the Windows speaker model
   "PC", // the Windows build's "this PC"
   "TDT", // Token-and-Duration Transducer, in the Parakeet model name
+  "WAV", // an audio file format, in the audio import hint
 ];
 
 /** Proper nouns and named macOS, Windows or app surfaces a sentence may

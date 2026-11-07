@@ -996,6 +996,31 @@ async reanalyzeMeeting(id: number) : Promise<Result<null, string>> {
 }
 },
 /**
+ * Asks which audio file to import, then makes a meeting of it. The labels
+ * name the file filters of the Windows dialog. Returns the meeting's id, or
+ * `None` when the user closes the dialog or cancels the import.
+ */
+async importMeetingAudio(audioLabel: string, allLabel: string) : Promise<Result<number | null, ImportError>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("import_meeting_audio", { audioLabel, allLabel }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: e as ImportError };
+}
+},
+/**
+ * Stops the audio import under way.
+ */
+async cancelMeetingImport() : Promise<void> {
+    await TAURI_INVOKE("cancel_meeting_import");
+},
+/**
+ * The audio import under way, for a page opened meanwhile.
+ */
+async getMeetingImport() : Promise<MeetingImport | null> {
+    return await TAURI_INVOKE("get_meeting_import");
+},
+/**
  * Asks Codex again for a summary that failed.
  */
 async retryMeetingSummary(id: number) : Promise<Result<null, string>> {
@@ -1228,6 +1253,7 @@ export const events = __makeEvents__<{
 historyUpdatePayload: HistoryUpdatePayload,
 insightsUpdated: InsightsUpdated,
 localModelStatus: LocalModelStatus,
+meetingImportChanged: MeetingImportChanged,
 meetingLiveUpdated: MeetingLiveUpdated,
 meetingProgress: MeetingProgress,
 meetingStateChanged: MeetingStateChanged,
@@ -1238,6 +1264,7 @@ updateStatus: UpdateStatus
 historyUpdatePayload: "history-update-payload",
 insightsUpdated: "insights-updated",
 localModelStatus: "local-model-status",
+meetingImportChanged: "meeting-import-changed",
 meetingLiveUpdated: "meeting-live-updated",
 meetingProgress: "meeting-progress",
 meetingStateChanged: "meeting-state-changed",
@@ -1556,6 +1583,46 @@ produced_at: number; transcription_text: string;
  * The transcript before AI cleanup, when cleanup ran.
  */
 raw_text: string | null; cleanup: CleanupOutcome | null; engine: Engine; fallback_reason: FallbackReason | null }
+/**
+ * Why a file was not imported. The page words each of them.
+ */
+export type ImportError = 
+/**
+ * Meetings are turned off.
+ */
+"disabled" | 
+/**
+ * An import is already running.
+ */
+"busy" | 
+/**
+ * The file cannot be opened.
+ */
+"unreadable" | 
+/**
+ * No decoder reads it.
+ */
+"unsupported" | 
+/**
+ * It holds no sound.
+ */
+"empty" | 
+/**
+ * It is longer than `MAX_IMPORT`.
+ */
+"too_long" | 
+/**
+ * It broke part-way.
+ */
+"corrupt" | 
+/**
+ * Not enough room to keep the track.
+ */
+"low_disk" | 
+/**
+ * The library could not take the meeting.
+ */
+"failed"
 export type InsightsSummary = { total_dictations: number; total_words: number; 
 /**
  * Over the last [`stats::WPM_WINDOW_DAYS`] days; `None` without timed dictations.
@@ -1724,6 +1791,23 @@ snippets: Snippet[];
  * the newest it read, for a query matching very many turns).
  */
 first_turn_seq: number | null }
+/**
+ * The import that is running, for the page.
+ */
+export type MeetingImport = { 
+/**
+ * The file's name, as the user knows it.
+ */
+file_name: string; 
+/**
+ * The share of the file decoded, `0.0..=1.0`.
+ */
+fraction: number }
+/**
+ * The running import, or none. Sent whenever it starts, ends, or moves a
+ * few percent.
+ */
+export type MeetingImportChanged = MeetingImport | null
 export type MeetingListItem = { id: number; 
 /**
  * `None` until a summary names the meeting.

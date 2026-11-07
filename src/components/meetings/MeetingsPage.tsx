@@ -5,8 +5,10 @@ import { TrashIcon } from "@phosphor-icons/react/dist/csr/Trash";
 import {
   commands,
   events,
+  type ImportError,
   type MeetingCaptureMode,
   type MeetingHit,
+  type MeetingImport,
   type MeetingListItem,
   type MeetingRuntime,
   type MeetingStatus,
@@ -36,6 +38,25 @@ import { SettingsPage } from "../ui/SettingsPage";
 import { ShortcutInput } from "../settings/ShortcutInput";
 
 const PAGE_SIZE = 50;
+
+const IMPORT_ERROR_KEYS: Record<ImportError, string> = {
+  disabled: "meetings.import.errors.disabled",
+  busy: "meetings.import.errors.busy",
+  unreadable: "meetings.import.errors.unreadable",
+  unsupported: "meetings.import.errors.unsupported",
+  empty: "meetings.import.errors.empty",
+  too_long: "meetings.import.errors.too_long",
+  corrupt: "meetings.import.errors.corrupt",
+  low_disk: "meetings.import.errors.low_disk",
+  failed: "meetings.import.errors.failed",
+};
+
+/** The audio import being asked for or under way. `asking`: the file dialog
+ * is open, so the backend has not started yet. */
+type ImportState = "asking" | MeetingImport | null;
+
+const importPercent = (fraction: number) =>
+  Math.min(100, Math.max(0, Math.floor(fraction * 100)));
 
 const STATUS_KEYS: Record<MeetingStatus, string> = {
   recording: "meetings.status.recording",
@@ -174,6 +195,7 @@ const MeetingsList: React.FC<MeetingsListProps> = ({
   const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [importing, setImporting] = useState<ImportState>(null);
   /** The meeting the Discard dialog was opened for. */
   const [discardId, setDiscardId] = useState<number | null>(null);
   const [pendingDelete, setPendingDelete] = useState<MeetingListItem | null>(
@@ -231,7 +253,17 @@ const MeetingsList: React.FC<MeetingsListProps> = ({
       setSystemAudio(capabilities.system_audio);
       setAnalysis(capabilities.analysis);
     });
+    void commands.getMeetingImport().then((current) => {
+      if (!disposed) setImporting((state) => state ?? current);
+    });
     void loadMeetings(PAGE_SIZE);
+    const importChanged = events.meetingImportChanged.listen((event) => {
+      // The backend ending the import is not the end of the dialog: the
+      // button's own handler clears `asking` when its call returns.
+      setImporting((state) =>
+        event.payload === null && state === "asking" ? state : event.payload,
+      );
+    });
     const unlisten = events.meetingStateChanged.listen((event) => {
       const next = event.payload;
       setRuntime(next);
@@ -249,8 +281,33 @@ const MeetingsList: React.FC<MeetingsListProps> = ({
       disposed = true;
       void unlisten.then((stop) => stop());
       void updated.then((stop) => stop());
+      void importChanged.then((stop) => stop());
     };
   }, [loadMeetings]);
+
+  const importAudio = async (event: React.MouseEvent) => {
+    if (event.detail > 1) return;
+    setImporting("asking");
+    try {
+      const result = await commands.importMeetingAudio(
+        t("meetings.import.filterAudio"),
+        t("meetings.import.filterAll"),
+      );
+      if (result.status === "error" && result.error === "busy") {
+        // Another window's import is running: show it, do not clear it.
+        setImporting(await commands.getMeetingImport());
+        toast.error(t(IMPORT_ERROR_KEYS.busy));
+      } else if (result.status === "error") {
+        toast.error(t(IMPORT_ERROR_KEYS[result.error]));
+      }
+    } catch (error) {
+      console.error("Audio import failed:", error);
+      toast.error(t(IMPORT_ERROR_KEYS.failed));
+    } finally {
+      // Only the dialog's own state: an import that is running stays shown.
+      setImporting((state) => (state === "asking" ? null : state));
+    }
+  };
 
   // Start and Stop swap places as soon as the meeting changes state, so the
   // rest of a double click would undo the first one.
@@ -339,6 +396,51 @@ const MeetingsList: React.FC<MeetingsListProps> = ({
                 }
               >
                 {t("meetings.start")}
+              </Button>
+            )}
+          </div>
+        </SettingContainer>
+        <SettingContainer
+          title={
+            importing !== null && importing !== "asking"
+              ? t("meetings.import.active", {
+                  name: importing.file_name,
+                  percent: importPercent(importing.fraction),
+                })
+              : t("meetings.import.title")
+          }
+          description={t("meetings.import.description")}
+          grouped={true}
+          detail={
+            importing !== null &&
+            importing !== "asking" && (
+              <div
+                role="progressbar"
+                aria-label={t("meetings.import.title")}
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={importPercent(importing.fraction)}
+                className="mt-1 mb-1.5 h-1.5 overflow-hidden rounded-full bg-mid-gray/20"
+              >
+                <div
+                  className="h-full rounded-full bg-logo-primary transition-[width] duration-300"
+                  style={{ width: `${importPercent(importing.fraction)}%` }}
+                />
+              </div>
+            )
+          }
+        >
+          <div className="flex justify-end gap-2">
+            {importing !== null && importing !== "asking" ? (
+              <Button onClick={() => void commands.cancelMeetingImport()}>
+                {t("meetings.cancel")}
+              </Button>
+            ) : (
+              <Button
+                disabled={importing !== null}
+                onClick={(event) => void importAudio(event)}
+              >
+                {t("meetings.import.button")}
               </Button>
             )}
           </div>
