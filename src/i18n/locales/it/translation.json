@@ -129,6 +129,25 @@
       "cellTitle": "Dettature del {{date}}: {{value}}",
       "less": "Meno",
       "more": "Più"
+    },
+    "share": {
+      "button": "Condividi",
+      "title": "Condividi le tue statistiche",
+      "empty": "Detta prima qualcosa, poi condividi le tue statistiche.",
+      "save": {
+        "button": "Salva PNG",
+        "done": "Immagine salvata.",
+        "error": "Impossibile salvare l’immagine."
+      },
+      "copy": {
+        "button": "Copia immagine",
+        "done": "Immagine copiata.",
+        "error": "Impossibile copiare l’immagine."
+      },
+      "card": {
+        "wordsDictated": "Parole dettate",
+        "dictatedWith": "Dettato con"
+      }
     }
   },
   "onboarding": {

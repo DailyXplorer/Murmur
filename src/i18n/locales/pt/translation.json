@@ -129,6 +129,25 @@
       "cellTitle": "Ditados em {{date}}: {{value}}",
       "less": "Menos",
       "more": "Mais"
+    },
+    "share": {
+      "button": "Compartilhar",
+      "title": "Compartilhar suas estatísticas",
+      "empty": "Dite algo primeiro e depois compartilhe suas estatísticas.",
+      "save": {
+        "button": "Salvar PNG",
+        "done": "Imagem salva.",
+        "error": "Não foi possível salvar a imagem."
+      },
+      "copy": {
+        "button": "Copiar imagem",
+        "done": "Imagem copiada.",
+        "error": "Não foi possível copiar a imagem."
+      },
+      "card": {
+        "wordsDictated": "Palavras ditadas",
+        "dictatedWith": "Ditado com"
+      }
     }
   },
   "onboarding": {

@@ -938,6 +938,8 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::history::update_recording_retention_period,
             helpers::clamshell::is_laptop,
             insights::get_insights,
+            insights::share::copy_insights_card,
+            insights::share::save_insights_card,
             commands::meetings::get_meeting_runtime,
             commands::meetings::start_meeting,
             commands::meetings::stop_meeting,

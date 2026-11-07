@@ -27,9 +27,13 @@ import {
   type HeatmapDay,
   type InsightsSummary,
 } from "@/bindings";
+import { Button } from "../../ui/Button";
 import { DescriptionTooltip } from "../../ui/SettingContainer";
 import { SettingsGroup } from "../../ui/SettingsGroup";
 import { SettingsPage } from "../../ui/SettingsPage";
+import { useFormatters } from "./insightsFormat";
+import { ShareDialog } from "./share/ShareDialog";
+import { canShare, toShareStats } from "./share/shareStats";
 import {
   CATEGORY_LABEL_KEYS,
   monthLabelColumns,
@@ -56,34 +60,6 @@ const HEATMAP_LEVEL_CLASSES = [
   "bg-logo-primary/80",
   "bg-logo-primary",
 ] as const;
-
-const useFormatters = () => {
-  const { i18n } = useTranslation();
-  return useMemo(() => {
-    const locale = i18n.language;
-    return {
-      number: new Intl.NumberFormat(locale),
-      days: new Intl.NumberFormat(locale, {
-        style: "unit",
-        unit: "day",
-        unitDisplay: "long",
-      }),
-      hours: new Intl.NumberFormat(locale, {
-        style: "unit",
-        unit: "hour",
-        unitDisplay: "narrow",
-      }),
-      minutes: new Intl.NumberFormat(locale, {
-        style: "unit",
-        unit: "minute",
-        unitDisplay: "narrow",
-      }),
-      fullDate: new Intl.DateTimeFormat(locale, { dateStyle: "medium" }),
-      month: new Intl.DateTimeFormat(locale, { month: "short" }),
-      weekday: new Intl.DateTimeFormat(locale, { weekday: "short" }),
-    };
-  }, [i18n.language]);
-};
 
 type Stat = {
   icon: Icon;
@@ -385,9 +361,28 @@ export const InsightsView: React.FC<{ summary: InsightsSummary }> = ({
   const { t } = useTranslation();
   const format = useFormatters();
   const saved = timeSaved(summary.minutes_saved);
+  const [sharing, setSharing] = useState(false);
+  const shareable = canShare(summary);
+  const shareStats = useMemo(() => toShareStats(summary), [summary]);
 
   return (
     <SettingsPage label={t("sidebar.insights")}>
+      {/* The title is on the wrapper: a disabled button shows none. */}
+      <div className="flex justify-end">
+        <span
+          className="flex"
+          title={shareable ? undefined : t("insights.share.empty")}
+        >
+          <Button
+            size="chip"
+            disabled={!shareable}
+            onClick={() => setSharing(true)}
+          >
+            {t("insights.share.button")}
+          </Button>
+        </span>
+      </div>
+
       <StatRow
         stats={[
           {
@@ -431,6 +426,12 @@ export const InsightsView: React.FC<{ summary: InsightsSummary }> = ({
       <SettingsGroup title={t("insights.streak.title")}>
         <Streak summary={summary} />
       </SettingsGroup>
+
+      <ShareDialog
+        open={sharing}
+        stats={shareStats}
+        onOpenChange={setSharing}
+      />
     </SettingsPage>
   );
 };

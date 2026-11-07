@@ -129,6 +129,25 @@
       "cellTitle": "Diktate am {{date}}: {{value}}",
       "less": "Weniger",
       "more": "Mehr"
+    },
+    "share": {
+      "button": "Teilen",
+      "title": "Statistiken teilen",
+      "empty": "Diktiere zuerst etwas, dann kannst du deine Statistiken teilen.",
+      "save": {
+        "button": "Als PNG speichern",
+        "done": "Bild gespeichert.",
+        "error": "Das Bild konnte nicht gespeichert werden."
+      },
+      "copy": {
+        "button": "Bild kopieren",
+        "done": "Bild kopiert.",
+        "error": "Das Bild konnte nicht kopiert werden."
+      },
+      "card": {
+        "wordsDictated": "Diktierte Wörter",
+        "dictatedWith": "Diktiert mit"
+      }
     }
   },
   "onboarding": {
