@@ -40,7 +40,7 @@ test.describe("Murmur App", () => {
     const samples = await page.evaluate(async () => {
       const accents = ["pink", "blue", "green", "yellow", "orange", "red"];
       const logo = new Image();
-      logo.src = "/src/assets/murmur-text-logo.png";
+      logo.src = "/src/assets/murmur-text-logo.webp";
       await logo.decode();
 
       return accents.map((accent) => {
@@ -60,7 +60,12 @@ test.describe("Murmur App", () => {
 
         context.filter = filter;
         context.drawImage(logo, 0, 0);
-        const [red, green, blue] = context.getImageData(200, 100, 1, 1).data;
+        const [red, green, blue] = context.getImageData(
+          Math.round(logo.naturalWidth * 0.164),
+          Math.round(logo.naturalHeight * 0.28),
+          1,
+          1,
+        ).data;
 
         return { accent, actual: [red, green, blue], expected };
       });
