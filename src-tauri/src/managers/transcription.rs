@@ -142,6 +142,15 @@ impl Drop for ActiveOperationGuard {
     }
 }
 
+/// `settings` with the dictation language replaced by `language`, when one is
+/// given. Every later read of the language then sees the one-off choice.
+pub(crate) fn with_language(mut settings: AppSettings, language: Option<&str>) -> AppSettings {
+    if let Some(language) = language {
+        settings.selected_language = language.to_string();
+    }
+    settings
+}
+
 impl TranscriptionManager {
     /// Creates a transcription manager bound to the current Tauri app.
     pub fn new(app_handle: &AppHandle) -> Self {
@@ -170,6 +179,19 @@ impl TranscriptionManager {
         audio: Arc<Vec<f32>>,
         operation: ProcessingOperation,
     ) -> Result<Transcript> {
+        self.transcribe_samples_in(audio, operation, None).await
+    }
+
+    /// Like `transcribe_samples`, in `language` for this call only when one
+    /// is given ("auto" included): the language setting is neither read nor
+    /// changed for it, so the engine route, the text passes and the language
+    /// the text is judged in all follow `language`.
+    pub(crate) async fn transcribe_samples_in(
+        &self,
+        audio: Arc<Vec<f32>>,
+        operation: ProcessingOperation,
+        language: Option<&str>,
+    ) -> Result<Transcript> {
         let _active_operation = self.requests.register(&operation)?;
         #[cfg(debug_assertions)]
         if std::env::var("MURMUR_FORCE_TRANSCRIPTION_FAILURE").is_ok() {
@@ -182,7 +204,7 @@ impl TranscriptionManager {
             return settled;
         }
 
-        let settings = get_settings(&self.app_handle);
+        let settings = with_language(get_settings(&self.app_handle), language);
         let conditions = self.conditions(&settings);
         // The saved WAV keeps the original level; only the engine's input is
         // raised.
@@ -318,7 +340,8 @@ impl TranscriptionManager {
 
 #[cfg(test)]
 mod tests {
-    use super::{settle_without_engine, ActiveRequests};
+    use super::{settle_without_engine, with_language, ActiveRequests};
+    use crate::settings::get_default_settings;
     use crate::{OperationId, ProcessingOperation};
 
     fn operation() -> ProcessingOperation {
@@ -339,6 +362,23 @@ mod tests {
         cancelled.cancel();
         let settled = settle_without_engine(&[0.1, 0.2], &cancelled).expect("settled");
         assert!(settled.is_err());
+    }
+
+    #[test]
+    fn a_one_off_language_replaces_the_setting_only_in_the_copy() {
+        let mut stored = get_default_settings();
+        stored.selected_language = "fr".to_string();
+
+        assert_eq!(
+            with_language(stored.clone(), Some("de")).selected_language,
+            "de"
+        );
+        assert_eq!(
+            with_language(stored.clone(), Some("auto")).selected_language,
+            "auto"
+        );
+        assert_eq!(with_language(stored.clone(), None).selected_language, "fr");
+        assert_eq!(stored.selected_language, "fr");
     }
 
     #[test]

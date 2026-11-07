@@ -6,6 +6,11 @@ const LANGUAGES: [&str; 25] = [
     "nl", "pl", "pt", "ro", "ru", "sk", "sl", "sv", "uk",
 ];
 
+/// The 25 languages, for a menu that offers only what the local model serves.
+pub fn all() -> &'static [&'static str] {
+    &LANGUAGES
+}
+
 /// Whether the local model can transcribe dictations in `language`. "auto"
 /// is supported: the model detects the language itself.
 pub fn supports(language: &str) -> bool {

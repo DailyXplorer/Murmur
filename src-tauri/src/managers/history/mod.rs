@@ -5,10 +5,12 @@ mod schema;
 mod startup;
 #[cfg(test)]
 mod tests;
+mod versions;
 
 pub(crate) use schema::{init_database, migrations};
 pub(crate) use startup::open_or_reset_database;
 pub use startup::DatabaseStartup;
+pub use versions::HistoryVersion;
 
 use anyhow::Result;
 use chrono::Utc;
@@ -65,6 +67,8 @@ pub struct HistoryEntry {
     pub engine: Engine,
     /// Set when the engine is not the one the user chose.
     pub fallback_reason: Option<FallbackReason>,
+    /// How many earlier transcripts of this dictation can be restored.
+    pub version_count: u32,
 }
 
 /// A dictation that matched a search.

@@ -115,7 +115,7 @@ fn migration_from_version_four_preserves_history_and_removes_retired_columns() {
     let version: i32 = conn
         .pragma_query_value(None, "user_version", |row| row.get(0))
         .expect("read migrated version");
-    assert_eq!(version, 9);
+    assert_eq!(version, 10);
 
     let columns = conn
         .prepare("PRAGMA table_info(transcription_history)")
@@ -136,7 +136,8 @@ fn migration_from_version_four_preserves_history_and_removes_retired_columns() {
             "raw_text",
             "cleanup",
             "engine",
-            "fallback_reason"
+            "fallback_reason",
+            "transcribed_at"
         ]
     );
 
@@ -160,7 +161,7 @@ fn fresh_migrations_create_only_the_cloud_transcription_schema() {
     let version: i32 = conn
         .pragma_query_value(None, "user_version", |row| row.get(0))
         .expect("read migrated version");
-    assert_eq!(version, 9);
+    assert_eq!(version, 10);
 
     let columns = conn
         .prepare("PRAGMA table_info(transcription_history)")
@@ -181,9 +182,18 @@ fn fresh_migrations_create_only_the_cloud_transcription_schema() {
             "raw_text",
             "cleanup",
             "engine",
-            "fallback_reason"
+            "fallback_reason",
+            "transcribed_at"
         ]
     );
+    let tables: Vec<String> = conn
+        .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE 'transcription_%' ORDER BY name")
+        .unwrap()
+        .query_map([], |row| row.get(0))
+        .unwrap()
+        .collect::<rusqlite::Result<_>>()
+        .unwrap();
+    assert_eq!(tables, ["transcription_history", "transcription_versions"]);
 }
 
 #[test]
@@ -222,7 +232,7 @@ fn legacy_sql_plugin_tracking_is_converted_before_cloud_only_migration() {
     let final_version: i32 = conn
         .pragma_query_value(None, "user_version", |row| row.get(0))
         .expect("read final version");
-    assert_eq!(final_version, 9);
+    assert_eq!(final_version, 10);
 }
 
 #[test]

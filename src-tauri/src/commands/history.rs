@@ -1,9 +1,10 @@
-use crate::actions::process_transcription_output;
+use crate::actions::process_transcription_output_in;
 use crate::cleanup::ProcessedText;
-use crate::engine::EngineUsed;
+use crate::engine::{parakeet_languages, Engine, EngineUsed};
 use crate::managers::{
     history::{
-        HistoryEntry, HistoryHit, HistoryManager, PaginatedHistory, RECORDING_UNAVAILABLE_ERROR,
+        HistoryEntry, HistoryHit, HistoryManager, HistoryVersion, PaginatedHistory,
+        RECORDING_UNAVAILABLE_ERROR,
     },
     transcription::TranscriptionManager,
 };
@@ -119,6 +120,78 @@ where
     save(text, source)
 }
 
+/// The language of a one-off re-transcription as the engine takes it: "auto"
+/// or a code such as `fr`, `yue` or `zh-Hans`. Anything else is refused before
+/// any audio is read, so a bad value never reaches an engine.
+fn checked_language(language: Option<String>) -> Result<Option<String>, String> {
+    let Some(language) = language else {
+        return Ok(None);
+    };
+    let well_formed = language == "auto"
+        || (language.len() <= 16
+            && language.split('-').enumerate().all(|(index, part)| {
+                let letters = part.chars().all(|c| c.is_ascii_alphabetic());
+                if index == 0 {
+                    letters && (2..=3).contains(&part.len())
+                } else {
+                    (1..=8).contains(&part.len()) && part.chars().all(|c| c.is_ascii_alphanumeric())
+                }
+            }));
+    if well_formed {
+        Ok(Some(language))
+    } else {
+        Err(format!("Invalid language: {language}"))
+    }
+}
+
+/// The languages the "Transcribe again in…" menu offers for the engine the
+/// user chose, or `None` when every language Murmur knows can be asked for.
+/// "auto" is not listed; the menu always offers it. When the chosen engine is
+/// on this computer, only what its model transcribes is offered.
+fn languages_for(engine: Engine) -> Option<Vec<String>> {
+    match engine {
+        Engine::Local => Some(
+            parakeet_languages::all()
+                .iter()
+                .map(|code| code.to_string())
+                .collect(),
+        ),
+        Engine::Cloud => None,
+    }
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn get_retranscribe_languages(app: AppHandle) -> Option<Vec<String>> {
+    languages_for(crate::settings::get_settings(&app).transcription_engine)
+}
+
+/// The earlier transcripts of a dictation, newest first.
+#[tauri::command]
+#[specta::specta]
+pub async fn get_history_versions(
+    history_manager: State<'_, Arc<HistoryManager>>,
+    id: i64,
+) -> Result<Vec<HistoryVersion>, String> {
+    history_manager.versions(id).map_err(|e| e.to_string())
+}
+
+/// Puts an earlier transcript back; the one it replaces takes its place in
+/// the list of versions.
+#[tauri::command]
+#[specta::specta]
+pub async fn restore_history_version(
+    history_manager: State<'_, Arc<HistoryManager>>,
+    id: i64,
+    version_id: i64,
+) -> Result<HistoryEntry, String> {
+    history_manager
+        .restore_version(id, version_id)
+        .map_err(|e| e.to_string())
+}
+
+/// `language` is for this run only ("auto" or a code); without it the
+/// language setting applies. The setting itself is never changed.
 #[tauri::command]
 #[specta::specta]
 pub async fn retry_history_entry_transcription(
@@ -126,7 +199,9 @@ pub async fn retry_history_entry_transcription(
     history_manager: State<'_, Arc<HistoryManager>>,
     transcription_manager: State<'_, Arc<TranscriptionManager>>,
     id: i64,
+    language: Option<String>,
 ) -> Result<HistoryEntry, String> {
+    let language = checked_language(language)?;
     let samples = match history_manager.get_audio_file_path(id).await {
         Ok(path) => crate::audio_toolkit::read_wav_samples(&path).map_err(|e| e.to_string()),
         Err(e) => Err(e.to_string()),
@@ -139,7 +214,7 @@ pub async fn retry_history_entry_transcription(
             // user-requested retry.
             let operation = ProcessingOperation::new(OperationId(0));
             let transcript = transcription_manager
-                .transcribe_samples(Arc::new(samples), operation.clone())
+                .transcribe_samples_in(Arc::new(samples), operation.clone(), language.as_deref())
                 .await
                 .map_err(|e| e.to_string())?;
             let (transcription, source) = (transcript.text, transcript.source);
@@ -152,12 +227,13 @@ pub async fn retry_history_entry_transcription(
             // A retry gets the same cleanup as the dictation it replaces; the
             // raw transcript stays in the entry. The window the user dictated
             // into is gone, so there is no window context to pass.
-            let text = process_transcription_output(
+            let text = process_transcription_output_in(
                 &app,
                 &transcription,
                 pass_language,
                 WindowContext::default(),
                 &operation,
+                language.as_deref(),
             )
             .await;
             Ok((text, source))
@@ -241,6 +317,7 @@ mod tests {
             cleanup: None,
             engine: crate::engine::Engine::Cloud,
             fallback_reason: None,
+            version_count: 0,
         }
     }
 
@@ -331,6 +408,41 @@ mod tests {
         ))
         .unwrap();
         assert_eq!(saved.get(), Some(used));
+    }
+
+    #[test]
+    fn a_one_off_language_is_auto_or_a_language_code() {
+        assert_eq!(checked_language(None), Ok(None));
+        for good in ["auto", "fr", "yue", "haw", "zh-Hans", "zh-Hant", "pt-BR"] {
+            assert_eq!(
+                checked_language(Some(good.to_string())),
+                Ok(Some(good.to_string())),
+                "{good}"
+            );
+        }
+        for bad in [
+            "",
+            "f",
+            "french",
+            "fr_FR",
+            "fr-",
+            "fr--x",
+            "f1",
+            "../x",
+            "zh-Hans-extra-long-tag",
+        ] {
+            assert!(checked_language(Some(bad.to_string())).is_err(), "{bad}");
+        }
+    }
+
+    #[test]
+    fn the_menu_offers_the_local_models_languages_or_all_of_them() {
+        let local = languages_for(Engine::Local).unwrap();
+        assert_eq!(local.len(), 25);
+        assert!(local.contains(&"fr".to_string()));
+        assert!(!local.contains(&"ja".to_string()));
+        assert!(!local.contains(&"auto".to_string()));
+        assert_eq!(languages_for(Engine::Cloud), None);
     }
 
     #[test]

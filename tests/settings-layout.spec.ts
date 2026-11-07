@@ -266,7 +266,8 @@ test("History entry actions match the meeting header toolbar", async ({
     .getByRole("button");
   const meeting = await toolbarSpacing(meetingActions);
 
-  expect(history.sizes).toHaveLength(4);
+  // Copy, save, transcribe again, its language menu, delete.
+  expect(history.sizes).toHaveLength(5);
   for (const size of history.sizes) expect(size).toEqual(meeting.sizes[0]);
   for (const gap of history.gaps) expect(gap).toBe(meeting.gaps[0]);
 });

@@ -795,9 +795,39 @@ async clearHistory() : Promise<Result<null, string>> {
     else return { status: "error", error: String(e) };
 }
 },
-async retryHistoryEntryTranscription(id: number) : Promise<Result<HistoryEntry, string>> {
+/**
+ * `language` is for this run only ("auto" or a code); without it the
+ * language setting applies. The setting itself is never changed.
+ */
+async retryHistoryEntryTranscription(id: number, language: string | null) : Promise<Result<HistoryEntry, string>> {
     try {
-    return { status: "ok", data: await TAURI_INVOKE("retry_history_entry_transcription", { id }) };
+    return { status: "ok", data: await TAURI_INVOKE("retry_history_entry_transcription", { id, language }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
+async getRetranscribeLanguages() : Promise<string[] | null> {
+    return await TAURI_INVOKE("get_retranscribe_languages");
+},
+/**
+ * The earlier transcripts of a dictation, newest first.
+ */
+async getHistoryVersions(id: number) : Promise<Result<HistoryVersion[], string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("get_history_versions", { id }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
+/**
+ * Puts an earlier transcript back; the one it replaces takes its place in
+ * the list of versions.
+ */
+async restoreHistoryVersion(id: number, versionId: number) : Promise<Result<HistoryEntry, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("restore_history_version", { id, versionId }) };
 } catch (e) {
     if(e instanceof Error) throw e;
     else return { status: "error", error: String(e) };
@@ -1495,7 +1525,11 @@ raw_text: string | null; cleanup: CleanupOutcome | null; engine: Engine;
 /**
  * Set when the engine is not the one the user chose.
  */
-fallback_reason: FallbackReason | null }
+fallback_reason: FallbackReason | null; 
+/**
+ * How many earlier transcripts of this dictation can be restored.
+ */
+version_count: number }
 /**
  * A dictation that matched a search.
  */
@@ -1510,6 +1544,18 @@ export type HistoryUpdatePayload = { action: "added"; entry: HistoryEntry } | { 
  * history"); starred ones remain.
  */
 { action: "cleared" }
+/**
+ * An earlier transcript of a dictation.
+ */
+export type HistoryVersion = { id: number; 
+/**
+ * When this transcript was produced, in Unix seconds.
+ */
+produced_at: number; transcription_text: string; 
+/**
+ * The transcript before AI cleanup, when cleanup ran.
+ */
+raw_text: string | null; cleanup: CleanupOutcome | null; engine: Engine; fallback_reason: FallbackReason | null }
 export type InsightsSummary = { total_dictations: number; total_words: number; 
 /**
  * Over the last [`stats::WPM_WINDOW_DAYS`] days; `None` without timed dictations.

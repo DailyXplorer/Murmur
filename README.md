@@ -151,11 +151,14 @@ and older have no updater, so install a newer build by hand once, as above.
   hints for AI cleanup, read through Accessibility (UI Automation on Windows)
   and never stored; password fields and password managers are never read
 - Automatic level boost for quiet speech, and a Whisper mode for very quiet speech
-- Transcription history with saved recordings, keeping the raw and cleaned text; a failed
-  or unsatisfying transcription can be sent again from its recording, and
-  Settings → History → Clear all history… deletes every dictation and its
-  recording after a confirmation, except starred ones (meetings are not part
-  of it)
+- Transcription history with saved recordings, keeping the raw and cleaned text and
+  showing which engine wrote each one (on this Mac or PC, or ChatGPT); a failed
+  or unsatisfying transcription can be sent again from its recording, in the
+  language of your choice for that run only (the Language setting stays as it is).
+  The text it replaces is kept as an earlier version (the last 5), which can be
+  copied or restored, and only the current text is searched. Settings → History →
+  Clear all history… deletes every dictation and its recording after a
+  confirmation, except starred ones (meetings are not part of it)
 - Insights: total words, words per minute over the last 30 days, current and
   longest streak with a 20-week heatmap, and usage by app category. Share
   turns the numbers into one square image card (light, numbers only) that you
