@@ -256,6 +256,8 @@ Windows shares the tree and the version number with the Mac app, and its feed UR
 
 - **Text:** where the Mac text says "this Mac", a locale's `windows` subtree says "this PC"; `src/i18n/index.ts` merges it over the locale when `isWindows`.
 - **CI:** `.github/workflows/windows.yml` (workflow `windows`; jobs `frontend`, `rust`, `cpu-model`, `installer`, `smoke`) runs on every pull request, on pushes to `main` and by hand. It holds no release secret and builds the installer without updater artifacts.
+- **Data folders:** `models`, `meetings` and `recordings` live in Local app data (`%LOCALAPPDATA%\com.dailyxplorer.murmur`); the settings and the databases stay in Roaming (`%APPDATA%`), where `murmur mcp` reads them. `src-tauri/src/data_dirs_windows/` moves the three folders once, safely (see `docs/windows-meetings.md`, "Where the files are"). Code that needs one of those folders asks `data_dirs_windows`, never `app_data_dir().join(...)`.
+- **Console:** the release exe has the GUI subsystem. `console_windows.rs` joins the parent terminal's console for `--help`, `--version`, a wrong argument, `--transcribe-file` and `mcp` only, and only fills a standard handle that is missing, so the pipes of an assistant's `murmur.exe mcp` are untouched. Starting the app never attaches.
 - **Rule:** a hunk in a shared file is either inert on macOS (a Windows file, `cfg(target_os = "windows")`, or a platform check in the frontend) or listed in the pull request body.
 
 ### Windows updates

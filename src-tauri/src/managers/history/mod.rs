@@ -85,7 +85,10 @@ impl HistoryManager {
     /// reported through `DatabaseStartup` so the app keeps running.
     pub fn new(app_handle: &AppHandle) -> Result<(Self, DatabaseStartup)> {
         let app_data_dir = app_handle.path().app_data_dir()?;
+        #[cfg(not(target_os = "windows"))]
         let recordings_dir = app_data_dir.join("recordings");
+        #[cfg(target_os = "windows")]
+        let recordings_dir = crate::data_dirs_windows::recordings_dir(&app_data_dir);
         let db_path = app_data_dir.join("history.db");
 
         if !recordings_dir.exists() {

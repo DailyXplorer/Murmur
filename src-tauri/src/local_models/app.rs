@@ -175,6 +175,8 @@ pub fn init(app: &AppHandle) {
             return;
         }
     };
+    #[cfg(target_os = "windows")]
+    let app_data = crate::data_dirs_windows::models_parent(&app_data);
     // Intel Macs run the model on the CPU, without the helper.
     let support = if cfg!(target_arch = "aarch64") {
         helper::support()

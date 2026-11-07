@@ -9,7 +9,11 @@ What no CI job can prove, for Meetings on Windows (system audio, speakers, calls
 - [ ] Install over a beta that had Meetings hidden: the Meetings page, the tray item and the Advanced switch appear, the switch is on and the shortcut field shows Alt+Shift+M.
 - [ ] Turn the Advanced switch off, quit, relaunch: Meetings stay off, and the page and the tray item are gone.
 - [ ] First meeting on a fresh install: the speech and speaker models download with progress shown, the meeting records meanwhile, and the transcript waits for the models or goes through Codex.
-- [ ] Uninstall, then reinstall: the library and the audio folders in `%APPDATA%\com.dailyxplorer.murmur` are still there and listed. Upgrading over this build keeps every meeting and its transcript.
+- [ ] Uninstall, then reinstall: the library (`meetings.db`, in `%APPDATA%\com.dailyxplorer.murmur`) and the audio folders (in `%LOCALAPPDATA%\com.dailyxplorer.murmur`) are still there and listed. Upgrading over this build keeps every meeting and its transcript.
+- [ ] Upgrade from a build that kept `models`, `meetings` and `recordings` in `%APPDATA%\com.dailyxplorer.murmur`: after the first launch the three folders are in `%LOCALAPPDATA%\com.dailyxplorer.murmur`, every meeting plays and exports, every dictation in History plays, and the model is not downloaded again.
+- [ ] Same upgrade with Roaming redirected to another drive or a network share (the roaming-profile case): the first launch copies instead of renaming, Murmur works the whole time, and the old folders are gone after it.
+- [ ] Same upgrade with a meeting WAV open in another program: Murmur still starts, uses the old folder, and finishes the move at the next launch once the file is closed.
+- [ ] `murmur.exe --help`, `murmur.exe -f <wav> --json` and `murmur.exe mcp` typed in cmd, PowerShell and Windows Terminal print their output; closing the terminal never closes a Murmur started with `--start-hidden`; an assistant's `murmur.exe mcp` still answers over its pipes.
 - [ ] SmartScreen and the antivirus raise no warning on the installer, on the first meeting, on the loopback start, on the model download or on the first model load.
 - [ ] Installer size against the previous beta (`Murmur_*_x64-setup.exe`); no `onnxruntime.dll` in the install folder.
 
