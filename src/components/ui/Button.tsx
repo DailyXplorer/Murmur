@@ -5,8 +5,9 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
    * label that does not fit (in a long locale) widens its button. `chip` fits
    * its content. Icon-only actions use `IconButton`. */
   size?: "text" | "chip";
-  /** `destructive` is the red confirm of an action that deletes something and
-   * cannot be undone. Rows that open such a dialog stay `default`. */
+  /** `destructive` is the red confirm of an action that deletes something for
+   * good. Undoable deletes (Trash, a model that downloads again) and the rows
+   * that open such a dialog stay `default`. */
   variant?: "default" | "destructive";
 }
 

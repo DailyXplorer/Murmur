@@ -171,11 +171,11 @@ test("keeps starred rows when the history is cleared and reads the page again", 
 
   await page.evaluate(() => window.historyRace.emit({ action: "cleared" }));
 
-  await expect(page.getByText("Two", { exact: true })).toHaveCount(0);
-  await expect(page.getByText("One", { exact: true })).toBeVisible();
+  // The first page is read again; the list shows "Loading" until it answers.
   await page.waitForFunction(
     () => window.historyRace.historyRequestCount() === 2,
   );
+  await expect(page.getByText("Two", { exact: true })).toHaveCount(0);
   await page.evaluate(() =>
     window.historyRace.resolveHistoryRequest(
       1,
