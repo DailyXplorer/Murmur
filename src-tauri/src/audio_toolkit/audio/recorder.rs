@@ -102,10 +102,11 @@ pub struct AudioRecorder {
     config_cache: Arc<Mutex<Option<(String, cpal::SupportedStreamConfig)>>>,
     /// The open stream's health, `None` while closed.
     health: Option<Arc<StreamHealth>>,
-    /// The last finished clip was all zeros. A reopen is asked for once per
-    /// run of such clips: a muted input delivers zeros too, and a rebuild
-    /// cannot cure that.
-    last_clip_was_zeros: AtomicBool,
+    /// When a zero clip last asked for a reopen. A muted input delivers zeros
+    /// too and a rebuild cannot cure that, so the request is not repeated
+    /// every dictation; it is retried after `ZERO_REOPEN_EVERY`, for a device
+    /// a call app still held at the first try.
+    last_zero_reopen: Mutex<Option<Instant>>,
     /// The name of the system default the open stream was opened on, `None`
     /// for a named device. cpal binds such a stream to the device that was
     /// the default then and reports no disconnect for it.
@@ -122,7 +123,7 @@ impl AudioRecorder {
             selected_channel: None,
             config_cache: Arc::new(Mutex::new(None)),
             health: None,
-            last_clip_was_zeros: AtomicBool::new(false),
+            last_zero_reopen: Mutex::new(None),
             default_name: None,
         })
     }
@@ -397,20 +398,27 @@ impl AudioRecorder {
     /// A clip of exact zeros, from first sample to last, is not a quiet
     /// room: no microphone's noise is that clean. It is what a stream that
     /// outlived its device's owner delivers, so ask for a rebuild before the
-    /// next recording rather than discard every one until a restart. A
-    /// muted input gives zeros too, which a rebuild does not cure: only the
-    /// first clip of a run of zero clips asks for one.
+    /// next recording rather than discard every one until a restart.
     fn note_clip(&self, capture: &Capture) {
+        self.note_clip_at(capture, Instant::now());
+    }
+
+    fn note_clip_at(&self, capture: &Capture, now: Instant) {
         let Some(health) = &self.health else { return };
         if capture.samples.is_empty() {
             return;
         }
-        let zeros = is_digital_silence(&capture.samples);
-        let repeated = self.last_clip_was_zeros.swap(zeros, Ordering::Relaxed);
-        if zeros && !repeated {
-            log::warn!("The clip held only digital silence; the stream will be reopened");
-            health.delivered_only_zeros.store(true, Ordering::Relaxed);
+        let mut last = self.last_zero_reopen.lock().unwrap();
+        if !is_digital_silence(&capture.samples) {
+            *last = None;
+            return;
         }
+        if last.is_some_and(|at| now.duration_since(at) < ZERO_REOPEN_EVERY) {
+            return;
+        }
+        log::warn!("The clip held only digital silence; the stream will be reopened");
+        *last = Some(now);
+        health.delivered_only_zeros.store(true, Ordering::Relaxed);
     }
 
     /// True when the active capture stream must be rebuilt.
@@ -604,6 +612,9 @@ impl AudioRecorder {
     }
 }
 
+/// The least time between two reopens asked for by zero clips.
+const ZERO_REOPEN_EVERY: Duration = Duration::from_secs(30);
+
 /// A clip with samples that are all exactly 0.0.
 fn is_digital_silence(samples: &[f32]) -> bool {
     !samples.is_empty() && samples.iter().all(|sample| *sample == 0.0)
@@ -650,7 +661,7 @@ mod tests {
     use super::{
         append_recording_frame_with_limit, is_microphone_access_denied, is_no_input_device_error,
         run_consumer, AudioChunk, AudioRecorder, Capture, Cmd, ReleaseTailRequest, StreamHealth,
-        STALL,
+        STALL, ZERO_REOPEN_EVERY,
     };
     use crate::audio_toolkit::release_tail::TailConfig;
     use std::{
@@ -1079,30 +1090,41 @@ mod tests {
     }
 
     #[test]
-    fn a_run_of_zero_clips_asks_for_one_reopen() {
+    fn zero_clips_ask_for_a_reopen_at_most_every_half_minute() {
         let zeros = Capture {
             samples: vec![0.0; 1_600],
             ..Capture::default()
         };
-        let recorder = AudioRecorder {
+        let signal = Capture {
+            samples: vec![0.1; 1_600],
+            ..Capture::default()
+        };
+        let fresh = || AudioRecorder {
             health: Some(Arc::new(StreamHealth::new(Instant::now()))),
             ..AudioRecorder::new().expect("recorder")
         };
-        recorder.note_clip(&zeros);
+        let start = Instant::now();
+        let recorder = fresh();
+        recorder.note_clip_at(&zeros, start);
         assert!(recorder.needs_reopen());
-        // The rebuilt stream delivers zeros again, as a muted input does.
-        let recorder = AudioRecorder {
+
+        // The rebuilt stream is still dead, as a muted input is: not again
+        // at once ...
+        let health = |recorder: AudioRecorder| AudioRecorder {
             health: Some(Arc::new(StreamHealth::new(Instant::now()))),
             ..recorder
         };
-        recorder.note_clip(&zeros);
+        let recorder = health(recorder);
+        recorder.note_clip_at(&zeros, start + Duration::from_secs(10));
         assert!(!recorder.needs_reopen());
-        // A clip with signal ends the run.
-        recorder.note_clip(&Capture {
-            samples: vec![0.1; 1_600],
-            ..Capture::default()
-        });
-        recorder.note_clip(&zeros);
+        // ... but it is tried again later, for a device still held then.
+        recorder.note_clip_at(&zeros, start + ZERO_REOPEN_EVERY);
+        assert!(recorder.needs_reopen());
+
+        // A clip with signal clears the wait.
+        let recorder = health(recorder);
+        recorder.note_clip_at(&signal, start + Duration::from_secs(31));
+        recorder.note_clip_at(&zeros, start + Duration::from_secs(32));
         assert!(recorder.needs_reopen());
     }
 
