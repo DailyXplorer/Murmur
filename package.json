@@ -20,6 +20,7 @@
     "test:updater-manifest": "node .github/scripts/publish-updater-manifest.test.mjs && node .github/scripts/updater-targets.test.mjs && node .github/scripts/updater-signature.test.mjs && node .github/scripts/publish-updater-pipeline.test.mjs && node .github/scripts/release-dry-run.test.mjs",
     "test:release-contract": "bun scripts/release-contract.test.ts",
     "test:windows-updater": "node .github/scripts/windows-updater-manifest.test.mjs",
+    "test:changed-paths": "node .github/scripts/changed-paths.test.mjs",
     "test:playwright": "playwright test",
     "test:playwright:ui": "playwright test --ui",
     "check:translations": "bun scripts/check-translations.ts",

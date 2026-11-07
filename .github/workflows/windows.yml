@@ -1,75 +1,58 @@
 name: windows
 # Windows is a beta: this builds, tests, installs and launches the Windows app
-# on every pull request and every push to main. It holds no release secret and
+# on pull requests and on every push to main. It holds no release secret and
 # publishes nothing.
+#
+# A pull request runs only the jobs its files need (`changes`), because the
+# whole workflow takes 12 to 25 minutes. A push to main, a nightly schedule and
+# a manual run always run everything, so what a pull request skipped is still
+# built and launched within a day. `windows-ok` is the one job that says whether
+# the workflow passed: it succeeds when every job that ran did.
 on:
   pull_request:
   push:
     branches: [main]
+  schedule:
+    - cron: "23 2 * * *"
   workflow_dispatch:
 
 concurrency:
   group: windows-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
 
 jobs:
-  frontend:
+  # Which jobs the pull request needs. Anything but a pull request needs all.
+  changes:
     runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      rust: ${{ steps.paths.outputs.rust }}
+      installer: ${{ steps.paths.outputs.installer }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          fetch-depth: 2
           persist-credentials: false
 
-      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
-        with:
-          bun-version: latest
-
-      - name: Install pinned Rust toolchain
-        uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # v1
-        with:
-          toolchain: 1.96.0
-          components: rustfmt
-
-      - name: Install dependencies
-        run: bun install --frozen-lockfile
-
-      - name: Check translation consistency
-        run: bun run check:translations
-
-      - name: Check platform invariants
-        run: bun run check:platforms
-
-      - name: Test the Windows update feed
-        run: bun run test:windows-updater
-
-      - name: Run ESLint
-        run: bun run lint
-
-      # On Ubuntu: a Windows checkout turns line endings into CRLF.
-      - name: Check formatting
-        run: bun run format:check
-
-      - name: Build frontend
-        run: bun run build
-
-      - name: Install Playwright browsers
-        run: bunx playwright install --with-deps chromium
-
-      - name: Run Playwright tests
-        run: bun run test:playwright
-
-      - name: Upload Playwright report
-        if: failure()
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
-        with:
-          name: playwright-report
-          path: playwright-report/
-          retention-days: 7
+      # rust: the crate, what its build and tests read outside src-tauri (the
+      # locale files, bindings.ts and one component), and the Windows scripts.
+      # installer: what changes the release build or the app's start, and
+      # what the installer bundles.
+      - name: Decide which jobs the change needs
+        id: paths
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          ./.github/scripts/changed-paths.sh \
+            'rust=src-tauri/.*|rust-toolchain\.toml|src/i18n/locales/.*|src/bindings\.ts|src/components/settings/history/HistorySettings\.tsx|\.github/workflows/windows\.yml|\.github/scripts/.*\.ps1|\.github/scripts/changed-paths\..*' \
+            'installer=src-tauri/(tauri.*\.json|updater-.*\.json|Cargo\.(toml|lock)|build\.rs|capabilities/.*|permissions/.*|icons/.*|resources/.*|gen/.*|windows-app-manifest\.xml|src/(lib|main)\.rs|src/mcp/.*)|rust-toolchain\.toml|package\.json|bun\.lock|vite\.config\.ts|index\.html|src/overlay/index\.html|\.github/workflows/windows\.yml|\.github/scripts/(windows-.*|changed-paths\..*)'
 
   rust:
+    needs: changes
+    if: needs.changes.outputs.rust == 'true'
     runs-on: windows-latest
     timeout-minutes: 30
     steps:
@@ -90,6 +73,12 @@ jobs:
       - uses: swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
         with:
           workspaces: "./src-tauri -> target"
+          # One dev-profile cache for the Windows jobs that compile the crate
+          # for tests (this one, cpu-model, meetings-audio, the nightly
+          # meetings windows jobs). Only this job saves it, and only on main.
+          shared-key: windows-dev
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+          cache-on-failure: true
 
       - name: Install cargo-nextest
         uses: taiki-e/install-action@1919c4a95903d2c33e4a221102edca87309fc14b # v2.89.0
@@ -129,6 +118,8 @@ jobs:
   # clips, and deleting the models releases it. A job of its own, so a cache
   # miss (739 MB) costs only this job.
   cpu-model:
+    needs: changes
+    if: needs.changes.outputs.rust == 'true'
     runs-on: windows-latest
     timeout-minutes: 30
     steps:
@@ -147,7 +138,8 @@ jobs:
       - uses: swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
         with:
           workspaces: "./src-tauri -> target"
-          key: cpu-model
+          shared-key: windows-dev
+          save-if: false
 
       - name: Cache the model
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -319,6 +311,8 @@ jobs:
   # job ends with a warning: not proven in CI. It cannot fail a push until it
   # has been green on a runner that has an output.
   meetings-audio:
+    needs: changes
+    if: needs.changes.outputs.rust == 'true'
     runs-on: windows-latest
     timeout-minutes: 30
     continue-on-error: true
@@ -338,7 +332,8 @@ jobs:
       - uses: swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
           workspaces: "./src-tauri -> target"
-          key: meetings-audio
+          shared-key: windows-dev
+          save-if: false
 
       # Windows Audio is off on a hosted runner. Turning it on gives an
       # output only when the image has an audio device.
@@ -378,6 +373,8 @@ jobs:
           fi
 
   installer:
+    needs: changes
+    if: needs.changes.outputs.installer == 'true'
     runs-on: windows-latest
     steps:
       - name: Keep line endings as committed
@@ -399,6 +396,10 @@ jobs:
       - uses: swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
         with:
           workspaces: "./src-tauri -> target"
+          # The release-profile cache, read by release-dry-run.yml too.
+          shared-key: windows-release
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+          cache-on-failure: true
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
@@ -445,3 +446,22 @@ jobs:
           name: murmur-windows-smoke
           path: ${{ runner.temp }}/smoke/
           if-no-files-found: error
+
+  # The one check that tells whether the workflow passed. A job a pull request
+  # did not need is skipped, which counts as passing; a failed or cancelled job
+  # (the `changes` job included) fails it.
+  windows-ok:
+    if: always()
+    needs: [changes, rust, cpu-model, meetings-audio, installer, smoke]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check every job that ran passed
+        env:
+          NEEDS: ${{ toJSON(needs) }}
+        run: |
+          jq -r 'to_entries[] | "\(.key): \(.value.result)"' <<<"$NEEDS"
+          if jq -e 'any(.[]; .result == "failure" or .result == "cancelled")' <<<"$NEEDS" >/dev/null; then
+            echo "a job failed or was cancelled" >&2
+            exit 1
+          fi

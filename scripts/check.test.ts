@@ -11,6 +11,7 @@ assert.deepEqual(
     "bun run test:updater-manifest",
     "bun run test:release-contract",
     "bun run test:windows-updater",
+    "bun run test:changed-paths",
     "bun run test:versions",
     "bun run test:macos-expanded",
     "bun run check:versions",

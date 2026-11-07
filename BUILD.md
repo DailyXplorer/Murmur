@@ -283,10 +283,33 @@ cache: the repository sat above the 10 GB limit, GitHub evicted the caches of
 Cargo's incremental cache is not worth uploading from a branch that is gone
 after the merge.
 
+The Windows jobs that compile the crate for tests share one cache,
+`windows-dev`, which only the `rust` job of `windows.yml` saves (on `main`);
+`cpu-model`, `meetings-audio` and the `meetings windows` jobs restore it. The
+installer builds in the release profile with its own `windows-release` cache,
+which `release dry run` reads.
+
 `cache-on-failure: true` keeps a cache from a main run whose tests failed, so a
 flaky test does not discard a compile of 10 minutes or more. A workflow that
 has no run on `main` has no cache to read: `local engine` therefore also runs
 on a push to `main` that changes its own paths.
+
+### Windows workflow
+
+`windows.yml` starts with a `changes` job that lists the files a pull request
+changes (`.github/scripts/changed-paths.sh`, tested by
+`bun run test:changed-paths`) and gives each job a regular expression: the Rust
+jobs (`rust`, `cpu-model`, `meetings-audio`) run for `src-tauri/**`, the
+locale files, `src/bindings.ts` and the Windows scripts; the release-profile
+`installer` and `smoke` run for what changes the release build or the app's
+start (`tauri*.json`, `Cargo.*`, `build.rs`, `lib.rs`, `main.rs`, `mcp/`,
+`package.json`, the Windows scripts). Anything that is not a pull request
+(push to `main`, the nightly run at 02:23 UTC, a manual run) runs every job, and
+so does a diff that cannot be read. `windows-ok` fails when any job failed or
+was cancelled and passes when the others were skipped, so it is the one name to
+require if a branch ruleset is ever added (the leaf jobs are conditional).
+`code quality` runs on every pull request, since it is the only check of
+Markdown formatting and the platform rules.
 
 ## Troubleshooting
 
