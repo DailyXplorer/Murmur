@@ -9,6 +9,9 @@
 //! means the same moment in both files.
 
 // The Windows loopback's logic needs no Windows API, so macOS runs its tests.
+pub mod call_input;
+#[cfg(target_os = "windows")]
+mod call_input_windows;
 #[cfg(any(target_os = "windows", test))]
 mod loopback_logic;
 pub mod mic;

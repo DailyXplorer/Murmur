@@ -236,6 +236,16 @@ warning 5 minutes before.
   only. When another app played sound during a meeting but its system audio
   holds nothing but silence while you spoke, the meeting says so and links
   to the privacy settings.
+- Your microphone track follows the call. With the microphone on "Default",
+  Murmur records the input the call app (Teams, Zoom, Meet in a browser,
+  Discord and the others it detects) actually uses, such as a headset or
+  AirPods, and follows it if the app switches mid-call. It never changes your
+  Mac's or PC's default input, so a Bluetooth headset stays as it was. A
+  microphone you picked in Settings is respected, unless it delivers nothing
+  but silence for 10 seconds while the call app records from another input.
+  On a Mac this needs macOS 14 on Apple silicon; elsewhere, and whenever the
+  system does not say, Murmur records the microphone from Settings or the
+  default as before.
 - While a meeting records, open it in Meetings to read a live transcript, a
   few seconds behind speech, with "You" for the microphone and "Others" for
   system audio. It is made on the Mac by the local model, never in the cloud,

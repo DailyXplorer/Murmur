@@ -1,9 +1,12 @@
 //! The "Me" track: the microphone dictation uses (the one chosen in
 //! settings, else the system default), on a cpal stream of its own next to
 //! the dictation recorder's (Core Audio serves several clients from one
-//! device). If the device stops (unplugged, or a Bluetooth headset dropped
-//! out), it is reopened, or the default input once it is gone; the writer
-//! fills the gap, and the meeting warns when no reopen brings audio back.
+//! device). When the call app records from another input, the track follows
+//! it (`call_input.rs`): always with the default, and with a microphone
+//! chosen in Settings only once that one delivers nothing but silence. If the
+//! device stops (unplugged, or a Bluetooth headset dropped out), it is
+//! reopened, or the default input once it is gone; the writer fills the gap,
+//! and the meeting warns when no reopen brings audio back.
 
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -14,6 +17,7 @@ use std::time::{Duration, Instant};
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use cpal::{Sample, SizedSample};
 
+use super::call_input::{self, Look, Route, Router};
 use super::{Feeder, TrackWriter};
 use crate::meetings::coordinator::Track;
 
@@ -114,8 +118,9 @@ impl Track for MicCapture {
     }
 }
 
-/// Keeps a stream on `input` open until `stop`. The first open's outcome
-/// goes to `ready`; later failures are retried.
+/// Keeps a stream on `input` open until `stop`, on the device the call app
+/// uses when it uses another. The first open's outcome goes to `ready`; later
+/// failures are retried.
 fn supervise(
     input: Input,
     feeder: Feeder,
@@ -124,27 +129,47 @@ fn supervise(
     ready: mpsc::SyncSender<Result<(), String>>,
 ) {
     let mut ready = Some(ready);
+    let mut router = Router::default();
+    router.start(&call_devices(), input.device.is_some());
     while !stop.load(Ordering::SeqCst) {
         let broken = Arc::new(AtomicBool::new(false));
-        match open_input(&input, &feeder, &broken, &heard) {
-            Ok(stream) => {
+        let mut rerouted = false;
+        match open_input(&input, router.route(), &feeder, &broken, &heard) {
+            Ok(opened) => {
                 if let Some(ready) = ready.take() {
                     let _ = ready.send(Ok(()));
                 }
-                let opened = Instant::now();
+                let began = Instant::now();
+                let mut looked = began;
                 loop {
                     std::thread::sleep(Duration::from_millis(100));
                     if stop.load(Ordering::SeqCst) {
                         break;
                     }
                     let now = Instant::now();
-                    let silent_for = heard.silent_for(now).min(now - opened);
+                    let silent_for = heard.silent_for(now).min(now - began);
                     if broken.load(Ordering::SeqCst) || silent_for > STALL {
                         log::warn!("Meeting microphone stopped delivering audio; reopening it");
                         break;
                     }
+                    if now.duration_since(looked) < call_input::POLL {
+                        continue;
+                    }
+                    looked = now;
+                    let calls = call_devices();
+                    let look = Look {
+                        calls: &calls,
+                        open: opened.name.as_deref(),
+                        explicit: opened.explicit,
+                        quiet: heard.quiet_for(now).min(now - began),
+                    };
+                    if router.observe(now, &look).is_some() {
+                        log::info!("The meeting microphone follows the call app's input");
+                        rerouted = true;
+                        break;
+                    }
                 }
-                drop(stream);
+                drop(opened);
             }
             Err(error) => {
                 if let Some(ready) = ready.take() {
@@ -154,10 +179,18 @@ fn supervise(
                 log::warn!("Cannot reopen the meeting microphone: {error}");
             }
         }
-        if !stop.load(Ordering::SeqCst) {
+        if !rerouted && !stop.load(Ordering::SeqCst) {
             std::thread::sleep(REOPEN_DELAY);
         }
     }
+}
+
+/// The input devices the call apps record from now; empty where the system
+/// does not tell.
+fn call_devices() -> Vec<String> {
+    call_input::inputs_now()
+        .map(|users| call_input::call_devices(&users))
+        .unwrap_or_default()
 }
 
 /// The device named `wanted` among `devices`; `None` means the default.
@@ -169,35 +202,67 @@ fn named_input<D>(devices: Vec<(String, D)>, wanted: Option<&str>) -> Option<D> 
         .map(|(_, device)| device)
 }
 
-fn open_input(
-    input: &Input,
-    feeder: &Feeder,
-    broken: &Arc<AtomicBool>,
-    heard: &Arc<Heard>,
-) -> Result<cpal::Stream, String> {
+/// A running stream and what it records from.
+struct Opened {
+    /// Held so that the stream keeps running until `Opened` is dropped.
+    _stream: cpal::Stream,
+    /// The device's name, when cpal tells.
+    name: Option<String>,
+    /// The device is the one chosen in Settings.
+    explicit: bool,
+}
+
+/// The input devices by name, empty when they cannot be listed.
+fn input_devices() -> Vec<(String, cpal::Device)> {
+    match crate::audio_toolkit::list_input_devices() {
+        Ok(devices) => devices
+            .into_iter()
+            .map(|info| (info.name, info.device))
+            .collect(),
+        Err(error) => {
+            log::warn!("Cannot list the microphones: {error}");
+            Vec::new()
+        }
+    }
+}
+
+/// The device `route` names, with whether it is the one chosen in Settings.
+/// A call app's device that cannot be found, or told apart from another of
+/// the same name, gives way to the settings.
+fn resolve_input(input: &Input, route: &Route) -> Result<(cpal::Device, bool), String> {
+    if let Route::Call(wanted) = route {
+        match call_input::unique_named(input_devices(), wanted) {
+            Some(device) => return Ok((device, false)),
+            None => log::warn!(
+                "The call app's microphone is not available here; the meeting uses its usual one"
+            ),
+        }
+    }
     let wanted = input.device.as_deref();
     let named = wanted.and_then(|_| {
-        let devices = crate::audio_toolkit::list_input_devices()
-            .map_err(|error| log::warn!("Cannot list the microphones: {error}"))
-            .ok()?;
-        let found = named_input(
-            devices
-                .into_iter()
-                .map(|info| (info.name, info.device))
-                .collect(),
-            wanted,
-        );
+        let found = named_input(input_devices(), wanted);
         if found.is_none() {
             log::warn!("The chosen microphone is missing; the meeting uses the default");
         }
         found
     });
-    let device = match named {
-        Some(device) => device,
+    match named {
+        Some(device) => Ok((device, true)),
         None => cpal::default_host()
             .default_input_device()
-            .ok_or_else(|| "No input device found".to_string())?,
-    };
+            .map(|device| (device, false))
+            .ok_or_else(|| "No input device found".to_string()),
+    }
+}
+
+fn open_input(
+    input: &Input,
+    route: &Route,
+    feeder: &Feeder,
+    broken: &Arc<AtomicBool>,
+    heard: &Arc<Heard>,
+) -> Result<Opened, String> {
+    let (device, explicit) = resolve_input(input, route)?;
     let config = device
         .default_input_config()
         .map_err(|error| format!("Cannot read the microphone format: {error}"))?;
@@ -219,7 +284,11 @@ fn open_input(
     stream
         .play()
         .map_err(|error| format!("Cannot start the microphone: {error}"))?;
-    Ok(stream)
+    Ok(Opened {
+        _stream: stream,
+        name: device.name().ok(),
+        explicit,
+    })
 }
 
 fn build<T>(
@@ -242,8 +311,9 @@ where
     device.build_input_stream(
         config,
         move |data: &[T], _: &cpal::InputCallbackInfo| {
-            feeder.push(mono(data, channels, channel), sample_rate);
-            heard.mark(Instant::now());
+            let samples = mono(data, channels, channel);
+            heard.mark(Instant::now(), peak(&samples));
+            feeder.push(samples, sample_rate);
         },
         move |error| {
             log::error!("Meeting microphone stream error: {error}");
@@ -256,12 +326,15 @@ where
 /// Without audio this long, reopening the microphone did not bring it back.
 const LOST: Duration = Duration::from_secs(6);
 
-/// When the microphone last delivered audio, across every reopen. Digital
-/// zeros count: a muted input gives them, and so does a denied permission,
-/// which the coordinator reads from macOS instead.
+/// When the microphone last delivered audio, across every reopen, and when it
+/// last delivered more than silence. Digital zeros count as audio for the
+/// first: a muted input gives them, and so does a denied permission, which
+/// the coordinator reads from macOS instead. The second tells a chosen
+/// microphone that gives nothing from a quiet room.
 struct Heard {
     epoch: Instant,
     last_ms: AtomicU64,
+    loud_ms: AtomicU64,
 }
 
 impl Heard {
@@ -269,12 +342,17 @@ impl Heard {
         Self {
             epoch,
             last_ms: AtomicU64::new(0),
+            loud_ms: AtomicU64::new(0),
         }
     }
 
-    fn mark(&self, now: Instant) {
+    /// A callback delivered samples whose loudest was `peak`.
+    fn mark(&self, now: Instant, peak: f32) {
         let ms = now.saturating_duration_since(self.epoch).as_millis() as u64;
         self.last_ms.store(ms, Ordering::SeqCst);
+        if peak > call_input::SILENT_PEAK {
+            self.loud_ms.store(ms, Ordering::SeqCst);
+        }
     }
 
     fn silent_for(&self, now: Instant) -> Duration {
@@ -282,9 +360,22 @@ impl Heard {
         now.saturating_duration_since(last)
     }
 
+    /// How long the microphone has delivered nothing above silence.
+    fn quiet_for(&self, now: Instant) -> Duration {
+        let last = self.epoch + Duration::from_millis(self.loud_ms.load(Ordering::SeqCst));
+        now.saturating_duration_since(last)
+    }
+
     fn lost(&self, now: Instant) -> bool {
         self.silent_for(now) > LOST
     }
+}
+
+/// The loudest sample of `samples`.
+fn peak(samples: &[f32]) -> f32 {
+    samples
+        .iter()
+        .fold(0.0, |loudest, sample| loudest.max(sample.abs()))
 }
 
 /// One sample per frame of interleaved `data`: the input `channel` when the
@@ -336,7 +427,7 @@ mod tests {
             "never heard"
         );
 
-        heard.mark(start + Duration::from_secs(10));
+        heard.mark(start + Duration::from_secs(10), 0.0);
         assert!(!heard.lost(start + Duration::from_secs(10) + LOST));
         assert!(heard.lost(start + Duration::from_secs(11) + LOST));
     }
@@ -348,7 +439,7 @@ mod tests {
         let start = Instant::now();
         let muted = Heard::new(start);
         for second in 1..=10 {
-            muted.mark(start + Duration::from_secs(second));
+            muted.mark(start + Duration::from_secs(second), 0.0);
         }
         assert!(!muted.lost(start + Duration::from_secs(10)));
     }
@@ -369,5 +460,27 @@ mod tests {
     fn the_system_default_records_without_a_choice_or_once_the_choice_is_gone() {
         assert_eq!(named_input(devices(), None), None);
         assert_eq!(named_input(devices(), Some("Unplugged Mic")), None);
+    }
+
+    #[test]
+    fn a_microphone_counts_as_quiet_until_it_delivers_more_than_silence() {
+        let start = Instant::now();
+        let heard = Heard::new(start);
+        let second = Duration::from_secs(1);
+        // Zeros and the faintest hiss are silence, however many callbacks.
+        for n in 1..=12 {
+            heard.mark(start + n * second, call_input::SILENT_PEAK);
+        }
+        assert_eq!(heard.quiet_for(start + 12 * second), 12 * second);
+        assert!(!heard.lost(start + 12 * second), "it still delivers");
+
+        heard.mark(start + 13 * second, 0.2);
+        assert_eq!(heard.quiet_for(start + 15 * second), 2 * second);
+    }
+
+    #[test]
+    fn the_loudest_sample_ignores_its_sign() {
+        assert_eq!(peak(&[]), 0.0);
+        assert_eq!(peak(&[0.1, -0.7, 0.3]), 0.7);
     }
 }
