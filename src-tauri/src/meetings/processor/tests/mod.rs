@@ -143,6 +143,7 @@ impl Analyzer for FakeAnalyzer {
 struct FakeSummarizer {
     answers: Mutex<Vec<Result<String, CompletionError>>>,
     inputs: Mutex<Vec<String>>,
+    instructions: Mutex<Vec<String>>,
     /// What the user does while the first summary is being written.
     meanwhile: Mutex<Option<Box<dyn FnOnce() + Send>>>,
 }
@@ -152,6 +153,7 @@ impl FakeSummarizer {
         Arc::new(Self {
             answers: Mutex::new(answers),
             inputs: Mutex::default(),
+            instructions: Mutex::default(),
             meanwhile: Mutex::default(),
         })
     }
@@ -164,10 +166,11 @@ impl FakeSummarizer {
 impl Summarizer for FakeSummarizer {
     fn complete(
         &self,
-        _: String,
+        instructions: String,
         input: String,
         _: ProcessingOperation,
     ) -> crate::meetings::summary::CompleteFuture {
+        self.instructions.lock().unwrap().push(instructions);
         self.inputs.lock().unwrap().push(input);
         if let Some(meanwhile) = self.meanwhile.lock().unwrap().take() {
             meanwhile();
@@ -264,6 +267,8 @@ struct Harness {
     events: Arc<Events>,
     /// The language chosen in Settings.
     language: Option<&'static str>,
+    /// The custom words of Settings.
+    vocabulary: Vec<String>,
     /// This Mac's model, when it is ready.
     local: Option<Arc<dyn Transcriber>>,
     /// Off for the tests that record 25 minutes.
@@ -279,6 +284,7 @@ fn harness() -> Harness {
         root: dir.path().join("meetings"),
         events: Arc::default(),
         language: None,
+        vocabulary: Vec::new(),
         local: None,
         compress_audio: true,
         _dir: dir,
@@ -340,6 +346,7 @@ impl Harness {
                 transient: vec![],
             },
             language: self.language.map(str::to_string),
+            vocabulary: self.vocabulary.clone(),
             events: Arc::clone(&self.events) as Arc<dyn ProcessEvents>,
             compress_audio: self.compress_audio,
         };

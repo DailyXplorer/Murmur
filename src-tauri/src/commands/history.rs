@@ -81,6 +81,18 @@ pub async fn delete_history_entry(
         .map_err(|e| e.to_string())
 }
 
+/// Deletes every dictation in the history, starred ones included, and their
+/// recordings. Meetings are not part of it.
+#[tauri::command]
+#[specta::specta]
+pub async fn clear_history(history_manager: State<'_, Arc<HistoryManager>>) -> Result<(), String> {
+    history_manager
+        .clear_history()
+        .await
+        .map(|_| ())
+        .map_err(|e| e.to_string())
+}
+
 /// Returned when the provider heard nothing in a saved recording.
 pub const NO_SPEECH_ERROR: &str = "Recording contains no speech";
 

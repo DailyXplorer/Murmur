@@ -419,6 +419,17 @@
       "transcribing": "Transcribiendo...",
       "transcriptionFailed": "La transcripción falló. Se conservó la grabación, así que puedes reintentarlo.",
       "preferences": "Preferencias",
+      "clear": {
+        "title": "Borrar el historial",
+        "description": "Elimina todos los dictados de la lista, también los guardados, y sus grabaciones. No se puede deshacer. Las reuniones no se ven afectadas.",
+        "button": "Borrar todo el historial…",
+        "confirm": "Borrar historial",
+        "error": "No se pudo borrar el historial. Inténtalo de nuevo.",
+        "dialog": {
+          "title": "¿Borrar todo el historial?",
+          "description": "Se eliminan todos los dictados y sus grabaciones, también los guardados. No se puede deshacer. Las reuniones no se ven afectadas."
+        }
+      },
       "noRecording": "La transcripción falló y no se conservó ninguna grabación.",
       "retry": "Reintentar",
       "retrySuccess": "Transcrito de nuevo.",

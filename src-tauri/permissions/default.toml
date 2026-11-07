@@ -101,6 +101,7 @@ permissions = [
   "allow-toggle-history-entry-saved",
   "allow-get-audio-file-path",
   "allow-delete-history-entry",
+  "allow-clear-history",
   "allow-retry-history-entry-transcription",
   "allow-update-history-limit",
   "allow-update-recording-retention-period",

@@ -1,7 +1,7 @@
 use anyhow::{anyhow, Result};
 use chrono::{DateTime, Local, Utc};
 use log::{debug, error};
-use rusqlite::{params, Connection, OptionalExtension};
+use rusqlite::{params, Connection, OptionalExtension, TransactionBehavior};
 use std::path::{Path, PathBuf};
 use tauri_specta::Event;
 
@@ -362,6 +362,45 @@ impl HistoryManager {
         }
 
         Ok(())
+    }
+
+    /// Deletes every row, saved ones included, and then the recording of each
+    /// row it deleted. The rows are read and deleted in one write
+    /// transaction, so a dictation saved meanwhile either is cleared with the
+    /// rest or lands after the clear with its recording intact. Only files a
+    /// deleted row names are removed: a recording that has no row yet (a
+    /// dictation still being transcribed) is left alone. The search index
+    /// follows through the delete trigger of each row. Returns the number of
+    /// rows deleted.
+    pub(super) fn clear_with_conn(conn: &mut Connection, recordings_dir: &Path) -> Result<usize> {
+        let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let file_names = {
+            let mut stmt = tx.prepare("SELECT file_name FROM transcription_history")?;
+            let rows = stmt.query_map([], |row| row.get::<_, String>(0))?;
+            rows.collect::<rusqlite::Result<Vec<_>>>()?
+        };
+        tx.execute("DELETE FROM transcription_history", [])?;
+        tx.commit()?;
+
+        for file_name in &file_names {
+            Self::delete_recording_file(recordings_dir, file_name);
+        }
+        Ok(file_names.len())
+    }
+
+    /// "Clear history": every dictation and its recording. Meetings have
+    /// their own library and are not touched.
+    pub async fn clear_history(&self) -> Result<usize> {
+        let mut conn = self.get_connection()?;
+        let cleared = Self::clear_with_conn(&mut conn, &self.recordings_dir)?;
+
+        debug!("Cleared {} history entries", cleared);
+
+        if let Err(e) = HistoryUpdatePayload::Cleared.emit(&self.app_handle) {
+            error!("Failed to emit history-updated event: {}", e);
+        }
+
+        Ok(cleared)
     }
 
     fn format_timestamp_title(&self, timestamp: i64) -> String {

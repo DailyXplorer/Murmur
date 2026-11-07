@@ -419,6 +419,17 @@
       "transcribing": "Transcribing...",
       "transcriptionFailed": "Transcription failed. The recording was kept, so you can retry.",
       "preferences": "Preferences",
+      "clear": {
+        "title": "Clear history",
+        "description": "Deletes every dictation in the list, saved ones included, and their recordings. This can't be undone. Meetings are not affected.",
+        "button": "Clear all history…",
+        "confirm": "Clear history",
+        "error": "Couldn't clear the history. Please try again.",
+        "dialog": {
+          "title": "Clear all history?",
+          "description": "Every dictation and its recording is deleted, saved ones included. This can't be undone. Meetings are not affected."
+        }
+      },
       "noRecording": "Transcription failed and no recording was kept.",
       "retry": "Retry",
       "retrySuccess": "Transcribed again.",

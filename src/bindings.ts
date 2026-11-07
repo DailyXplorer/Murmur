@@ -783,6 +783,18 @@ async deleteHistoryEntry(id: number) : Promise<Result<null, string>> {
     else return { status: "error", error: String(e) };
 }
 },
+/**
+ * Deletes every dictation in the history, starred ones included, and their
+ * recordings. Meetings are not part of it.
+ */
+async clearHistory() : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("clear_history") };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
 async retryHistoryEntryTranscription(id: number) : Promise<Result<HistoryEntry, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("retry_history_entry_transcription", { id }) };
@@ -1469,7 +1481,11 @@ export type HistoryHit = { entry: HistoryEntry;
  * Where `entry.transcription_text` matched, in UTF-16 units.
  */
 ranges: ([number, number])[] }
-export type HistoryUpdatePayload = { action: "added"; entry: HistoryEntry } | { action: "updated"; entry: HistoryEntry } | { action: "deleted"; id: number } | { action: "toggled"; id: number }
+export type HistoryUpdatePayload = { action: "added"; entry: HistoryEntry } | { action: "updated"; entry: HistoryEntry } | { action: "deleted"; id: number } | { action: "toggled"; id: number } | 
+/**
+ * Every dictation was removed at once ("Clear history").
+ */
+{ action: "cleared" }
 export type InsightsSummary = { total_dictations: number; total_words: number; 
 /**
  * Over the last [`stats::WPM_WINDOW_DAYS`] days; `None` without timed dictations.

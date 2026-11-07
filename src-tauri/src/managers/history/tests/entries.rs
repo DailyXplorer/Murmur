@@ -214,3 +214,121 @@ fn history_search_prefix_matches() {
     assert_eq!(found(&conn, "pricing"), [older]);
     assert!(found(&conn, "pricey").is_empty());
 }
+
+fn clear(conn: &mut Connection, recordings_dir: &std::path::Path) -> usize {
+    HistoryManager::clear_with_conn(conn, recordings_dir).unwrap()
+}
+
+#[test]
+fn clearing_deletes_every_row_saved_ones_included_and_their_recordings() {
+    let temp = tempfile::tempdir().unwrap();
+    let recordings_dir = temp.path().join("recordings");
+    std::fs::create_dir(&recordings_dir).unwrap();
+    let (_db, mut conn) = history_db();
+    let mut files = Vec::new();
+    for (n, text) in ["first note", "second note", "third note"]
+        .into_iter()
+        .enumerate()
+    {
+        let file_name = format!("murmur-{n}.wav");
+        std::fs::write(recordings_dir.join(&file_name), "wav").unwrap();
+        let source = EngineUsed {
+            engine: Engine::Cloud,
+            fallback: None,
+        };
+        insert_row(
+            &conn,
+            &file_name,
+            n as i64,
+            "t",
+            &ProcessedText::unprocessed(text.to_string()),
+            source,
+        )
+        .unwrap();
+        files.push(file_name);
+    }
+    conn.execute(
+        "UPDATE transcription_history SET saved = 1 WHERE timestamp = 0",
+        [],
+    )
+    .unwrap();
+
+    assert_eq!(clear(&mut conn, &recordings_dir), 3);
+
+    let rows: i64 = conn
+        .query_row("SELECT COUNT(*) FROM transcription_history", [], |row| {
+            row.get(0)
+        })
+        .unwrap();
+    assert_eq!(rows, 0);
+    for file_name in &files {
+        assert!(!recordings_dir.join(file_name).exists());
+    }
+    assert_eq!(clear(&mut conn, &recordings_dir), 0);
+}
+
+#[test]
+fn clearing_keeps_the_search_index_in_step_with_the_rows() {
+    let temp = tempfile::tempdir().unwrap();
+    let (_db, mut conn) = history_db();
+    dictate(&conn, 1, "quarterly budget review");
+    dictate(&conn, 2, "budget for the offsite");
+    assert_eq!(found(&conn, "budget").len(), 2);
+
+    clear(&mut conn, temp.path());
+
+    assert!(found(&conn, "budget").is_empty());
+    conn.execute(
+        "INSERT INTO history_fts(history_fts) VALUES ('integrity-check')",
+        [],
+    )
+    .expect("the index matches the (now empty) table");
+    // A dictation saved after the clear is found again.
+    let id = dictate(&conn, 3, "budget again");
+    assert_eq!(found(&conn, "budget"), vec![id]);
+    conn.execute(
+        "INSERT INTO history_fts(history_fts) VALUES ('integrity-check')",
+        [],
+    )
+    .unwrap();
+}
+
+#[test]
+fn clearing_leaves_a_recording_that_has_no_row_yet() {
+    let temp = tempfile::tempdir().unwrap();
+    let recordings_dir = temp.path().join("recordings");
+    std::fs::create_dir(&recordings_dir).unwrap();
+    std::fs::write(recordings_dir.join("in-flight.wav"), "wav").unwrap();
+    std::fs::write(recordings_dir.join("a.wav"), "wav").unwrap();
+    let (_db, mut conn) = history_db();
+    dictate(&conn, 1, "hello");
+
+    assert_eq!(clear(&mut conn, &recordings_dir), 1);
+
+    assert!(!recordings_dir.join("a.wav").exists());
+    assert!(recordings_dir.join("in-flight.wav").exists());
+}
+
+#[cfg(unix)]
+#[test]
+fn clearing_never_follows_a_symlinked_recordings_root() {
+    let (_temp, recordings_dir, sentinel) = symlinked_recordings_root_with_sentinel();
+    let (_db, mut conn) = history_db();
+    let source = EngineUsed {
+        engine: Engine::Cloud,
+        fallback: None,
+    };
+    insert_row(
+        &conn,
+        "murmur-100.wav",
+        100,
+        "t",
+        &ProcessedText::unprocessed("hello".to_string()),
+        source,
+    )
+    .unwrap();
+
+    assert_eq!(clear(&mut conn, &recordings_dir), 1);
+
+    assert_eq!(std::fs::read_to_string(&sentinel).unwrap(), "sentinel");
+}

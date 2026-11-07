@@ -77,6 +77,9 @@ pub struct Processor {
     pub summarizer: Arc<dyn Summarizer>,
     pub policy: RetryPolicy,
     pub language: Option<String>,
+    /// The user's custom words, read when the job starts; the summary
+    /// spells names and terms as they do.
+    pub vocabulary: Vec<String>,
     pub events: Arc<dyn ProcessEvents>,
     /// Whether the tracks are compressed once the summary is written. Always
     /// on in the app; a test with a long recording turns it off, as encoding
@@ -238,7 +241,10 @@ impl Processor {
             self.summarizer.as_ref(),
             &self.policy,
             id,
-            self.language.as_deref(),
+            summary::Hints {
+                language: self.language.as_deref(),
+                vocabulary: &self.vocabulary,
+            },
             operation,
         )
         .await?;

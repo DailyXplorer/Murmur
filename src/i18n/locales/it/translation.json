@@ -419,6 +419,17 @@
       "transcribing": "Trascrizione in corso...",
       "transcriptionFailed": "Trascrizione non riuscita. La registrazione è stata conservata, quindi puoi riprovare.",
       "preferences": "Preferenze",
+      "clear": {
+        "title": "Cancella cronologia",
+        "description": "Elimina tutti i dettati dell'elenco, anche quelli salvati, e le loro registrazioni. L'operazione non si può annullare. Le riunioni non sono interessate.",
+        "button": "Cancella tutta la cronologia…",
+        "confirm": "Cancella cronologia",
+        "error": "Impossibile cancellare la cronologia. Riprova.",
+        "dialog": {
+          "title": "Cancellare tutta la cronologia?",
+          "description": "Tutti i dettati e le loro registrazioni vengono eliminati, anche quelli salvati. L'operazione non si può annullare. Le riunioni non sono interessate."
+        }
+      },
       "noRecording": "Trascrizione non riuscita e nessuna registrazione è stata conservata.",
       "retry": "Riprova",
       "retrySuccess": "Trascritto di nuovo.",

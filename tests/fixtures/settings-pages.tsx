@@ -880,6 +880,7 @@ const RESPONSES: Record<string, unknown> = {
   download_local_model: null,
   cancel_local_model_download: null,
   delete_local_model: null,
+  clear_history: null,
   get_meeting_capabilities: {
     analysis,
     system_audio: systemAudio,
