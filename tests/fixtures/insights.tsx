@@ -3,6 +3,7 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import i18n from "i18next";
 import { initReactI18next } from "react-i18next";
+import { Toaster } from "sonner";
 import { mockIPC } from "@tauri-apps/api/mocks";
 import { events } from "../../src/bindings";
 import type {
@@ -19,6 +20,8 @@ import "../../src/App.css";
 interface InsightsFixture {
   ready: boolean;
   requests: () => number;
+  /** The pictures the page asked the app to copy or save. */
+  shared: () => { command: string; png: string }[];
   publish: (summary: InsightsSummary) => Promise<void>;
 }
 
@@ -91,13 +94,20 @@ const EMPTY_SUMMARY: InsightsSummary = {
 
 let summary = params.get("data") === "empty" ? EMPTY_SUMMARY : DEMO_SUMMARY;
 let requestCount = 0;
+const shared: { command: string; png: string }[] = [];
 
 mockIPC(
-  (command) => {
+  (command, payload) => {
     if (command === "get_insights") {
       requestCount += 1;
       window.insights.ready = true;
       return summary;
+    }
+    if (command === "copy_insights_card" || command === "save_insights_card") {
+      shared.push({ command, png: (payload as { png: string }).png });
+      return command === "save_insights_card" && params.get("save") !== "cancel"
+        ? "/tmp/murmur-insights.png"
+        : null;
     }
     throw new Error(`Unexpected Tauri command: ${command}`);
   },
@@ -107,6 +117,7 @@ mockIPC(
 window.insights = {
   ready: false,
   requests: () => requestCount,
+  shared: () => shared,
   publish: (next) => {
     summary = next;
     return events.insightsUpdated.emit(null);
@@ -121,6 +132,7 @@ const InsightsFixture: React.FC = () => (
         <InsightsSettings />
       </div>
     </div>
+    <Toaster />
   </div>
 );
 

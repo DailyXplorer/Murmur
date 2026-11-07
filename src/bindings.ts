@@ -841,6 +841,29 @@ async getInsights() : Promise<Result<InsightsSummary, string>> {
     else return { status: "error", error: String(e) };
 }
 },
+/**
+ * Puts the card, a PNG, on the clipboard as an image.
+ */
+async copyInsightsCard(png: string) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("copy_insights_card", { png }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
+/**
+ * Asks where to save the card, a PNG, and writes it there. Returns the
+ * path, or `None` when the user cancels.
+ */
+async saveInsightsCard(png: string) : Promise<Result<string | null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("save_insights_card", { png }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
 async getMeetingRuntime() : Promise<MeetingRuntime> {
     return await TAURI_INVOKE("get_meeting_runtime");
 },

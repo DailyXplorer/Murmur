@@ -129,6 +129,25 @@
       "cellTitle": "Dictations on {{date}}: {{value}}",
       "less": "Less",
       "more": "More"
+    },
+    "share": {
+      "button": "Share",
+      "title": "Share your insights",
+      "empty": "Dictate something first, then share your insights.",
+      "save": {
+        "button": "Save PNG",
+        "done": "Image saved.",
+        "error": "The image could not be saved."
+      },
+      "copy": {
+        "button": "Copy image",
+        "done": "Image copied.",
+        "error": "The image could not be copied."
+      },
+      "card": {
+        "wordsDictated": "Words dictated",
+        "dictatedWith": "Dictated with"
+      }
     }
   },
   "onboarding": {

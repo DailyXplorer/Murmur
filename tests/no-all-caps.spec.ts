@@ -16,6 +16,7 @@ const ACRONYMS = [
   "GGUF", // the file format of the Intel model
   "MB",
   "MCP", // Model Context Protocol, the name of the AI assistants' connector
+  "PNG", // the image format of the Insights share card
   "MIT", // the MIT licence, in the model licences
   "NVIDIA",
   "ONNX", // the model file format of the Windows speaker model

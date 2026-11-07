@@ -41,6 +41,7 @@
     "@tauri-apps/plugin-os": "~2.3.2",
     "@tauri-apps/plugin-process": "~2.3.1",
     "@tauri-apps/plugin-updater": "~2.14.1",
+    "html-to-image": "^1.11.13",
     "i18next": "^26.5.12",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",

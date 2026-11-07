@@ -129,6 +129,25 @@
       "cellTitle": "Dictées le {{date}} : {{value}}",
       "less": "Moins",
       "more": "Plus"
+    },
+    "share": {
+      "button": "Partager",
+      "title": "Partager vos statistiques",
+      "empty": "Dictez d’abord quelque chose, puis partagez vos statistiques.",
+      "save": {
+        "button": "Enregistrer en PNG",
+        "done": "Image enregistrée.",
+        "error": "Impossible d’enregistrer l’image."
+      },
+      "copy": {
+        "button": "Copier l’image",
+        "done": "Image copiée.",
+        "error": "Impossible de copier l’image."
+      },
+      "card": {
+        "wordsDictated": "Mots dictés",
+        "dictatedWith": "Dicté avec"
+      }
     }
   },
   "onboarding": {

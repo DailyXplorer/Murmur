@@ -157,7 +157,9 @@ and older have no updater, so install a newer build by hand once, as above.
   recording after a confirmation, except starred ones (meetings are not part
   of it)
 - Insights: total words, words per minute over the last 30 days, current and
-  longest streak with a 20-week heatmap, and usage by app category
+  longest streak with a 20-week heatmap, and usage by app category. Share
+  turns the numbers into one square image card (light, numbers only) that you
+  save as a PNG or copy
 - Meetings: record a call (Control+Option+Command+M or the menu bar), read
   it live while it records, then get a transcript with speakers told apart
   and a summary with a title. See [Meetings](#meetings)
@@ -461,7 +463,7 @@ ends, when a new recording starts, or when Murmur quits.
 
 History, saved recordings, and Insights stay on the Mac.
 For Insights, Murmur records the frontmost app of each dictation and, in a
-browser, the site's host name. Insights store no dictated text. Murmur checks GitHub for updates, which can be
+browser, the site's host name. Insights store no dictated text, and the share card holds numbers only. Murmur checks GitHub for updates, which can be
 turned off in Settings.
 
 The Codex authentication cache is sensitive. Murmur reads the tokens needed

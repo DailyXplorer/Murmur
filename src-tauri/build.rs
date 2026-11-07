@@ -94,6 +94,8 @@ const APP_COMMANDS: &[&str] = &[
     "get_history_entries",
     "search_history",
     "get_insights",
+    "copy_insights_card",
+    "save_insights_card",
     "toggle_history_entry_saved",
     "get_audio_file_path",
     "delete_history_entry",

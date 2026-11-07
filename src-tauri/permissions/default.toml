@@ -98,6 +98,8 @@ permissions = [
   "allow-get-history-entries",
   "allow-search-history",
   "allow-get-insights",
+  "allow-copy-insights-card",
+  "allow-save-insights-card",
   "allow-toggle-history-entry-saved",
   "allow-get-audio-file-path",
   "allow-delete-history-entry",
