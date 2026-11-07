@@ -521,7 +521,7 @@
       },
       "recordingBuffer": {
         "title": "Buffer di registrazione extra",
-        "description": "Tempo extra (in millisecondi) per continuare a registrare dopo aver rilasciato il tasto, per catturare l'audio finale. 0 = nessun buffer extra."
+        "description": "Tempo minimo (in millisecondi) per cui continuare a registrare dopo aver rilasciato il tasto. Murmur mantiene già una coda breve e adattiva: 200 ms, fino a 600 ms mentre stai ancora parlando. 0 = solo la coda adattiva."
       },
       "whatsNewPreview": {
         "title": "Anteprima delle novità",

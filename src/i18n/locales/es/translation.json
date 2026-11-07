@@ -521,7 +521,7 @@
       },
       "recordingBuffer": {
         "title": "Búfer de grabación adicional",
-        "description": "Tiempo adicional (en milisegundos) para seguir grabando después de soltar la tecla, para capturar el audio restante. 0 = sin búfer adicional."
+        "description": "Tiempo mínimo (en milisegundos) que sigue grabando después de soltar la tecla. Murmur ya mantiene un final corto y adaptable: 200 ms, hasta 600 ms mientras sigues hablando. 0 = solo el final adaptable."
       },
       "whatsNewPreview": {
         "title": "Vista previa de novedades",

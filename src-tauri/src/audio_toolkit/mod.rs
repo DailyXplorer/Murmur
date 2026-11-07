@@ -2,6 +2,7 @@ pub mod audio;
 pub mod constants;
 pub mod gain;
 pub mod pauses;
+pub mod release_tail;
 pub mod text;
 pub mod text_passes;
 

@@ -521,7 +521,7 @@
       },
       "recordingBuffer": {
         "title": "Zusätzlicher Aufnahmepuffer",
-        "description": "Zusätzliche Zeit (in Millisekunden), um nach dem Loslassen der Taste weiter aufzunehmen, um nachlaufendes Audio zu erfassen. 0 = kein zusätzlicher Puffer."
+        "description": "Mindestzeit (in Millisekunden), die nach dem Loslassen der Taste weiter aufgenommen wird. Murmur nimmt bereits ein kurzes, adaptives Nachlaufstück auf: 200 ms, bis zu 600 ms, solange du noch sprichst. 0 = nur das adaptive Nachlaufstück."
       },
       "whatsNewPreview": {
         "title": "Vorschau der Neuerungen",

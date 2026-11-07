@@ -108,6 +108,7 @@ and older have no updater, so install a newer build by hand once, as above.
 ## Features
 
 - One recording shortcut (Option+Space by default, Ctrl+Win on Windows): hold it to talk, or double-tap it to record hands-free and press it once to stop
+- The recording keeps going for a moment after you let go: 200 ms, and up to 600 ms while you are still speaking, so the last word is not cut. It ends at once when you cancel, and a lone short tap is discarded
 - A cancel shortcut (Escape by default), active only while Murmur records or transcribes
 - Restore after a cancel: for 60 seconds, the overlay's Restore button (shown 5 seconds) or the tray's "Restore cancelled dictation" transcribes the cancelled dictation and pastes it where you are now
 - A shortcut (Control+Command+V by default) and tray item that paste the latest transcription again
