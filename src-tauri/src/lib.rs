@@ -27,6 +27,7 @@ mod field_excerpt;
 #[cfg(target_os = "windows")]
 mod foreground;
 mod helpers;
+mod http;
 mod input;
 mod insights;
 mod leading_space;
@@ -40,6 +41,7 @@ mod panic_log;
 mod paste_last;
 mod paste_tx;
 mod recently_cancelled;
+mod runtime;
 mod search;
 mod settings;
 mod settings_window;
@@ -119,7 +121,7 @@ fn normalize_generated_bindings_source(generated: &str) -> std::io::Result<Strin
     Ok(normalized)
 }
 
-pub static FILE_LOG_LEVEL: AtomicU8 = AtomicU8::new(log::LevelFilter::Debug as u8);
+pub static FILE_LOG_LEVEL: AtomicU8 = AtomicU8::new(log::LevelFilter::Info as u8);
 
 /// When `true`, log records are also forwarded to the webview through the
 /// `log://log` event for the debug panel's live log viewer. It follows debug
@@ -128,6 +130,60 @@ pub static FILE_LOG_LEVEL: AtomicU8 = AtomicU8::new(log::LevelFilter::Debug as u
 /// paths and diagnostics) onto the frontend event bus. Synced at startup
 /// and whenever debug mode is toggled (see `shortcut::change_debug_mode_setting`).
 pub static WEBVIEW_LOG_STREAMING: AtomicBool = AtomicBool::new(false);
+
+/// Dependencies whose Debug lines drown the app's own (connection setup,
+/// codec probing, the whole update response with its release notes). They log
+/// only warnings and errors unless the level is Trace.
+const QUIET_DEPENDENCIES: &[&str] = &[
+    "reqwest",
+    "hyper",
+    "h2",
+    "symphonia",
+    "enigo",
+    "rusqlite_migration",
+    "tauri_plugin_updater",
+];
+
+/// A crate is matched by its root module, and its sibling crates by name prefix
+/// (`hyper_util`, `symphonia_core`, `symphonia_bundle_mp3`).
+fn is_quiet_dependency(target: &str) -> bool {
+    let root = target.split("::").next().unwrap_or(target);
+    QUIET_DEPENDENCIES.iter().any(|name| {
+        root == *name
+            || root
+                .strip_prefix(name)
+                .is_some_and(|rest| rest.starts_with('_'))
+    })
+}
+
+/// Whether the file log and the live log viewer keep a line.
+fn log_line_enabled(metadata: &log::Metadata, configured: log::LevelFilter) -> bool {
+    if metadata.level() > configured {
+        return false;
+    }
+    configured >= log::LevelFilter::Trace
+        || metadata.level() <= log::Level::Warn
+        || !is_quiet_dependency(metadata.target())
+}
+
+/// The level the file log runs at. A new install starts at Info; the old
+/// default was Debug, which a user who never opened the Debug panel (where
+/// the level is chosen) did not pick, so without debug mode a stored Debug
+/// means Info. Turning debug mode on brings back the stored level.
+fn effective_log_level(debug_mode: bool, stored: settings::LogLevel) -> settings::LogLevel {
+    if !debug_mode && stored == settings::LogLevel::Debug {
+        settings::LogLevel::Info
+    } else {
+        stored
+    }
+}
+
+/// Applies `effective_log_level` to the running file log.
+pub(crate) fn sync_file_log_level(debug_mode: bool, stored: settings::LogLevel) {
+    let level: tauri_plugin_log::LogLevel = effective_log_level(debug_mode, stored).into();
+    let level: log::Level = level.into();
+    FILE_LOG_LEVEL.store(level.to_level_filter() as u8, Ordering::Relaxed);
+}
 
 fn level_filter_from_u8(value: u8) -> log::LevelFilter {
     match value {
@@ -945,6 +1001,7 @@ fn typescript_bindings(builder: &Builder<tauri::Wry>) -> String {
 
 /// Starts the Tauri application and shuts down transcription on process exit.
 pub fn run(cli_args: CliArgs) {
+    runtime::install();
     let console_filter = build_console_filter();
 
     let specta_builder = specta_builder();
@@ -985,7 +1042,7 @@ pub fn run(cli_args: CliArgs) {
                     })
                     .filter(|metadata| {
                         let file_level = FILE_LOG_LEVEL.load(Ordering::Relaxed);
-                        metadata.level() <= level_filter_from_u8(file_level)
+                        log_line_enabled(metadata, level_filter_from_u8(file_level))
                     }),
                     // Stream logs to the webview (via the `log://log` event) so the
                     // debug panel's live log viewer can show them in real time. Only
@@ -993,8 +1050,10 @@ pub fn run(cli_args: CliArgs) {
                     // file log level so the "Log Level" setting controls verbosity.
                     Target::new(TargetKind::Webview).filter(|metadata| {
                         WEBVIEW_LOG_STREAMING.load(Ordering::Relaxed)
-                            && metadata.level()
-                                <= level_filter_from_u8(FILE_LOG_LEVEL.load(Ordering::Relaxed))
+                            && log_line_enabled(
+                                metadata,
+                                level_filter_from_u8(FILE_LOG_LEVEL.load(Ordering::Relaxed)),
+                            )
                     }),
                 ])
                 .build(),
@@ -1084,7 +1143,14 @@ pub fn run(cli_args: CliArgs) {
 
             let mut settings = get_settings(app.handle());
 
-            if let Err(error) = accent::apply_native_accent(app.handle(), settings.accent_color) {
+            // A hidden Dock tile has nothing to draw the icon into, and the
+            // default accent is the bundle's own icon: only a chosen accent
+            // costs the recolor and encode.
+            if let Err(error) = accent::restore_accent_at_launch(
+                app.handle(),
+                settings.accent_color,
+                settings.start_hidden && settings.show_tray_icon,
+            ) {
                 log::warn!("Failed to apply native accent icon: {error}");
             }
 
@@ -1094,9 +1160,7 @@ pub fn run(cli_args: CliArgs) {
                 settings.log_level = settings::LogLevel::Trace;
             }
 
-            let tauri_log_level: tauri_plugin_log::LogLevel = settings.log_level.into();
-            let file_log_level: log::Level = tauri_log_level.into();
-            FILE_LOG_LEVEL.store(file_log_level.to_level_filter() as u8, Ordering::Relaxed);
+            sync_file_log_level(settings.debug_mode, settings.log_level);
             // Only forward logs to the webview while debug mode is on (the live log
             // viewer is the sole consumer and only exists in debug mode). This also
             // honors the runtime `--debug` override applied to `settings` above.
@@ -1247,6 +1311,75 @@ pub fn run(cli_args: CliArgs) {
             }
             _ => {}
         });
+}
+
+#[cfg(test)]
+mod log_filter_tests {
+    use super::*;
+    use log::{Level, LevelFilter, Metadata};
+
+    fn enabled(target: &str, level: Level, configured: LevelFilter) -> bool {
+        log_line_enabled(
+            &Metadata::builder().target(target).level(level).build(),
+            configured,
+        )
+    }
+
+    #[test]
+    fn noisy_dependencies_log_warnings_only_below_trace() {
+        for target in [
+            "reqwest::connect",
+            "hyper_util::client::legacy::connect::http",
+            "symphonia_core::probe",
+            "symphonia_bundle_mp3::demuxer",
+            "hyper_util::client::legacy::pool",
+            "enigo",
+            "rusqlite_migration",
+            "tauri_plugin_updater::updater",
+        ] {
+            assert!(
+                !enabled(target, Level::Debug, LevelFilter::Debug),
+                "{target}"
+            );
+            assert!(
+                !enabled(target, Level::Info, LevelFilter::Debug),
+                "{target}"
+            );
+            assert!(enabled(target, Level::Warn, LevelFilter::Debug), "{target}");
+            assert!(enabled(target, Level::Error, LevelFilter::Info), "{target}");
+            assert!(
+                enabled(target, Level::Debug, LevelFilter::Trace),
+                "{target}"
+            );
+        }
+    }
+
+    #[test]
+    fn the_apps_own_lines_follow_the_chosen_level() {
+        assert!(enabled("murmur::actions", Level::Debug, LevelFilter::Debug));
+        assert!(!enabled("murmur::actions", Level::Debug, LevelFilter::Info));
+        assert!(enabled("murmur::actions", Level::Info, LevelFilter::Info));
+        // A name that merely starts like a quiet dependency is not one.
+        assert!(enabled("hyperion::x", Level::Debug, LevelFilter::Debug));
+    }
+
+    #[test]
+    fn a_stored_debug_level_without_debug_mode_runs_at_info() {
+        use settings::LogLevel::*;
+        assert_eq!(effective_log_level(false, Debug), Info);
+        assert_eq!(effective_log_level(true, Debug), Debug);
+        assert_eq!(effective_log_level(false, Trace), Trace);
+        assert_eq!(effective_log_level(false, Warn), Warn);
+        assert_eq!(effective_log_level(false, Info), Info);
+    }
+
+    #[test]
+    fn a_new_install_logs_at_info() {
+        assert_eq!(
+            settings::get_default_settings().log_level,
+            settings::LogLevel::Info
+        );
+    }
 }
 
 #[cfg(test)]

@@ -79,10 +79,7 @@ pub async fn complete(
     request: &Request<'_>,
     operation: &ProcessingOperation,
 ) -> Result<String, CompletionError> {
-    let client = reqwest::Client::builder()
-        .user_agent(crate::codex_transcribe::user_agent())
-        .connect_timeout(request.connect_timeout)
-        .build()
+    let client = crate::http::client(request.connect_timeout)
         .map_err(|error| CompletionError::failed(FailureKind::Other, error.to_string()))?;
 
     let body = json!({
@@ -112,10 +109,15 @@ pub async fn complete(
 
     let mut response = tokio::select! {
         _ = operation.cancelled() => return Err(CompletionError::Cancelled),
-        response = builder.send() => response.map_err(|error| CompletionError::failed(
-            FailureKind::from_transport(&error),
-            format!("cleanup request failed: {error}"),
-        ))?,
+        response = builder.send() => response.map_err(|error| {
+            if error.is_connect() {
+                crate::http::forget(request.connect_timeout);
+            }
+            CompletionError::failed(
+                FailureKind::from_transport(&error),
+                format!("cleanup request failed: {error}"),
+            )
+        })?,
     };
 
     let status = response.status();
@@ -304,13 +306,11 @@ async fn live_models(url: &str, session: &Session, cached: Option<&str>) -> Resu
         .and_then(|json| serde_json::from_str::<serde_json::Value>(json).ok())
         .and_then(|json| json["client_version"].as_str().map(str::to_string))
         .unwrap_or_else(|| CLIENT_VERSION.to_string());
-    let client = reqwest::Client::builder()
-        .user_agent(crate::codex_transcribe::user_agent())
-        .timeout(Duration::from_secs(10))
-        .build()
+    let client = crate::http::client(crate::codex_transcribe::CONNECT_TIMEOUT)
         .map_err(|error| error.to_string())?;
     let mut builder = client
         .get(url)
+        .timeout(Duration::from_secs(10))
         .query(&[("client_version", client_version)])
         .header("Authorization", format!("Bearer {}", session.access_token))
         .header("originator", "Codex Desktop");

@@ -22,7 +22,7 @@ export const LogLevelSelector: React.FC<LogLevelSelectorProps> = ({
 }) => {
   const { t } = useTranslation();
   const { settings, updateSetting, isUpdating } = useSettings();
-  const currentLevel = settings?.log_level ?? "debug";
+  const currentLevel = settings?.log_level ?? "info";
 
   const handleSelect = async (value: string) => {
     if (value === currentLevel) return;

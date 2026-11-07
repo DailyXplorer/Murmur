@@ -4,7 +4,9 @@ use tauri::AppHandle;
 #[cfg(target_os = "macos")]
 use {crate::settings, tauri::ActivationPolicy};
 
-const APP_ICON_PNG: &[u8] = include_bytes!("../icons/icon.png");
+/// The app icon at 512 px (`icons/icon.png` downscaled): plenty for the Dock
+/// and a window icon, and a quarter of the 1024 px source in memory.
+const APP_ICON_PNG: &[u8] = include_bytes!("../icons/accent-source-512.png");
 #[cfg(target_os = "macos")]
 const TRAY_ICON_PNG: &[u8] = include_bytes!("../resources/tray.png");
 /// Windows draws tray icons as they are, on light and dark taskbars alike,
@@ -36,20 +38,61 @@ pub fn tray_icon() -> Result<Image<'static>, String> {
     Image::from_bytes(TRAY_ICON_PNG).map_err(|error| error.to_string())
 }
 
-/// Updates the icon shown for the running app. The installed bundle keeps its
-/// signed pink icon; the chosen accent is restored each time Murmur launches.
-pub fn apply_native_accent(app: &AppHandle, accent_color: AccentColor) -> Result<(), String> {
-    let icon = app_icon(accent_color)?;
+/// Whether setting the Dock icon changes anything. The bundle's signed icon is
+/// the default pink one, so Pink matters only to take back a custom accent set
+/// earlier in this run.
+#[cfg(target_os = "macos")]
+fn dock_icon_needs_update(accent_color: AccentColor, custom_icon_set: bool) -> bool {
+    accent_color != AccentColor::Pink || custom_icon_set
+}
 
+/// True while the Dock icon shows an accent other than the bundle's.
+#[cfg(target_os = "macos")]
+static CUSTOM_DOCK_ICON: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Sets the icon at launch. With the Dock tile hidden (`dock_hidden`) there is
+/// nothing to draw it into: showing the tile later applies the accent then.
+pub fn restore_accent_at_launch(
+    app: &AppHandle,
+    accent_color: AccentColor,
+    dock_hidden: bool,
+) -> Result<(), String> {
     #[cfg(target_os = "macos")]
-    set_macos_application_icon(app, icon)?;
-    // The taskbar shows the settings window's own icon.
-    #[cfg(target_os = "windows")]
-    if let Some(window) = tauri::Manager::get_webview_window(app, "main") {
-        window.set_icon(icon).map_err(|error| error.to_string())?;
+    if dock_hidden {
+        return Ok(());
     }
+    #[cfg(not(target_os = "macos"))]
+    let _ = dock_hidden;
+    apply_native_accent(app, accent_color)
+}
 
-    Ok(())
+/// Updates the icon shown for the running app. The installed bundle keeps its
+/// signed pink icon; the chosen accent is restored each time Murmur launches
+/// (`restore_accent_at_launch`), except for Pink, which the bundle already is.
+pub fn apply_native_accent(app: &AppHandle, accent_color: AccentColor) -> Result<(), String> {
+    #[cfg(target_os = "macos")]
+    {
+        use std::sync::atomic::Ordering;
+        if !dock_icon_needs_update(accent_color, CUSTOM_DOCK_ICON.load(Ordering::Relaxed)) {
+            return Ok(());
+        }
+        let icon = app_icon(accent_color)?;
+        set_macos_application_icon(app, icon)?;
+        CUSTOM_DOCK_ICON.store(accent_color != AccentColor::Pink, Ordering::Relaxed);
+        Ok(())
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        let icon = app_icon(accent_color)?;
+        // The taskbar shows the settings window's own icon.
+        #[cfg(target_os = "windows")]
+        if let Some(window) = tauri::Manager::get_webview_window(app, "main") {
+            window.set_icon(icon).map_err(|error| error.to_string())?;
+        }
+        #[cfg(not(target_os = "windows"))]
+        let _ = (app, icon);
+        Ok(())
+    }
 }
 
 #[cfg(target_os = "macos")]
@@ -271,18 +314,62 @@ mod tests {
             (AccentColor::Red, 2.0),
         ] {
             let app = app_icon(accent).expect("app icon should decode");
-            assert_eq!((app.width(), app.height()), (1024, 1024));
+            assert_eq!((app.width(), app.height()), (512, 512));
             assert_eq!(alpha_at(&app, 0, 0), 0);
-            assert_eq!(rgba_at(&app, 512, 80), [255, 255, 255, 255]);
-            assert_eq!(rgba_at(&app, 512, 940), [255, 255, 255, 255]);
+            assert_eq!(rgba_at(&app, 256, 40), [255, 255, 255, 255]);
+            assert_eq!(rgba_at(&app, 256, 470), [255, 255, 255, 255]);
 
-            let pixel = rgba_at(&app, 300, 350);
+            let pixel = rgba_at(&app, 150, 175);
             let (hue, saturation, _) = rgb_to_hsl(pixel[0], pixel[1], pixel[2]);
             assert!(saturation > 0.7, "mark pixel should remain saturated");
             assert!(
                 circular_hue_distance(hue, expected_hue).abs() <= 5.0,
                 "expected hue {expected_hue}, got {hue} for {accent:?}"
             );
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn the_default_accent_leaves_the_bundle_icon_alone() {
+        assert!(!dock_icon_needs_update(AccentColor::Pink, false));
+        for accent in [
+            AccentColor::Blue,
+            AccentColor::Green,
+            AccentColor::Yellow,
+            AccentColor::Orange,
+            AccentColor::Red,
+        ] {
+            assert!(dock_icon_needs_update(accent, false), "{accent:?}");
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn pink_takes_back_a_custom_icon_set_earlier() {
+        assert!(dock_icon_needs_update(AccentColor::Pink, true));
+    }
+
+    #[test]
+    fn the_accent_source_is_the_app_icon_at_half_size() {
+        let full = Image::from_bytes(include_bytes!("../icons/icon.png")).unwrap();
+        let half = Image::from_bytes(APP_ICON_PNG).unwrap();
+        assert_eq!((full.width(), full.height()), (1024, 1024));
+        assert_eq!((half.width(), half.height()), (512, 512));
+        // Same shape and colors: compare the 2x2 block at the center and a
+        // corner of the plate.
+        for (x, y) in [(256_u32, 256_u32), (100, 400), (0, 0), (256, 10)] {
+            let block: Vec<[u8; 4]> = [(0, 0), (1, 0), (0, 1), (1, 1)]
+                .iter()
+                .map(|(dx, dy)| rgba_at(&full, x * 2 + dx, y * 2 + dy))
+                .collect();
+            let mean =
+                |channel: usize| block.iter().map(|px| u32::from(px[channel])).sum::<u32>() / 4;
+            let small = rgba_at(&half, x, y);
+            for (channel, value) in small.iter().enumerate() {
+                let diff = (i64::from(*value) - i64::from(mean(channel))).abs();
+                assert!(diff <= 24, "pixel ({x},{y}) channel {channel}: {diff}");
+            }
         }
     }
 

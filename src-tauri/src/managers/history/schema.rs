@@ -70,6 +70,8 @@ pub(super) static MIGRATIONS: &[M] = &[
         END;
         INSERT INTO history_fts(history_fts) VALUES ('rebuild');",
     ),
+    // `ORDER BY timestamp DESC LIMIT 1` (last entry, paste last, search ties).
+    M::up("CREATE INDEX IF NOT EXISTS idx_transcription_history_timestamp ON transcription_history(timestamp);"),
 ];
 
 /// Converts the migration counter used by the former SQL plugin into SQLite's
