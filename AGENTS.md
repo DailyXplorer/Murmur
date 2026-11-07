@@ -32,7 +32,7 @@ bun run preview    # Preview built frontend
 **Checks (run before pushing):**
 
 ```bash
-bun run check             # CI code-quality job: audit, translations, platform rules (`check:platforms`), versions, ESLint, format (Prettier + cargo fmt --check), build, test typecheck. Clippy on macOS.
+bun run check             # CI code-quality job: audit, translations, platform rules (`check:platforms`), file size (`check:file-size`), versions, ESLint, format (Prettier + cargo fmt --check), build, test typecheck. Clippy on macOS.
 bun run test:playwright   # UI changes. This is the Playwright CI job.
 ```
 
@@ -182,6 +182,7 @@ For translation contribution guidelines, see [CONTRIBUTING_TRANSLATIONS.md](CONT
 - Run `cargo fmt` and `cargo clippy` before committing
 - Handle errors explicitly (avoid unwrap in production)
 - Use descriptive names, add doc comments for public APIs
+- A source file stays under 1000 lines (aim for 800). `bun run check` (`check:file-size`) fails above it. Files already over it are in `scripts/file-size-allowlist.json` with a cap that may only go down. Split by job into `foo/` submodules (`foo.rs` stays the facade with `pub use`, tests in `foo/tests.rs`). A split is a pure move: no edit inside moved items, same test ids, `src/bindings.ts` unchanged. `src/bindings.ts` (generated) is not counted.
 
 **TypeScript/React:**
 
@@ -296,6 +297,7 @@ See the [Troubleshooting](BUILD.md#troubleshooting) section in BUILD.md.
 - Do not ask CodeRabbit to push commits. Autofix, fix-ci, and the "Prompt for AI Agents" block are disabled.
 - A version bump updates `package.json`, `src-tauri/Cargo.toml`, `src-tauri/Cargo.lock`, `src-tauri/tauri.conf.json`, and `src/content/release-notes/<version>.md` together. Do not update one of them alone. The Windows betas of the old line, `1.9.0-beta.N`, used the notes of `1.9.0`; `check:versions` still maps a pre-release to its base version.
 - Do not reformat or refactor files the change does not need.
+- Do not add a file to `scripts/file-size-allowlist.json` or raise a cap; split the file.
 
 ## Checks before pushing
 
