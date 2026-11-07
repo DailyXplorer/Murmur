@@ -77,6 +77,8 @@ $logFile = Join-Path $env:LOCALAPPDATA 'com.dailyxplorer.murmur\logs\murmur.log'
 $settingsFile = Join-Path $env:APPDATA 'com.dailyxplorer.murmur\settings_store.json'
 $meetingsDatabase = Join-Path $env:APPDATA 'com.dailyxplorer.murmur\meetings.db'
 $installDir = Join-Path $env:LOCALAPPDATA 'Murmur'
+$roamingData = Join-Path $env:APPDATA 'com.dailyxplorer.murmur'
+$localData = Join-Path $env:LOCALAPPDATA 'com.dailyxplorer.murmur'
 
 function Start-Murmur {
     $process = Start-Process -FilePath $script:exe -PassThru
@@ -151,6 +153,28 @@ function Assert-McpServer {
     }
 }
 
+# `murmur.exe --help` run with its output redirected, as a script or an
+# assistant runs it: the console attach must leave those pipes alone. (The
+# attach itself needs a real terminal and is not covered here.)
+function Assert-CliOutput {
+    $info = New-Object System.Diagnostics.ProcessStartInfo
+    $info.FileName = $script:exe
+    $info.Arguments = '--help'
+    $info.UseShellExecute = $false
+    $info.CreateNoWindow = $true
+    $info.RedirectStandardOutput = $true
+    $info.RedirectStandardError = $true
+    $cli = [System.Diagnostics.Process]::Start($info)
+    $output = $cli.StandardOutput.ReadToEndAsync()
+    if (-not $cli.WaitForExit(20000)) { $cli.Kill(); throw 'murmur --help did not exit within 20 s' }
+    if ($cli.ExitCode -ne 0) { throw "murmur --help exited with code $($cli.ExitCode)" }
+    $text = $output.Result
+    if ($text -notmatch 'Murmur - Speech to Text' -or $text -notmatch '--transcribe-file') {
+        throw "murmur --help printed to its pipe: $text"
+    }
+    Write-Host 'murmur --help printed to its redirected output'
+}
+
 try {
     # A per-user NSIS installer runs silently without elevation, installs
     # under %LOCALAPPDATA% and registers its uninstaller under HKCU.
@@ -174,6 +198,12 @@ try {
     foreach ($required in 'msvcp140.dll', 'vcruntime140.dll', 'vcruntime140_1.dll', 'vcomp140.dll') {
         if ($dlls -notcontains $required) { throw "The installer shipped no $required" }
     }
+
+    # An install that predates the move keeps its recordings in the Roaming
+    # folder: the first launch moves them to Local app data.
+    $legacyRecordings = Join-Path $roamingData 'recordings'
+    New-Item -ItemType Directory -Force -Path $legacyRecordings | Out-Null
+    [System.IO.File]::WriteAllBytes((Join-Path $legacyRecordings 'legacy-smoke.wav'), [byte[]](1, 2, 3, 4))
 
     $murmur = Start-Murmur
     # The runner has the redistributable in System32: the app must load the
@@ -201,6 +231,16 @@ try {
     Save-Window $murmur 'settings-window.png'
     Assert-InsideWorkArea $murmur
     if (-not (Test-Path $meetingsDatabase)) { throw "Meetings are on but the app created no $meetingsDatabase" }
+    # The heavy folders live in Local app data, which never roams; the small
+    # files stay in Roaming.
+    foreach ($heavy in 'recordings', 'meetings') {
+        if (-not (Test-Path (Join-Path $localData $heavy))) { throw "No $heavy folder in $localData" }
+        if (Test-Path (Join-Path $roamingData $heavy)) { throw "The $heavy folder is still in $roamingData" }
+    }
+    $movedRecording = Join-Path $localData 'recordings\legacy-smoke.wav'
+    if (-not (Test-Path $movedRecording)) { throw 'The recording of the old install did not move to Local app data' }
+    if ((Get-Item $movedRecording).Length -ne 4) { throw 'The moved recording changed' }
+    if (-not (Test-Path $settingsFile)) { throw 'settings_store.json left the Roaming folder' }
 
     # A second instance forwards the toggle to the running one, then quits.
     # Without a microphone on the runner, the overlay reports it.
@@ -213,6 +253,7 @@ try {
     # The app is still running: the `mcp` path must not reach its single
     # instance plugin.
     Assert-McpServer
+    Assert-CliOutput
 
     $murmur.Refresh()
     if ($murmur.HasExited) { throw "Murmur quit with code $($murmur.ExitCode)" }

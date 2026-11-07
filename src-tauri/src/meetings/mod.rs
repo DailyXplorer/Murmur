@@ -799,7 +799,10 @@ impl Library {
     /// Opens the library in `app_data`, sets aside what no meeting points
     /// to, and marks meetings a crash cut off as interrupted.
     fn open(app_data: &Path) -> anyhow::Result<Self> {
+        #[cfg(not(target_os = "windows"))]
         let root = app_data.join("meetings");
+        #[cfg(target_os = "windows")]
+        let root = crate::data_dirs_windows::meetings_dir(app_data);
         std::fs::create_dir_all(&root)?;
         let now = chrono::Utc::now();
         let database = app_data.join("meetings.db");
@@ -822,6 +825,10 @@ impl Library {
                 }
                 let aside =
                     app_data.join(format!("meetings.orphaned-{}", now.format("%Y%m%d-%H%M%S")));
+                // Beside the folder it comes from: a rename across volumes
+                // would fail.
+                #[cfg(target_os = "windows")]
+                let aside = root.with_file_name(aside.file_name().unwrap_or_default());
                 let moved = store
                     .ids()
                     .and_then(|ids| Ok(paths::set_aside_orphans(&root, &ids, &aside)?));

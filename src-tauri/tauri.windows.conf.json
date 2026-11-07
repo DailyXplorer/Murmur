@@ -1,5 +1,17 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
+  "app": {
+    "security": {
+      "assetProtocol": {
+        "scope": {
+          "allow": [
+            "$APPLOCALDATA/recordings/*.wav",
+            "$APPDATA/recordings/*.wav"
+          ]
+        }
+      }
+    }
+  },
   "bundle": {
     "targets": ["nsis"],
     "createUpdaterArtifacts": false,

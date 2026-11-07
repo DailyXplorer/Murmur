@@ -235,7 +235,10 @@ fn size_of(path: &Path) -> u64 {
 /// Measures the meetings under `app_data`. The speech models in
 /// `meetings/models` are dictation's too, and are not counted.
 pub fn storage(app_data: &Path) -> MeetingsStorage {
+    #[cfg(not(target_os = "windows"))]
     let root = app_data.join("meetings");
+    #[cfg(target_os = "windows")]
+    let root = crate::data_dirs_windows::meetings_dir(app_data);
     let set_aside_bytes = fs::read_dir(app_data).map_or(0, |entries| {
         entries
             .flatten()
@@ -248,10 +251,33 @@ pub fn storage(app_data: &Path) -> MeetingsStorage {
             .map(|entry| size_of(&entry.path()))
             .sum()
     });
+    #[cfg(target_os = "windows")]
+    let set_aside_bytes = set_aside_bytes
+        + crate::data_dirs_windows::set_aside_dirs(app_data)
+            .iter()
+            .map(|dir| set_aside_size(dir))
+            .sum::<u64>();
     MeetingsStorage {
         audio_bytes: size_of(&root).saturating_sub(size_of(&root.join("models"))),
         set_aside_bytes,
     }
+}
+
+/// The size of what was set aside directly in `dir`.
+#[cfg(target_os = "windows")]
+fn set_aside_size(dir: &Path) -> u64 {
+    fs::read_dir(dir).map_or(0, |entries| {
+        entries
+            .flatten()
+            .filter(|entry| {
+                entry
+                    .file_name()
+                    .to_str()
+                    .is_some_and(retention::is_set_aside)
+            })
+            .map(|entry| size_of(&entry.path()))
+            .sum()
+    })
 }
 
 /// Deletes the named files of a meeting, those that exist. A symlink is
