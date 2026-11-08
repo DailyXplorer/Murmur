@@ -48,7 +48,7 @@ Murmur is a macOS and Windows (beta) desktop speech-to-text application built wi
 
 ### Backend Structure (src-tauri/src/)
 
-- `lib.rs` - Main entry point, Tauri setup, manager initialization
+- `lib.rs` - Main entry point, Tauri setup, manager initialization (`app_windows.rs` builds, shows and places the settings window and dispatches single-instance actions, `logging.rs` holds the log levels and filters, `headless.rs` runs `--transcribe-file`; `specta_builder` and the `RunEvent::Exit` arm stay in `lib.rs`)
 - `managers/` - Core business logic:
   - `audio.rs` - Audio recording and device management (`audio/`: `mute.rs` system mute, `microphone.rs` device choice and stream, `recording.rs` start/stop/cancel; tests in `audio/tests.rs`)
   - `transcription.rs` - Speech-to-text processing pipeline
