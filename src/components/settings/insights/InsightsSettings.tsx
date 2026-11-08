@@ -367,22 +367,6 @@ export const InsightsView: React.FC<{ summary: InsightsSummary }> = ({
 
   return (
     <SettingsPage label={t("sidebar.insights")}>
-      {/* The title is on the wrapper: a disabled button shows none. */}
-      <div className="flex justify-end">
-        <span
-          className="flex"
-          title={shareable ? undefined : t("insights.share.empty")}
-        >
-          <Button
-            size="chip"
-            disabled={!shareable}
-            onClick={() => setSharing(true)}
-          >
-            {t("insights.share.button")}
-          </Button>
-        </span>
-      </div>
-
       <StatRow
         stats={[
           {
@@ -426,6 +410,20 @@ export const InsightsView: React.FC<{ summary: InsightsSummary }> = ({
       <SettingsGroup title={t("insights.streak.title")}>
         <Streak summary={summary} />
       </SettingsGroup>
+
+      {/* A page-level action sits at the bottom of the page, right-aligned,
+          in the standard text-button width. The title is on the wrapper: a
+          disabled button shows none. */}
+      <div className="flex justify-end">
+        <span
+          className="flex"
+          title={shareable ? undefined : t("insights.share.empty")}
+        >
+          <Button disabled={!shareable} onClick={() => setSharing(true)}>
+            {t("insights.share.button")}
+          </Button>
+        </span>
+      </div>
 
       <ShareDialog
         open={sharing}
