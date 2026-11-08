@@ -60,7 +60,8 @@ jobs:
       - uses: swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
           workspaces: "./src-tauri -> target"
-          key: meetings-windows-analysis
+          shared-key: windows-dev
+          save-if: false
 
       - name: Cache the models
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -127,7 +128,8 @@ jobs:
       - uses: swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
           workspaces: "./src-tauri -> target"
-          key: meetings-windows-loopback
+          shared-key: windows-dev
+          save-if: false
 
       # Windows Audio is off on a hosted runner. Turning it on gives an
       # output only when the image has an audio device.
@@ -189,7 +191,8 @@ jobs:
       - uses: swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
         with:
           workspaces: "./src-tauri -> target"
-          key: meetings-windows-soak
+          shared-key: windows-dev
+          save-if: false
 
       # The processing compresses each meeting to AAC; Server images lack it.
       - name: Install the AAC encoder
