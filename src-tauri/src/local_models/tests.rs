@@ -16,6 +16,8 @@ struct FakeHost {
     notified: Mutex<Vec<LocalModelState>>,
     os_build: Option<String>,
     optional_off: bool,
+    /// `prepare` waits for a permit here before it finishes.
+    prepare_gate: Option<Arc<tokio::sync::Notify>>,
 }
 
 impl Host for FakeHost {
@@ -34,7 +36,11 @@ impl Host for FakeHost {
     fn prepare(&self, _: PathBuf, _: ProcessingOperation) -> PrepareFuture {
         self.prepared.fetch_add(1, Ordering::SeqCst);
         let fails = self.prepare_fails;
+        let gate = self.prepare_gate.clone();
         Box::pin(async move {
+            if let Some(gate) = gate {
+                gate.notified().await;
+            }
             if fails {
                 Prepared::Failed
             } else {
@@ -751,13 +757,22 @@ fn different_os_build_triggers_background_prepare() {
         if let Some(build) = compiled_for {
             std::fs::write(path.join(OS_BUILD_MARKER), build).unwrap();
         }
-        let host = host_on(Some("25A354"));
+        // The compile ends when the test says so: left to itself it ends on a
+        // runtime thread before the assertions below look, and a loaded
+        // machine makes that happen.
+        let compile = Arc::new(tokio::sync::Notify::new());
+        let host = Arc::new(FakeHost {
+            os_build: Some("25A354".to_string()),
+            prepare_gate: Some(Arc::clone(&compile)),
+            ..FakeHost::default()
+        });
         let models = models_after_restart(&path, &fixture, &host);
         tauri::async_runtime::block_on(async {
             models.resume_on_launch(false);
             assert_eq!(models.state(), LocalModelState::Optimizing);
             // A meeting processed meanwhile still gets the local engine.
             assert!(models.is_ready());
+            compile.notify_one();
             assert_eq!(settled(&models).await, LocalModelState::Ready);
             models.fetched().await;
         });
