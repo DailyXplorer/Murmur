@@ -32,7 +32,7 @@ bun run preview    # Preview built frontend
 **Checks (run before pushing):**
 
 ```bash
-bun run check             # CI code-quality job: audit, translations, platform rules (`check:platforms`), file size (`check:file-size`), versions, ESLint, format (Prettier + cargo fmt --check), build, test typecheck. Clippy on macOS.
+bun run check             # CI code-quality job: audit, translations, platform rules (`check:platforms`), file size (`check:file-size`), the Playwright path filter (`check:playwright-paths`: every file the UI tests or the frontend read outside `src/` and `tests/`, such as `src-tauri/src/app_windows.rs`, must match `frontend=` in `playwright.yml`), versions, ESLint, format (Prettier + cargo fmt --check), build, test typecheck. Clippy on macOS.
 bun run test:playwright   # UI changes. This is the Playwright CI job.
 ```
 
