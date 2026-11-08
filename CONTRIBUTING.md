@@ -21,7 +21,7 @@ Run the app with `bun run tauri dev`. If CMake rejects an old policy: `CMAKE_POL
 `bun run check` runs the same checks as the CI `code quality` job, in the same order:
 
 - `bun audit`
-- translation consistency, the platform rules (`check:platforms`), the file-size limit (`check:file-size`: a source file has at most 1000 lines, see `scripts/file-size-allowlist.json` for the files being split), the updater manifest tests (macOS and the Windows update feed), and the release-version check
+- translation consistency, the platform rules (`check:platforms`), the file-size limit (`check:file-size`: a source file has at most 1000 lines, `scripts/file-size-allowlist.json` holds the exceptions and is empty), the updater manifest tests (macOS and the Windows update feed), and the release-version check
 - ESLint, Prettier, and `cargo fmt --check`
 - the frontend build and the Playwright typecheck
 
