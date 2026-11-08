@@ -290,6 +290,11 @@ Clippy has its own, `windows-clippy` (check artifacts are not test artifacts),
 saved by the `clippy` job on `main`. The installer builds in the release profile with its own `windows-release` cache,
 which `release dry run` reads.
 
+A run on `main` is never cancelled by the next push (`cancel-in-progress` is
+true only for pull requests in `windows.yml`, `test.yml` and `local-engine.yml`):
+the run that saves the cache must finish, or two merges in a row leave `main`
+without a fresh cache. The newer push waits for it.
+
 `cache-on-failure: true` keeps a cache from a main run whose tests failed, so a
 flaky test does not discard a compile of 10 minutes or more. A workflow that
 has no run on `main` has no cache to read: `local engine` therefore also runs
