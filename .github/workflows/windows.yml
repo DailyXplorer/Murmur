@@ -51,7 +51,7 @@ jobs:
         run: |
           ./.github/scripts/changed-paths.sh \
             'rust=src-tauri/.*|rust-toolchain\.toml|src/i18n/locales/.*|src/bindings\.ts|src/components/settings/history/HistorySettings\.tsx|\.github/workflows/windows\.yml|\.github/scripts/.*\.ps1|\.github/scripts/changed-paths\..*' \
-            'installer=src-tauri/(tauri.*\.json|updater-.*\.json|Cargo\.(toml|lock)|build\.rs|capabilities/.*|permissions/.*|icons/.*|resources/.*|gen/.*|windows-app-manifest\.xml|src/(lib|main)\.rs|src/mcp/.*)|rust-toolchain\.toml|package\.json|bun\.lock|vite\.config\.ts|index\.html|src/overlay/index\.html|\.github/workflows/windows\.yml|\.github/scripts/(windows-.*|changed-paths\..*)' \
+            'installer=src-tauri/(tauri.*\.json|updater-.*\.json|Cargo\.(toml|lock)|build\.rs|capabilities/.*|permissions/.*|icons/.*|resources/.*|gen/.*|windows-app-manifest\.xml|src/(lib|main|app_windows|headless|logging)\.rs|src/mcp/.*)|rust-toolchain\.toml|package\.json|bun\.lock|vite\.config\.ts|index\.html|src/overlay/index\.html|\.github/workflows/windows\.yml|\.github/scripts/(windows-.*|changed-paths\..*)' \
             'nextest=src-tauri/\.config/nextest\.toml|\.github/workflows/windows\.yml|\.github/scripts/check-nextest-timeout\.ps1|\.github/scripts/changed-paths\..*'
 
   rust:
