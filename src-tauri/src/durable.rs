@@ -1,3 +1,4 @@
+// CI timing probe, not for merge.
 //! Crash-safe file writes. A crash, force quit or power cut during a write
 //! leaves the old file or the new one at `path`, never part of either.
 
