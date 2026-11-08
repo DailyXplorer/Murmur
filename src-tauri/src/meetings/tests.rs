@@ -1,0 +1,932 @@
+use super::*;
+
+#[test]
+fn default_binding_is_a_valid_shortcut() {
+    crate::shortcut::tauri_impl::parse_shortcut(DEFAULT_BINDING).unwrap();
+}
+
+#[cfg(target_os = "windows")]
+#[test]
+fn default_binding_leaves_the_other_default_shortcuts_alone() {
+    let default = crate::shortcut::tauri_impl::parse_shortcut(DEFAULT_BINDING).unwrap();
+    for taken in [
+        crate::paste_last::DEFAULT_BINDING,
+        crate::settings::DEFAULT_TRANSCRIBE_BINDING,
+        "win+m",
+        "ctrl+m",
+        "alt+m",
+    ] {
+        if let Ok(taken) = crate::shortcut::tauri_impl::parse_shortcut(taken) {
+            assert_ne!(default, taken, "{taken:?}");
+        }
+    }
+}
+
+#[cfg(target_os = "macos")]
+#[test]
+fn default_binding_leaves_standard_macos_shortcuts_alone() {
+    // A global hotkey swallows its keys in every app, so the default must
+    // not be one macOS apps already use: Option+Command+M minimizes all
+    // windows, Command+M minimizes one, Control+Command+Q locks the screen.
+    let default = crate::shortcut::tauri_impl::parse_shortcut(DEFAULT_BINDING).unwrap();
+    for taken in [
+        "command+m",
+        "option+command+m",
+        "ctrl+command+m",
+        "command+h",
+        "option+command+h",
+        "ctrl+command+q",
+        "ctrl+command+f",
+        "ctrl+command+space",
+    ] {
+        let taken = crate::shortcut::tauri_impl::parse_shortcut(taken).unwrap();
+        assert_ne!(default, taken);
+    }
+}
+
+/// A processed meeting with a transcript, a summary and compressed audio,
+/// started `days_ago` days before `now_ms`.
+fn processed(store: &MeetingsStore, root: &Path, now_ms: i64, days_ago: i64) -> i64 {
+    let started = now_ms - days_ago * 24 * 3600 * 1000;
+    let id = store
+        .insert_recording(started, store::MeetingTracks::Mic)
+        .unwrap();
+    store
+        .finish_recording(id, started + 60_000, 60_000)
+        .unwrap();
+    let me = store::MeetingSpeaker {
+        key: "me".into(),
+        name: "Me".into(),
+        default_name: "Me".into(),
+        color_index: 0,
+    };
+    let turn = store::MeetingTurn {
+        speaker_key: "me".into(),
+        start_ms: 0,
+        end_ms: 1_000,
+        text: "Kept.".into(),
+        low_confidence: false,
+    };
+    store
+        .save_transcript(
+            id,
+            &[me],
+            &[turn],
+            store::SpeakerAnalysis::NoModels,
+            None,
+            None,
+        )
+        .unwrap();
+    store.finish_processing(id, None).unwrap();
+    assert!(store.save_summary(id, None, "Notes.").unwrap());
+    assert!(store.audio_compressed(id, 10).unwrap());
+    let dir = paths::fresh_meeting_dir(root, id, now_ms).unwrap();
+    std::fs::write(dir.join(paths::AUDIO_FILE), b"audio").unwrap();
+    std::fs::write(dir.join(analysis::ANALYSIS_FILE), b"{}").unwrap();
+    id
+}
+
+#[test]
+fn audio_retention_runs_daily_with_meetings_off() {
+    let mut settings = crate::settings::get_default_settings();
+    settings.meetings_enabled = false;
+    settings.meeting_audio_retention = MeetingAudioRetention::Days30;
+    let now = SystemTime::now();
+    let hours_ago = |hours: u64| Some(now - Duration::from_secs(hours * 3600));
+
+    assert!(audio_retention_due(&settings, None, now));
+    assert!(!audio_retention_due(&settings, hours_ago(23), now));
+    assert!(audio_retention_due(&settings, hours_ago(24), now));
+    // A clock set back runs it rather than waiting.
+    assert!(audio_retention_due(
+        &settings,
+        Some(now + Duration::from_secs(60)),
+        now
+    ));
+
+    settings.meeting_audio_retention = MeetingAudioRetention::Keep;
+    assert!(!audio_retention_due(&settings, None, now));
+}
+
+#[test]
+fn retention_deletes_old_audio_and_keeps_the_text_and_busy_meetings() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path().join("meetings");
+    let (store, _) = MeetingsStore::open(dir.path().join("meetings.db"), chrono::Utc::now());
+    let now_ms = chrono::Utc::now().timestamp_millis();
+    let old = processed(&store, &root, now_ms, 8);
+    let recent = processed(&store, &root, now_ms, 6);
+    let queued = processed(&store, &root, now_ms, 8);
+
+    let swept = |retention| sweep_audio(&store, &root, retention, now_ms, &HashSet::from([queued]));
+    assert!(swept(MeetingAudioRetention::Keep).is_empty());
+    assert_eq!(swept(MeetingAudioRetention::Days7), [old]);
+    assert!(swept(MeetingAudioRetention::Days7).is_empty());
+
+    let meeting = store.get(old).unwrap().unwrap();
+    assert_eq!(meeting.audio, store::AudioState::Deleted);
+    assert_eq!(meeting.summary.as_deref(), Some("Notes."));
+    assert_eq!(meeting.turns.len(), 1);
+    let files = paths::meeting_dir(&root, old);
+    assert!(!files.join(paths::AUDIO_FILE).exists());
+    assert!(!files.join(analysis::ANALYSIS_FILE).exists());
+    // Retention erases: nothing is staged for a Trash in the meetings folder.
+    assert!(std::fs::read_dir(&root).unwrap().all(|entry| entry
+        .unwrap()
+        .file_name()
+        .to_str()
+        .unwrap()
+        .parse::<i64>()
+        .is_ok()));
+    for kept in [recent, queued] {
+        let meeting = store.get(kept).unwrap().unwrap();
+        assert_eq!(meeting.audio, store::AudioState::Compressed);
+        let files = paths::meeting_dir(&root, kept);
+        assert!(files.join(paths::AUDIO_FILE).exists());
+    }
+}
+
+#[test]
+fn a_persons_audio_deletion_moves_the_audio_to_the_trash_and_keeps_the_text() {
+    use trash::tests::{notes, FolderTrash};
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path().join("meetings");
+    let (store, _) = MeetingsStore::open(dir.path().join("meetings.db"), chrono::Utc::now());
+    let now_ms = chrono::Utc::now().timestamp_millis();
+    let id = processed(&store, &root, now_ms, 8);
+    let meeting_dir = paths::meeting_dir(&root, id);
+    std::fs::write(meeting_dir.join(analysis::ANALYSIS_FILE), b"{}").unwrap();
+    let mut bin = FolderTrash::new(&dir.path().join("trash"));
+
+    bin.fails = true;
+    assert!(trash_audio(&store, &root, id, &notes(), &bin).is_err());
+    assert_eq!(
+        store.get(id).unwrap().unwrap().audio,
+        store::AudioState::Compressed
+    );
+    assert!(meeting_dir.join(paths::AUDIO_FILE).exists());
+
+    bin.fails = false;
+    trash_audio(&store, &root, id, &notes(), &bin).unwrap();
+
+    let meeting = store.get(id).unwrap().unwrap();
+    assert_eq!(meeting.audio, store::AudioState::Deleted);
+    assert_eq!(meeting.summary.as_deref(), Some("Notes."));
+    assert_eq!(meeting.turns.len(), 1);
+    assert!(bin
+        .bin
+        .join("2026-10-17 Q4 plan audio")
+        .join(paths::AUDIO_FILE)
+        .is_file());
+    assert!(!meeting_dir.join(paths::AUDIO_FILE).exists());
+    assert!(!meeting_dir.join(analysis::ANALYSIS_FILE).exists());
+}
+
+#[test]
+fn failed_audio_deletion_keeps_its_state_and_retention_retries_after_reopening() {
+    let files: Vec<_> = paths::AUDIO_FILES
+        .into_iter()
+        .chain([analysis::ANALYSIS_FILE])
+        .collect();
+    // Every failure position: before any unlink, after partial audio
+    // removal, and after all audio went but analysis cleanup failed.
+    for (failed_at, failed_file) in files.iter().enumerate() {
+        let dir = tempfile::tempdir().unwrap();
+        let root = dir.path().join("meetings");
+        let db = dir.path().join("meetings.db");
+        let (store, _) = MeetingsStore::open(db.clone(), chrono::Utc::now());
+        let now_ms = chrono::Utc::now().timestamp_millis();
+        let id = processed(&store, &root, now_ms, 8);
+        let meeting_dir = paths::meeting_dir(&root, id);
+        for file in &files {
+            std::fs::write(meeting_dir.join(file), b"fixture").unwrap();
+        }
+        // A directory at a file path deterministically makes unlink
+        // fail, including when the test runner has elevated privileges.
+        let fault = meeting_dir.join(failed_file);
+        std::fs::remove_file(&fault).unwrap();
+        std::fs::create_dir(&fault).unwrap();
+        let before = store.get(id).unwrap().unwrap();
+
+        assert!(delete_audio(&store, &root, id).is_err());
+        assert_eq!(store.get(id).unwrap().unwrap(), before, "{failed_file}");
+        assert_eq!(store.with_audio().unwrap()[0].id, id);
+        for (index, file) in files.iter().enumerate() {
+            assert_eq!(meeting_dir.join(file).exists(), index >= failed_at);
+        }
+        assert!(sweep_audio(
+            &store,
+            &root,
+            MeetingAudioRetention::Days7,
+            now_ms,
+            &HashSet::new(),
+        )
+        .is_empty());
+        drop(store);
+
+        std::fs::remove_dir(&fault).unwrap();
+        let (store, _) = MeetingsStore::open(db, chrono::Utc::now());
+        assert_eq!(store.get(id).unwrap().unwrap(), before);
+        assert_eq!(
+            sweep_audio(
+                &store,
+                &root,
+                MeetingAudioRetention::Days7,
+                now_ms,
+                &HashSet::new(),
+            ),
+            [id]
+        );
+        // Repeated manual deletion accepts the already-missing files.
+        delete_audio(&store, &root, id).unwrap();
+        let after = store.get(id).unwrap().unwrap();
+        assert_eq!(after.audio, store::AudioState::Deleted);
+        assert_eq!(after.audio_bytes, 0);
+        assert_eq!(after.turns, before.turns);
+        assert_eq!(after.summary, before.summary);
+        assert_eq!(after.speakers, before.speakers);
+        assert!(files.iter().all(|file| !meeting_dir.join(file).exists()));
+    }
+}
+
+#[test]
+fn uncompressed_audio_deletion_is_retryable_after_a_partial_failure() {
+    let dir = tempfile::tempdir().unwrap();
+    let root = dir.path().join("meetings");
+    let (store, _) = MeetingsStore::open(dir.path().join("meetings.db"), chrono::Utc::now());
+    let id = store
+        .insert_recording(0, store::MeetingTracks::Both)
+        .unwrap();
+    store.finish_recording(id, 3_000, 3_000).unwrap();
+    store.finish_processing(id, None).unwrap();
+    store.save_summary(id, None, "Notes.").unwrap();
+    let meeting_dir = paths::fresh_meeting_dir(&root, id, 0).unwrap();
+    std::fs::write(meeting_dir.join(paths::MIC_TRACK), b"audio").unwrap();
+    let fault = meeting_dir.join(paths::SYSTEM_TRACK);
+    std::fs::create_dir(&fault).unwrap();
+
+    assert!(delete_audio(&store, &root, id).is_err());
+    assert!(!meeting_dir.join(paths::MIC_TRACK).exists());
+    assert_eq!(
+        store.get(id).unwrap().unwrap().audio,
+        store::AudioState::Tracks
+    );
+    std::fs::remove_dir(fault).unwrap();
+    delete_audio(&store, &root, id).unwrap();
+    assert_eq!(
+        store.get(id).unwrap().unwrap().audio,
+        store::AudioState::Deleted
+    );
+}
+
+/// Meetings set aside at launch are deleted 30 days later, so the user
+/// is told the library was reset.
+#[test]
+fn a_library_reset_at_launch_is_told() {
+    let damaged = tempfile::tempdir().unwrap();
+    std::fs::write(damaged.path().join("meetings.db"), b"not a database").unwrap();
+    std::fs::create_dir_all(damaged.path().join("meetings").join("1")).unwrap();
+    assert!(Library::open(damaged.path()).unwrap().reset, "damaged");
+
+    let gone = tempfile::tempdir().unwrap();
+    std::fs::create_dir_all(gone.path().join("meetings").join("3")).unwrap();
+    assert!(Library::open(gone.path()).unwrap().reset, "deleted");
+
+    let first_launch = tempfile::tempdir().unwrap();
+    assert!(!Library::open(first_launch.path()).unwrap().reset);
+    // A folder no meeting points to, in a library that opened.
+    std::fs::create_dir_all(first_launch.path().join("meetings").join("9")).unwrap();
+    assert!(!Library::open(first_launch.path()).unwrap().reset);
+}
+
+/// An import a quit or a crash cut off left a staging folder; opening
+/// the library at the next launch deletes it, and only it.
+#[test]
+fn opening_the_library_deletes_an_abandoned_import() {
+    let data = tempfile::tempdir().unwrap();
+    let meetings = data.path().join("meetings");
+    let abandoned = meetings.join("import-1-0");
+    std::fs::create_dir_all(&abandoned).unwrap();
+    std::fs::write(abandoned.join(import_audio::MARKER), b"").unwrap();
+    std::fs::write(abandoned.join("system.wav"), b"half a track").unwrap();
+    let someone_elses = meetings.join("import-mine");
+    std::fs::create_dir_all(&someone_elses).unwrap();
+
+    let library = Library::open(data.path()).unwrap();
+    assert!(!library.reset);
+    assert!(!abandoned.exists());
+    assert!(someone_elses.exists());
+}
+
+#[test]
+fn the_meetings_queued_or_processing_are_busy() {
+    let queue = ProcessingQueue::new(false);
+    queue.enqueue(3);
+    queue.enqueue(4);
+    let id = queue.state().take_next(SystemTime::now(), false);
+    assert_eq!(id, Next::Process(3));
+    assert!(queue.begin(3, &operation(1)));
+
+    assert_eq!(queue.busy(), HashSet::from([3, 4]));
+    queue.end();
+    assert_eq!(queue.busy(), HashSet::from([4]));
+}
+
+fn operation(id: u64) -> ProcessingOperation {
+    ProcessingOperation::new(OperationId(id))
+}
+
+/// The meeting the worker would take next, or `None` when it is still
+/// waiting after `within`.
+fn next_within(queue: &ProcessingQueue, within: Duration) -> Option<i64> {
+    tokio::runtime::Builder::new_current_thread()
+        .enable_time()
+        .build()
+        .unwrap()
+        .block_on(async { tokio::time::timeout(within, queue.next()).await })
+        .ok()
+}
+
+const NOW: Duration = Duration::from_secs(5);
+const A_MOMENT: Duration = Duration::from_millis(50);
+const AN_HOUR: Duration = Duration::from_secs(3600);
+
+#[test]
+fn meetings_are_processed_in_the_order_they_were_queued() {
+    let queue = ProcessingQueue::new(false);
+    queue.enqueue(2);
+    queue.enqueue(1);
+    queue.enqueue(2);
+    assert_eq!(next_within(&queue, NOW), Some(2));
+    assert_eq!(next_within(&queue, NOW), Some(1));
+    assert_eq!(next_within(&queue, A_MOMENT), None, "queued once");
+}
+
+#[test]
+fn a_meeting_stopped_as_meetings_turn_off_is_not_processed() {
+    // Turning meetings off stops the recording, which queues the meeting,
+    // then pauses the queue before the worker picks the meeting up.
+    let queue = ProcessingQueue::new(false);
+    queue.enqueue(1);
+    queue.pause();
+    assert_eq!(next_within(&queue, NOW), Some(1));
+    assert!(!queue.begin(1, &operation(1)));
+}
+
+#[test]
+fn pausing_cancels_the_meeting_in_progress() {
+    let queue = ProcessingQueue::new(false);
+    let processing = operation(1);
+    assert!(queue.begin(1, &processing));
+    queue.pause();
+    assert!(processing.is_cancelled());
+}
+
+#[test]
+fn a_held_meeting_is_processed_after_resuming() {
+    let queue = ProcessingQueue::new(true);
+    queue.enqueue(1);
+    assert_eq!(next_within(&queue, NOW), Some(1));
+    assert!(!queue.begin(1, &operation(1)));
+    queue.resume();
+    queue.enqueue(1);
+    assert_eq!(next_within(&queue, NOW), Some(1));
+    assert!(queue.begin(1, &operation(2)));
+}
+
+#[test]
+fn the_queue_waits_longer_after_each_rate_limited_meeting_in_a_row() {
+    let mut hold = RateLimitHold::default();
+    let mut minutes = || hold.rate_limited().as_secs() / 60;
+    assert_eq!(minutes(), 30);
+    assert_eq!(minutes(), 60);
+    assert_eq!(minutes(), 120);
+    assert_eq!(minutes(), 240);
+    assert_eq!(minutes(), 240, "capped");
+    // A meeting that got through: the cap has freed up.
+    hold.reset();
+    assert_eq!(hold.rate_limited().as_secs() / 60, 30);
+}
+
+#[test]
+fn the_rate_limit_hold_keeps_meetings_queued_on_their_own_waiting() {
+    let queue = ProcessingQueue::new(false);
+    queue.hold(AN_HOUR);
+    queue.enqueue(1);
+    assert_eq!(next_within(&queue, A_MOMENT), None);
+}
+
+#[test]
+fn a_hold_that_ran_out_while_the_mac_slept_lets_the_queue_go_on_waking() {
+    let queue = ProcessingQueue::new(false);
+    queue.hold(AN_HOUR);
+    queue.enqueue(1);
+    tokio::runtime::Builder::new_current_thread()
+        .enable_time()
+        .start_paused(true)
+        .build()
+        .unwrap()
+        .block_on(async {
+            let start = tokio::time::Instant::now();
+            let next = queue.next();
+            tokio::pin!(next);
+            assert!(tokio::time::timeout(NOW, &mut next).await.is_err());
+            // Asleep, the wall clock passes the end of the hold but the
+            // uptime clock, which `Instant` reads on macOS, stands still.
+            queue.state().held_until = Some(SystemTime::now() - A_MOMENT);
+            assert_eq!(next.await, 1);
+            // Within a minute of waking, not when the uptime gets there.
+            assert!(start.elapsed() <= Duration::from_secs(60) + NOW);
+        });
+}
+
+#[test]
+fn a_meeting_queued_on_its_own_goes_once_the_hold_is_over() {
+    let queue = ProcessingQueue::new(false);
+    queue.hold(A_MOMENT);
+    queue.enqueue(1);
+    assert_eq!(next_within(&queue, NOW), Some(1));
+}
+
+#[test]
+fn a_meeting_the_user_asked_for_during_the_hold_goes_through_it() {
+    let queue = Arc::new(ProcessingQueue::new(false));
+    queue.hold(AN_HOUR);
+    let asking = Arc::clone(&queue);
+    let ask = std::thread::spawn(move || {
+        std::thread::sleep(A_MOMENT);
+        asking.enqueue_asked(1);
+    });
+    assert_eq!(next_within(&queue, NOW), Some(1));
+    ask.join().unwrap();
+}
+
+#[test]
+fn retry_during_the_hold_runs_only_that_meeting_ahead_of_the_waiting_ones() {
+    // A was recorded during the hold; then the user retries R.
+    let (a, r) = (1, 2);
+    let queue = ProcessingQueue::new(false);
+    queue.hold(AN_HOUR);
+    queue.enqueue(a);
+    queue.enqueue_asked(r);
+    assert_eq!(next_within(&queue, NOW), Some(r));
+    assert_eq!(next_within(&queue, A_MOMENT), None, "A still waits");
+    // R got through: Codex freed up.
+    queue.codex_said(CodexVerdict::Answered);
+    assert_eq!(next_within(&queue, NOW), Some(a));
+}
+
+fn held_minutes(queue: &ProcessingQueue) -> Option<u64> {
+    let until = queue.state().held_until?;
+    let left = until.duration_since(SystemTime::now()).unwrap_or_default();
+    Some((left.as_secs() + 30) / 60)
+}
+
+#[test]
+fn a_pass_codex_never_answered_keeps_the_hold() {
+    // R hit the limit and A waits; then a summary retry of M goes
+    // through the hold, and Codex transcribes nothing for it.
+    let (a, m) = (1, 3);
+    let queue = ProcessingQueue::new(false);
+    assert_eq!(
+        queue.codex_said(CodexVerdict::RateLimited),
+        Some(Duration::from_secs(30 * 60))
+    );
+    queue.enqueue(a);
+    queue.enqueue_asked(m);
+    assert_eq!(next_within(&queue, NOW), Some(m));
+    assert_eq!(queue.codex_said(CodexVerdict::Unknown), None);
+    assert_eq!(next_within(&queue, A_MOMENT), None, "A still waits");
+    assert_eq!(held_minutes(&queue), Some(30));
+    // The next refusal is still one more in a row.
+    queue.codex_said(CodexVerdict::RateLimited);
+    assert_eq!(held_minutes(&queue), Some(60));
+}
+
+#[test]
+fn codex_answering_lifts_the_hold_and_restarts_the_wait() {
+    let queue = ProcessingQueue::new(false);
+    queue.codex_said(CodexVerdict::RateLimited);
+    queue.codex_said(CodexVerdict::RateLimited);
+    queue.enqueue(1);
+    queue.codex_said(CodexVerdict::Answered);
+    assert_eq!(held_minutes(&queue), None);
+    assert_eq!(next_within(&queue, NOW), Some(1));
+    queue.codex_said(CodexVerdict::RateLimited);
+    assert_eq!(held_minutes(&queue), Some(30));
+}
+
+#[test]
+fn a_meeting_kept_waiting_by_the_hold_says_for_how_long_until_asked_for() {
+    let queue = ProcessingQueue::new(false);
+    queue.enqueue(1);
+    assert_eq!(queue.held_for(1), None);
+    queue.hold(AN_HOUR);
+    let left = queue.held_for(1).unwrap();
+    assert!(left > AN_HOUR - Duration::from_secs(60) && left <= AN_HOUR);
+    assert_eq!(queue.held_for(2), None, "not queued");
+    queue.enqueue_asked(1);
+    assert_eq!(queue.held_for(1), None, "goes through the hold");
+}
+
+#[test]
+fn retrying_a_waiting_meeting_lets_it_through_the_hold() {
+    let queue = ProcessingQueue::new(false);
+    queue.hold(AN_HOUR);
+    queue.enqueue(1);
+    queue.enqueue(2);
+    queue.enqueue_asked(2);
+    assert_eq!(next_within(&queue, NOW), Some(2));
+    assert_eq!(next_within(&queue, A_MOMENT), None);
+}
+
+#[test]
+fn a_meeting_asked_for_once_is_held_when_queued_again_on_its_own() {
+    let queue = ProcessingQueue::new(false);
+    queue.enqueue_asked(1);
+    queue.hold(AN_HOUR);
+    assert_eq!(next_within(&queue, NOW), Some(1));
+    queue.enqueue(1);
+    assert_eq!(next_within(&queue, A_MOMENT), None);
+}
+
+/// A connection check that answers what `online` says.
+#[derive(Clone, Default)]
+struct FakeConnection {
+    online: Arc<std::sync::atomic::AtomicBool>,
+    checks: Arc<std::sync::atomic::AtomicUsize>,
+}
+
+impl Reachability for FakeConnection {
+    fn online(&self) -> std::pin::Pin<Box<dyn std::future::Future<Output = bool> + Send + '_>> {
+        use std::sync::atomic::Ordering;
+        self.checks.fetch_add(1, Ordering::SeqCst);
+        let online = self.online.load(Ordering::SeqCst);
+        Box::pin(async move { online })
+    }
+}
+
+impl FakeConnection {
+    fn set_online(&self, online: bool) {
+        self.online
+            .store(online, std::sync::atomic::Ordering::SeqCst);
+    }
+
+    fn checks(&self) -> usize {
+        self.checks.load(std::sync::atomic::Ordering::SeqCst)
+    }
+}
+
+fn queue_with(connection: &FakeConnection) -> ProcessingQueue {
+    let mut queue = ProcessingQueue::new(false);
+    queue.reachability = Box::new(connection.clone());
+    queue
+}
+
+/// The offline hold's wait is over, as if the run ended long ago.
+fn connection_due(queue: &ProcessingQueue) {
+    queue
+        .state()
+        .offline
+        .checked(false, SystemTime::now() - AN_HOUR);
+}
+
+#[test]
+fn while_codex_is_out_of_reach_only_meetings_asked_for_go_through() {
+    let connection = FakeConnection::default();
+    let queue = queue_with(&connection);
+    assert_eq!(
+        queue.codex_said(CodexVerdict::Unreachable),
+        Some(Duration::from_secs(60))
+    );
+    queue.enqueue(1);
+    queue.enqueue_asked(2);
+    assert!(queue.offline_for(1));
+    assert!(!queue.offline_for(2), "goes through the hold");
+    assert_eq!(next_within(&queue, NOW), Some(2));
+    assert_eq!(next_within(&queue, A_MOMENT), None, "1 still waits");
+    // The wait is not over: the connection is not checked yet.
+    assert_eq!(connection.checks(), 0);
+}
+
+#[test]
+fn the_queue_goes_on_once_a_check_finds_the_connection_back() {
+    let connection = FakeConnection::default();
+    let queue = queue_with(&connection);
+    queue.codex_said(CodexVerdict::Unreachable);
+    queue.enqueue(1);
+    connection_due(&queue);
+    assert_eq!(next_within(&queue, A_MOMENT), None, "still offline");
+    assert_eq!(connection.checks(), 1);
+    assert!(queue.offline_for(1));
+
+    connection.set_online(true);
+    connection_due(&queue);
+    assert_eq!(next_within(&queue, NOW), Some(1));
+    assert_eq!(connection.checks(), 2);
+    assert!(!queue.state().offline.holds());
+}
+
+#[test]
+fn each_unreachable_meeting_in_a_row_doubles_the_wait_until_codex_answers() {
+    let queue = queue_with(&FakeConnection::default());
+    let minutes = || {
+        queue
+            .codex_said(CodexVerdict::Unreachable)
+            .map(|wait| wait.as_secs() / 60)
+    };
+    let waits: Vec<_> = (0..6).map(|_| minutes()).collect();
+    assert_eq!(waits, [1, 2, 4, 8, 15, 15].map(Some));
+    assert_eq!(queue.codex_said(CodexVerdict::Answered), None);
+    assert!(!queue.state().offline.holds());
+    assert_eq!(
+        queue.codex_said(CodexVerdict::Unreachable),
+        Some(Duration::from_secs(60))
+    );
+    // A rate limit is an answer too: the connection works.
+    queue.codex_said(CodexVerdict::RateLimited);
+    assert!(!queue.state().offline.holds());
+}
+
+#[test]
+fn offline_with_the_local_model_ready_new_meetings_still_go_through() {
+    let mut queue = queue_with(&FakeConnection::default());
+    queue.local_ready = Box::new(|| true);
+    queue.codex_said(CodexVerdict::Unreachable);
+    queue.enqueue(1);
+    assert!(!queue.offline_for(1));
+    assert_eq!(next_within(&queue, NOW), Some(1));
+
+    // This Mac transcribed meeting 2 already: only Codex can finish it.
+    queue.requeue(2, true);
+    assert!(queue.offline_for(2));
+    assert_eq!(next_within(&queue, A_MOMENT), None);
+    // Meeting 3 was held before the model was ready.
+    queue.requeue(3, false);
+    assert_eq!(next_within(&queue, NOW), Some(3));
+}
+
+#[test]
+fn a_meeting_the_local_model_takes_past_the_hold_leaves_the_next_check_as_it_was() {
+    let mut queue = queue_with(&FakeConnection::default());
+    queue.local_ready = Box::new(|| true);
+    queue.codex_said(CodexVerdict::Unreachable);
+    let check = queue.state().offline.retry_at();
+    queue.enqueue(1);
+    assert_eq!(next_within(&queue, NOW), Some(1));
+    let wait = queue.codex_said(CodexVerdict::Unreachable);
+    assert!(
+        wait.is_some_and(|wait| wait <= Duration::from_secs(60)),
+        "{wait:?}"
+    );
+    assert_eq!(queue.state().offline.retry_at(), check);
+    // A run the hold did not let through still counts.
+    assert_eq!(
+        queue.codex_said(CodexVerdict::Unreachable),
+        Some(Duration::from_secs(120))
+    );
+}
+
+#[test]
+fn offline_a_meeting_left_with_only_its_summary_waits_for_the_connection() {
+    let dir = tempfile::tempdir().unwrap();
+    let (store, _) = MeetingsStore::open(dir.path().join("meetings.db"), chrono::Utc::now());
+    let untranscribed = store
+        .insert_recording(1_000, store::MeetingTracks::Mic)
+        .unwrap();
+    store
+        .finish_recording(untranscribed, 61_000, 60_000)
+        .unwrap();
+    let transcribed = store
+        .insert_recording(100_000, store::MeetingTracks::Mic)
+        .unwrap();
+    store
+        .finish_recording(transcribed, 160_000, 60_000)
+        .unwrap();
+    store.begin_processing(transcribed).unwrap();
+    store.finish_processing(transcribed, None).unwrap();
+
+    let mut queue = queue_with(&FakeConnection::default());
+    queue.local_ready = Box::new(|| true);
+    queue.codex_said(CodexVerdict::Unreachable);
+    queue_waiting(&queue, &store);
+    assert!(!queue.offline_for(untranscribed), "this Mac transcribes it");
+    assert!(
+        queue.offline_for(transcribed),
+        "only Codex can summarise it"
+    );
+}
+
+/// A complete transcript whose summary has not been written yet.
+fn pending_summary(store: &MeetingsStore) -> i64 {
+    let id = store
+        .insert_recording(0, store::MeetingTracks::Mic)
+        .unwrap();
+    store.finish_recording(id, 60_000, 60_000).unwrap();
+    store.begin_processing(id).unwrap();
+    store.finish_processing(id, None).unwrap();
+    id
+}
+
+#[test]
+fn a_pending_summary_survives_a_rate_limit_hold_and_recovers() {
+    // Model availability can change before the summary is retried. It
+    // cannot write a summary, whether or not it transcribed this run.
+    for local_ready in [false, true] {
+        for local_tried in [false, true] {
+            let dir = tempfile::tempdir().unwrap();
+            let (store, _) =
+                MeetingsStore::open(dir.path().join("meetings.db"), chrono::Utc::now());
+            let id = pending_summary(&store);
+            let other = pending_summary(&store);
+            let mut queue = ProcessingQueue::new(false);
+            queue.local_ready = Box::new(move || local_ready);
+            queue.enqueue_asked(id);
+            queue.enqueue(other);
+            let now = SystemTime::now();
+            assert_eq!(queue.state().take_next(now, local_ready), Next::Process(id));
+            assert!(queue.begin(id, &operation(1)));
+
+            // Cloud chunks hit the cap, the local model filled them,
+            // then the summary could not reach Codex. The cap still wins.
+            let verdict = CodexVerdict::RateLimited.max(CodexVerdict::Unreachable);
+            processing_finished(&queue, &store, id, verdict, local_tried);
+            assert_eq!(queue.queued(), [other, id]);
+            assert_eq!(queue.busy(), HashSet::from([other, id]));
+            assert_eq!(held_minutes(&queue), Some(30));
+            assert!(queue.held_for(id).is_some());
+            assert!(queue.held_for(other).is_some());
+            let queued = queue.state();
+            let summary = queued.queued.iter().find(|queued| queued.id == id).unwrap();
+            assert!(summary.codex_only);
+            assert!(!summary.asked, "the user's first request is not repeated");
+            drop(queued);
+
+            // Connectivity alone must not lift the cap, nor may the
+            // local model immediately take this cloud-only job again.
+            queue.state().offline.checked(true, now);
+            let until = queue.state().held_until.unwrap();
+            for _ in 0..3 {
+                assert_eq!(
+                    queue.state().take_next(now, local_ready),
+                    Next::Wait(Some(until))
+                );
+            }
+            assert_eq!(
+                queue.state().take_next(until, local_ready),
+                Next::Process(other)
+            );
+            assert_eq!(
+                queue.state().take_next(until, local_ready),
+                Next::Process(id)
+            );
+            assert!(store.save_summary(id, None, "Recovered notes.").unwrap());
+            processing_finished(&queue, &store, id, CodexVerdict::Answered, local_tried);
+            assert!(queue.queued().is_empty());
+            assert_eq!(
+                queue.state().take_next(until, local_ready),
+                Next::Wait(None)
+            );
+        }
+    }
+}
+
+#[test]
+fn a_retained_summary_still_offline_after_the_cap_waits_for_the_connection() {
+    let dir = tempfile::tempdir().unwrap();
+    let (store, _) = MeetingsStore::open(dir.path().join("meetings.db"), chrono::Utc::now());
+    let id = pending_summary(&store);
+    let mut queue = ProcessingQueue::new(false);
+    queue.local_ready = Box::new(|| true);
+    processing_finished(&queue, &store, id, CodexVerdict::RateLimited, true);
+    let until = queue.state().held_until.unwrap();
+    assert_eq!(queue.state().take_next(until, true), Next::Process(id));
+
+    // The next run has no local model, and fails to reach Codex again.
+    processing_finished(&queue, &store, id, CodexVerdict::Unreachable, false);
+    assert_eq!(queue.queued(), [id]);
+    assert!(queue.offline_for(id));
+    assert!(queue.state().queued[0].codex_only);
+    let next_check = queue.state().offline.retry_at().unwrap();
+    assert_eq!(
+        queue.state().take_next(SystemTime::now(), true),
+        Next::Wait(Some(next_check))
+    );
+
+    // New transcripts can still use the now-ready model; this summary
+    // cannot. A failed check leaves it queued rather than running it.
+    let other = store
+        .insert_recording(0, store::MeetingTracks::Mic)
+        .unwrap();
+    store.finish_recording(other, 60_000, 60_000).unwrap();
+    queue.enqueue(other);
+    assert_eq!(
+        queue.state().take_next(SystemTime::now(), true),
+        Next::Process(other)
+    );
+    queue.state().offline.checked(false, SystemTime::now());
+    assert!(queue.offline_for(id));
+    assert_eq!(queue.queued(), [id]);
+    queue.state().offline.checked(true, SystemTime::now());
+    assert_eq!(
+        queue.state().take_next(SystemTime::now(), true),
+        Next::Process(id)
+    );
+}
+
+#[test]
+fn a_rate_limit_does_not_requeue_a_settled_summary_or_failed_transcript() {
+    let dir = tempfile::tempdir().unwrap();
+    let (store, _) = MeetingsStore::open(dir.path().join("meetings.db"), chrono::Utc::now());
+    let failed = pending_summary(&store);
+    store
+        .summary_failed(failed, summary::SummaryError::RateLimited)
+        .unwrap();
+    let ready = pending_summary(&store);
+    store.save_summary(ready, None, "Notes.").unwrap();
+    let untranscribed = store
+        .insert_recording(0, store::MeetingTracks::Mic)
+        .unwrap();
+    store
+        .finish_recording(untranscribed, 60_000, 60_000)
+        .unwrap();
+    store.begin_processing(untranscribed).unwrap();
+    store
+        .finish_processing(untranscribed, Some(ProcessingError::RateLimited))
+        .unwrap();
+
+    let queue = ProcessingQueue::new(false);
+    queue.enqueue(99);
+    for id in [failed, ready, untranscribed] {
+        processing_finished(&queue, &store, id, CodexVerdict::RateLimited, true);
+        assert_eq!(
+            queue.queued(),
+            [99],
+            "{id} must not be retried automatically"
+        );
+    }
+    assert_eq!(
+        held_minutes(&queue),
+        Some(120),
+        "the cap backoff is preserved"
+    );
+}
+
+#[test]
+fn pending_work_without_a_holding_verdict_does_not_hot_loop() {
+    let dir = tempfile::tempdir().unwrap();
+    let (store, _) = MeetingsStore::open(dir.path().join("meetings.db"), chrono::Utc::now());
+    let id = pending_summary(&store);
+    let queue = ProcessingQueue::new(false);
+    // A cancelled or superseded summary may stay Pending without a
+    // connection/cap failure. It must not be retried in a tight loop.
+    for verdict in [CodexVerdict::Unknown, CodexVerdict::Answered] {
+        processing_finished(&queue, &store, id, verdict, true);
+        assert!(queue.queued().is_empty());
+        assert_eq!(
+            queue.state().take_next(SystemTime::now(), true),
+            Next::Wait(None)
+        );
+    }
+}
+
+#[test]
+fn a_rate_limit_holds_meetings_even_with_the_local_model_ready() {
+    let mut queue = queue_with(&FakeConnection::default());
+    queue.local_ready = Box::new(|| true);
+    queue.codex_said(CodexVerdict::RateLimited);
+    queue.enqueue(1);
+    assert_eq!(next_within(&queue, A_MOMENT), None);
+}
+
+#[test]
+fn the_local_model_becoming_ready_wakes_the_meetings_waiting_offline() {
+    let ready = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let mut queue = queue_with(&FakeConnection::default());
+    let flag = Arc::clone(&ready);
+    queue.local_ready = Box::new(move || flag.load(std::sync::atomic::Ordering::SeqCst));
+    let queue = Arc::new(queue);
+    queue.codex_said(CodexVerdict::Unreachable);
+    queue.enqueue(1);
+    let waking = Arc::clone(&queue);
+    let model = std::thread::spawn(move || {
+        std::thread::sleep(A_MOMENT);
+        ready.store(true, std::sync::atomic::Ordering::SeqCst);
+        waking.local_model_ready();
+    });
+    // Well before the next connection check, a minute away.
+    assert_eq!(next_within(&queue, NOW), Some(1));
+    model.join().unwrap();
+}
+
+#[test]
+fn cancelling_one_meeting_leaves_another_running() {
+    let queue = ProcessingQueue::new(false);
+    let processing = operation(1);
+    queue.enqueue(1);
+    assert!(queue.begin(1, &processing));
+    queue.cancel(2);
+    assert!(!processing.is_cancelled());
+    queue.cancel(1);
+    assert!(processing.is_cancelled());
+}
