@@ -105,7 +105,12 @@ jobs:
         working-directory: src-tauri
         run: cargo nextest run --locked --profile ci
 
+      # The crate has no doctest, and this step is a second compile of the
+      # crate (about a minute). A pull request skips it: `bun run check:doctests`
+      # fails a pull request that adds a doctest, so none goes unrun.
+      # A push to main, the nightly and a manual run keep it.
       - name: Run Rust doctests
+        if: github.event_name != 'pull_request'
         working-directory: src-tauri
         run: cargo test --locked --doc
 

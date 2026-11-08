@@ -15,6 +15,7 @@ bunx prettier --check .
 bun run check:translations
 bun run check:platforms
 bun run check:file-size
+bun run check:doctests
 bun run check:versions
 
 staged=$(git diff --cached --name-only --diff-filter=ACMR)

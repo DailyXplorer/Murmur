@@ -12,6 +12,8 @@ assert.deepEqual(
     "bun run test:file-size",
     "bun run check:playwright-paths",
     "bun run test:playwright-paths",
+    "bun run check:doctests",
+    "bun run test:doctests",
     "bun run test:updater-manifest",
     "bun run test:release-contract",
     "bun run test:windows-updater",
