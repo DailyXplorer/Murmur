@@ -49,6 +49,16 @@ export const ciSteps: CheckStep[] = [
     args: ["run", "test:playwright-paths"],
   },
   {
+    name: "no doctest",
+    command: "bun",
+    args: ["run", "check:doctests"],
+  },
+  {
+    name: "no doctest tests",
+    command: "bun",
+    args: ["run", "test:doctests"],
+  },
+  {
     name: "updater manifest",
     command: "bun",
     args: ["run", "test:updater-manifest"],

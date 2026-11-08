@@ -31,8 +31,10 @@
     "check:versions": "bun scripts/check-versions.ts",
     "check:file-size": "bun scripts/check-file-size.ts",
     "check:playwright-paths": "bun scripts/check-playwright-paths.ts",
+    "check:doctests": "bun scripts/check-doctests.ts",
     "test:file-size": "bun test scripts/check-file-size.test.ts",
     "test:playwright-paths": "bun scripts/check-playwright-paths.test.ts",
+    "test:doctests": "bun scripts/check-doctests.test.ts",
     "test:versions": "bun scripts/check-versions.test.ts",
     "test:macos-expanded": "bun scripts/macos-expanded.test.ts",
     "prepare": "git config core.hooksPath .githooks || true"

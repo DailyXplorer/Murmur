@@ -21,7 +21,7 @@ Run the app with `bun run tauri dev`. If CMake rejects an old policy: `CMAKE_POL
 `bun run check` runs the same checks as the CI `code quality` job, in the same order:
 
 - `bun audit`
-- translation consistency, the platform rules (`check:platforms`), the Playwright path filter (`check:playwright-paths`: a file the UI tests read outside `src/` and `tests/` must be in the filter of `playwright.yml`, or a pull request that changes it would skip the suite), the file-size limit (`check:file-size`: a source file has at most 1000 lines, `scripts/file-size-allowlist.json` holds the exceptions and is empty), the updater manifest tests (macOS and the Windows update feed), and the release-version check
+- translation consistency, the platform rules (`check:platforms`), the Playwright path filter (`check:playwright-paths`: a file the UI tests read outside `src/` and `tests/` must be in the filter of `playwright.yml`, or a pull request that changes it would skip the suite), no doctest in `src-tauri` (`check:doctests`: pull requests do not run `cargo test --doc`, so a doc example is a ` ```text ` block or a unit test), the file-size limit (`check:file-size`: a source file has at most 1000 lines, `scripts/file-size-allowlist.json` holds the exceptions and is empty), the updater manifest tests (macOS and the Windows update feed), and the release-version check
 - ESLint, Prettier, and `cargo fmt --check`
 - the frontend build and the Playwright typecheck
 
