@@ -38,12 +38,12 @@ mod recording;
 use call_prompt::*;
 pub use call_prompt::{hide_call_prompt, show_call_prompt};
 pub(crate) use notices::copy_held_notice;
-#[cfg(test)]
+#[cfg(all(test, target_os = "macos"))]
 pub(crate) use notices::hold_copy_notice;
+#[cfg(target_os = "macos")]
+pub use notices::show_copy_notice;
 use notices::*;
-pub use notices::{
-    show_cancelled_notice, show_copy_notice, show_error_overlay, show_mic_lost_notice,
-};
+pub use notices::{show_cancelled_notice, show_error_overlay, show_mic_lost_notice};
 use placement::*;
 pub use recording::create_recording_overlay;
 
