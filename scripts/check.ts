@@ -39,6 +39,16 @@ export const ciSteps: CheckStep[] = [
     args: ["run", "test:file-size"],
   },
   {
+    name: "Playwright path filter",
+    command: "bun",
+    args: ["run", "check:playwright-paths"],
+  },
+  {
+    name: "Playwright path filter tests",
+    command: "bun",
+    args: ["run", "test:playwright-paths"],
+  },
+  {
     name: "updater manifest",
     command: "bun",
     args: ["run", "test:updater-manifest"],
