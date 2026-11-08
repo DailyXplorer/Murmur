@@ -81,3 +81,5 @@ Do not ask CodeRabbit to push commits to your branch.
 ## Security
 
 Report a vulnerability privately. See [SECURITY.md](SECURITY.md).
+
+<!-- CI timing probe, not for merge. -->
