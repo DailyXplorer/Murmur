@@ -32,8 +32,9 @@ jobs:
         env:
           EVENT_NAME: ${{ github.event_name }}
         run: |
+          # tests/windowSizes.ts reads the window sizes from app_windows.rs.
           ./.github/scripts/changed-paths.sh \
-            'frontend=src/.*|tests/.*|package\.json|bun\.lock|playwright\.config\..*|vite\.config\.ts|tsconfig.*|tailwind\.config\..*|postcss\.config\..*|index\.html|\.github/workflows/playwright\.yml|\.github/scripts/changed-paths\..*'
+            'frontend=src/.*|tests/.*|src-tauri/src/app_windows\.rs|package\.json|bun\.lock|playwright\.config\..*|vite\.config\.ts|tsconfig.*|tailwind\.config\..*|postcss\.config\..*|index\.html|\.github/workflows/playwright\.yml|\.github/scripts/changed-paths\..*'
 
   playwright:
     needs: changes
