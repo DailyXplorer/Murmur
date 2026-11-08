@@ -61,6 +61,12 @@ function withoutRustGuards(source: string): string {
 }
 
 /**
+ * `app_windows.rs` holds the app's windows (main, settings), not Windows code:
+ * it compiles on macOS too, so its name does not exempt it from the scan.
+ */
+const windowManagementFiles = new Set(["app_windows"]);
+
+/**
  * A file compiled for Windows only, by name: `*_windows.rs`, `windows.rs`,
  * `win32.rs`, `uia*` (a file or a directory), at any depth of the path.
  */
@@ -68,7 +74,11 @@ export function isWindowsFile(relativePath: string): boolean {
   return relativePath
     .split(/[\\/]/)
     .map((segment) => segment.replace(/\.rs$/, ""))
-    .some((segment) => /^(windows|win32|uia.*|.*_windows)$/.test(segment));
+    .some(
+      (segment) =>
+        !windowManagementFiles.has(segment) &&
+        /^(windows|win32|uia.*|.*_windows)$/.test(segment),
+    );
 }
 
 const windowsCfgAttribute =
