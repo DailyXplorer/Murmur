@@ -87,7 +87,9 @@ export const RetranscribeMenu: React.FC<RetranscribeMenuProps> = ({
         anchorRef={anchorRef}
         onDismiss={dismiss}
         focusFirstOptionOnOpen={true}
-        className="flex min-w-[220px] flex-col overflow-hidden rounded-md border border-mid-gray/80 bg-background shadow-lg"
+        matchAnchorWidth={false}
+        align="end"
+        className="flex min-w-[min(220px,calc(100vw_-_16px))] flex-col overflow-hidden rounded-md border border-mid-gray/80 bg-background shadow-lg"
       >
         <div className="flex items-center gap-0.5 border-b border-mid-gray/40 ps-3 pe-1">
           <h4 className="min-w-0 flex-1 truncate text-sm font-medium">
@@ -110,7 +112,7 @@ export const RetranscribeMenu: React.FC<RetranscribeMenuProps> = ({
               role="option"
               aria-selected={false}
               tabIndex={-1}
-              className="min-h-control w-full px-3 py-1 text-start text-sm font-normal transition-colors duration-150 hover:bg-logo-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent-text"
+              className="block min-h-control w-full px-3 py-1 text-start text-sm font-normal transition-colors duration-150 hover:bg-logo-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent-text"
               onClick={() => pick(language.value)}
             >
               <span className="truncate">{language.name}</span>

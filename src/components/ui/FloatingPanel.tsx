@@ -11,10 +11,12 @@ import { useDismissableLayer } from "./DismissableLayer";
 
 type Placement = "top" | "bottom";
 
+type Align = "start" | "end";
+
 interface FloatingPanelPosition {
   top: number;
   left: number;
-  width: number;
+  width: number | undefined;
   maxHeight: number;
   placement: Placement;
 }
@@ -29,6 +31,18 @@ interface FloatingPanelProps {
   gap?: number;
   viewportPadding?: number;
   focusFirstOptionOnOpen?: boolean;
+  /**
+   * The panel is as wide as the anchor (a select). Turn it off for a menu
+   * that is wider than its button: the panel then takes the width of its
+   * content, never more than the window.
+   */
+  matchAnchorWidth?: boolean;
+  /**
+   * Which edge of the anchor the panel lines up with, in reading direction.
+   * Either way the panel is moved back inside the window when it would cross
+   * an edge.
+   */
+  align?: Align;
 }
 
 const DEFAULT_MAX_HEIGHT = 240;
@@ -137,6 +151,8 @@ export const FloatingPanel: React.FC<FloatingPanelProps> = ({
   gap = DEFAULT_GAP,
   viewportPadding = DEFAULT_VIEWPORT_PADDING,
   focusFirstOptionOnOpen = false,
+  matchAnchorWidth = true,
+  align = "start",
 }) => {
   const { floatingContent: floatingContentZIndex } = useFloatingLayers();
   const panelRef = useRef<HTMLDivElement>(null);
@@ -172,10 +188,23 @@ export const FloatingPanel: React.FC<FloatingPanelProps> = ({
     }
 
     const availableWidth = Math.max(0, window.innerWidth - viewportPadding * 2);
-    const width = Math.min(anchorRect.width, availableWidth);
+    const width = matchAnchorWidth
+      ? Math.min(anchorRect.width, availableWidth)
+      : undefined;
+    // A menu is as wide as its content (and its `min-width`): measure it.
+    const panelWidth =
+      width ?? Math.min(panel.getBoundingClientRect().width, availableWidth);
+    const isRtl = window.getComputedStyle(anchor).direction === "rtl";
+    const lineUpWithRight = (align === "end") !== isRtl;
+    const preferredLeft = lineUpWithRight
+      ? anchorRect.right - panelWidth
+      : anchorRect.left;
     const left = Math.min(
-      Math.max(anchorRect.left, viewportPadding),
-      Math.max(viewportPadding, window.innerWidth - viewportPadding - width),
+      Math.max(preferredLeft, viewportPadding),
+      Math.max(
+        viewportPadding,
+        window.innerWidth - viewportPadding - panelWidth,
+      ),
     );
     const desiredHeight = Math.min(panel.scrollHeight, maxHeight);
     const spaceBelow = Math.max(
@@ -204,7 +233,15 @@ export const FloatingPanel: React.FC<FloatingPanelProps> = ({
     setPosition((current) =>
       positionsMatch(current, nextPosition) ? current : nextPosition,
     );
-  }, [anchorRef, gap, maxHeight, onDismiss, viewportPadding]);
+  }, [
+    align,
+    anchorRef,
+    gap,
+    matchAnchorWidth,
+    maxHeight,
+    onDismiss,
+    viewportPadding,
+  ]);
 
   useLayoutEffect(() => {
     if (!open) {
@@ -423,7 +460,8 @@ export const FloatingPanel: React.FC<FloatingPanelProps> = ({
         position: "fixed",
         top: position?.top ?? -9999,
         left: position?.left ?? -9999,
-        width: position?.width,
+        width: matchAnchorWidth ? position?.width : "max-content",
+        maxWidth: `calc(100vw - ${viewportPadding * 2}px)`,
         maxHeight: Math.min(position?.maxHeight ?? maxHeight, maxHeight),
         zIndex: floatingContentZIndex,
         visibility: position ? "visible" : "hidden",
