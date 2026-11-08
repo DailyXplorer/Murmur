@@ -163,6 +163,11 @@ mod tests {
         [vec![b'a'; 1 << 20], vec![b'b'; 1 << 20]]
     }
 
+    /// Replacements the reader races. A plain in-place write was caught by the
+    /// reader in 20 of 20 runs from 25 rounds up; each round is a write
+    /// through plus a synced rename, about 0.1 s on a Windows runner.
+    const ROUNDS: usize = 200;
+
     #[test]
     fn durable_write_replaces_atomically() {
         let dir = tempfile::tempdir().unwrap();
@@ -184,7 +189,7 @@ mod tests {
                 reads
             })
         };
-        for round in 0..1_000 {
+        for round in 0..ROUNDS {
             write(&path, if round % 2 == 0 { &second } else { &first }).unwrap();
         }
         done.store(true, Ordering::Relaxed);
