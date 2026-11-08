@@ -311,6 +311,20 @@ require if a branch ruleset is ever added (the leaf jobs are conditional).
 `code quality` runs on every pull request, since it is the only check of
 Markdown formatting and the platform rules.
 
+### Playwright workflow
+
+`playwright.yml` runs the UI suite in four shards (`--shard=i/4`, one runner
+each) of four workers (`workers: 4` in `playwright.config.ts` on CI, the
+runner's 4 vCPUs; it was 1 and the suite took 11 minutes). A `changes` job
+runs the shards for a pull request only when a frontend file, the Playwright
+or Vite config or the workflow changes (`.github/scripts/changed-paths.sh`);
+a push to `main` and a manual run always run them. `playwright-ok` is the one
+check that says whether the suite passed (skipped counts as passing). After a
+failure the shards upload their blob reports and a `report` job merges them
+into the `playwright-report` artifact. `windows.yml` no longer runs the suite
+a second time. Locally, `bun run test:playwright` still uses the default
+number of workers.
+
 ## Troubleshooting
 
 ### macOS Accessibility remains enabled after a local rebuild
