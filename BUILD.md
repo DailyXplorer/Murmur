@@ -285,8 +285,9 @@ after the merge.
 
 The Windows jobs that compile the crate for tests share one cache,
 `windows-dev`, which only the `rust` job of `windows.yml` saves (on `main`);
-`cpu-model`, `meetings-audio` and the `meetings windows` jobs restore it. The
-installer builds in the release profile with its own `windows-release` cache,
+`cpu-model`, `meetings-audio` and the `meetings windows` jobs restore it.
+Clippy has its own, `windows-clippy` (check artifacts are not test artifacts),
+saved by the `clippy` job on `main`. The installer builds in the release profile with its own `windows-release` cache,
 which `release dry run` reads.
 
 `cache-on-failure: true` keeps a cache from a main run whose tests failed, so a
@@ -311,6 +312,12 @@ require if a branch ruleset is ever added (the leaf jobs are conditional).
 `code quality` runs on every pull request, since it is the only check of
 Markdown formatting and the platform rules.
 
+Clippy is a job of its own (`clippy`), so it runs beside the tests instead of
+after them. The two-minute proof that nextest terminates a hung test
+(`check-nextest-timeout.ps1`) runs on main, in the nightly run, by hand and on
+a pull request that changes `nextest.toml`, that script or the workflow; other
+pull requests skip it.
+
 ### Playwright workflow
 
 `playwright.yml` runs the UI suite in four shards (`--shard=i/4`, one runner
@@ -321,7 +328,7 @@ or Vite config or the workflow changes (`.github/scripts/changed-paths.sh`);
 a push to `main` and a manual run always run them. `playwright-ok` is the one
 check that says whether the suite passed (skipped counts as passing). After a
 failure the shards upload their blob reports and a `report` job merges them
-into the `playwright-report` artifact. `windows.yml` no longer runs the suite
+into the `playwright-report` artifact (a shard that left no blob is skipped). `windows.yml` no longer runs the suite
 a second time. Locally, `bun run test:playwright` still uses the default
 number of workers.
 

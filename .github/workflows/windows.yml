@@ -31,6 +31,7 @@ jobs:
     outputs:
       rust: ${{ steps.paths.outputs.rust }}
       installer: ${{ steps.paths.outputs.installer }}
+      nextest: ${{ steps.paths.outputs.nextest }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -41,6 +42,8 @@ jobs:
       # locale files, bindings.ts and one component), and the Windows scripts.
       # installer: what changes the release build or the app's start, and
       # what the installer bundles.
+      # nextest: the test timeouts and the script that proves them (the proof
+      # takes two minutes, so a pull request that leaves them alone skips it).
       - name: Decide which jobs the change needs
         id: paths
         env:
@@ -48,7 +51,8 @@ jobs:
         run: |
           ./.github/scripts/changed-paths.sh \
             'rust=src-tauri/.*|rust-toolchain\.toml|src/i18n/locales/.*|src/bindings\.ts|src/components/settings/history/HistorySettings\.tsx|\.github/workflows/windows\.yml|\.github/scripts/.*\.ps1|\.github/scripts/changed-paths\..*' \
-            'installer=src-tauri/(tauri.*\.json|updater-.*\.json|Cargo\.(toml|lock)|build\.rs|capabilities/.*|permissions/.*|icons/.*|resources/.*|gen/.*|windows-app-manifest\.xml|src/(lib|main)\.rs|src/mcp/.*)|rust-toolchain\.toml|package\.json|bun\.lock|vite\.config\.ts|index\.html|src/overlay/index\.html|\.github/workflows/windows\.yml|\.github/scripts/(windows-.*|changed-paths\..*)'
+            'installer=src-tauri/(tauri.*\.json|updater-.*\.json|Cargo\.(toml|lock)|build\.rs|capabilities/.*|permissions/.*|icons/.*|resources/.*|gen/.*|windows-app-manifest\.xml|src/(lib|main)\.rs|src/mcp/.*)|rust-toolchain\.toml|package\.json|bun\.lock|vite\.config\.ts|index\.html|src/overlay/index\.html|\.github/workflows/windows\.yml|\.github/scripts/(windows-.*|changed-paths\..*)' \
+            'nextest=src-tauri/\.config/nextest\.toml|\.github/workflows/windows\.yml|\.github/scripts/check-nextest-timeout\.ps1|\.github/scripts/changed-paths\..*'
 
   rust:
     needs: changes
@@ -68,7 +72,6 @@ jobs:
         uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # v1
         with:
           toolchain: 1.96.0
-          components: clippy
 
       - uses: swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
         with:
@@ -85,7 +88,11 @@ jobs:
         with:
           tool: cargo-nextest
 
+      # Two minutes of waiting for the timeout. A pull request runs it only
+      # when the timeouts or this script change; main, the nightly run and a
+      # manual run always do.
       - name: Prove a hung test times out
+        if: github.event_name != 'pull_request' || needs.changes.outputs.nextest == 'true'
         shell: pwsh
         run: ./.github/scripts/check-nextest-timeout.ps1
 
@@ -109,6 +116,35 @@ jobs:
           name: windows-rust-tests
           path: src-tauri/target/nextest/ci/junit.xml
           if-no-files-found: warn
+
+  # Clippy checks the crate without generating code, so it needs none of the
+  # test build: it runs beside `rust` instead of after its tests, with a cache
+  # of its own (the check artifacts are not in `windows-dev`).
+  clippy:
+    needs: changes
+    if: needs.changes.outputs.rust == 'true'
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - name: Keep line endings as committed
+        run: git config --global core.autocrlf false
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install pinned Rust toolchain
+        uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # v1
+        with:
+          toolchain: 1.96.0
+          components: clippy
+
+      - uses: swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
+        with:
+          workspaces: "./src-tauri -> target"
+          shared-key: windows-clippy
+          save-if: ${{ github.ref == 'refs/heads/main' }}
+          cache-on-failure: true
 
       - name: Run Clippy
         working-directory: src-tauri
@@ -320,16 +356,16 @@ jobs:
       - name: Keep line endings as committed
         run: git config --global core.autocrlf false
 
-      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
       - name: Install pinned Rust toolchain
-        uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # v1
+        uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # v1
         with:
           toolchain: 1.96.0
 
-      - uses: swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2
+      - uses: swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
         with:
           workspaces: "./src-tauri -> target"
           shared-key: windows-dev
@@ -452,7 +488,7 @@ jobs:
   # (the `changes` job included) fails it.
   windows-ok:
     if: always()
-    needs: [changes, rust, cpu-model, meetings-audio, installer, smoke]
+    needs: [changes, rust, clippy, cpu-model, meetings-audio, installer, smoke]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
