@@ -43,6 +43,7 @@ const TEXT_BUTTON_LABELS: [key: string, icon?: "icon"][] = [
   ["settings.about.supportDevelopment.button"],
   ["settings.about.sourceCode.button"],
   ["settings.about.modelLicences.button"],
+  ["insights.share.button"],
   ["meetings.start"],
   ["meetings.stop"],
   ["meetings.discard"],
@@ -148,6 +149,7 @@ const SCREENS: { name: string; query: string; page: string; meeting?: true }[] =
     { name: "Advanced", query: "", page: "sidebar.advanced" },
     { name: "History", query: "", page: "sidebar.history" },
     { name: "Debug", query: "", page: "sidebar.debug" },
+    { name: "Insights", query: "", page: "sidebar.insights" },
     { name: "Meetings", query: "&meeting=recording", page: "sidebar.meetings" },
     {
       name: "meeting",

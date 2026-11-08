@@ -182,6 +182,40 @@ test("Share opens the card, and Save and Copy send its PNG to the app", async ({
   expect(sent[0].png.length).toBeGreaterThan(10_000);
 });
 
+test("Share is a standard-width button after the Streak section", async ({
+  page,
+}) => {
+  await openInsights(page);
+  const share = page.getByRole("button", { name: "Share", exact: true });
+  const streak = page.getByRole("heading", { name: "Streak", exact: true });
+  const main = page.getByRole("main", { name: "Insights" });
+  const [shareBox, streakBox, mainBox, tileBox] = await Promise.all([
+    share.boundingBox(),
+    streak.locator("xpath=ancestor::section[1]").boundingBox(),
+    main.boundingBox(),
+    page
+      .locator("section")
+      .filter({ hasText: "Total words" })
+      .first()
+      .boundingBox(),
+  ]);
+  const shared = await share.evaluate((el) =>
+    parseFloat(getComputedStyle(el).minWidth),
+  );
+  expect(shared).toBeGreaterThan(60);
+  expect(shareBox!.width).toBeCloseTo(shared, 1);
+  // Below the whole Streak section, flush with the right edge of the content.
+  expect(shareBox!.y).toBeGreaterThanOrEqual(
+    streakBox!.y + streakBox!.height - 0.5,
+  );
+  expect(shareBox!.x + shareBox!.width).toBeCloseTo(
+    mainBox!.x + mainBox!.width,
+    0,
+  );
+  // Nothing sits above the stat cards: they start the page.
+  expect(tileBox!.y - mainBox!.y).toBeLessThan(2);
+});
+
 test("cancelling the save dialog says nothing", async ({ page }) => {
   await openInsights(page, "?save=cancel");
   await page.getByRole("button", { name: "Share", exact: true }).click();
