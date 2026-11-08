@@ -217,6 +217,21 @@ describe("Windows text in Rust", () => {
   test("fails in a shared file with no cfg", () => {
     expect(isWindowsFile(shared)).toBe(false);
     expect(isWindowsFile("src-tauri/src/windowing.rs")).toBe(false);
+  });
+
+  test("scans app_windows.rs, which compiles on macOS", () => {
+    const file = "src-tauri/src/app_windows.rs";
+    expect(isWindowsFile(file)).toBe(false);
+    expect(
+      bannedTextHits(file, "let m = PasteMethod::ShiftInsert;", banned),
+    ).toEqual(["PasteMethod::ShiftInsert"]);
+    expect(
+      bannedTextHits(
+        file,
+        '#[cfg(target_os = "windows")]\nfn f() { let m = PasteMethod::ShiftInsert; }',
+        banned,
+      ),
+    ).toEqual([]);
     expect(
       bannedTextHits(shared, "let m = PasteMethod::ShiftInsert;", banned),
     ).toEqual(["PasteMethod::ShiftInsert"]);
