@@ -1,16 +1,22 @@
 name: "Main Branch Build"
 
-# Runs an unsigned macOS (darwin) build on every push to main so breakage is
-# caught before a manual release is triggered. Artifacts are kept for 30 days
-# so any commit on main has a downloadable, testable build.
+# An unsigned macOS (darwin) release-profile build of main, so a build breakage
+# is caught before a manual release is triggered. It runs every night (03:47
+# UTC, on the latest commit of main) and by hand (Actions, Main Branch Build,
+# Run workflow), no longer on every push: two release-profile builds took 18
+# minutes and two of the five macOS runners on every merge, next to `test`.
+# The tests (`test`, `windows`) still run on the pushes their paths match. Artifacts are kept
+# for 30 days, so the last night's commit has a downloadable, testable build.
 
 on:
-  push:
-    branches: [main]
+  workflow_dispatch:
+  schedule:
+    - cron: "47 3 * * *"
 
+# Nothing queued behind a running build is dropped for a newer one.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   build:
