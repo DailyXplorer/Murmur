@@ -140,7 +140,7 @@ windows = { version = "0.62.2", features = [
 windows-core = "0.62.2"
 # Microphone privacy consent, kept by Windows in the registry: the dictation
 # switch, and which apps hold the microphone for the call prompt.
-winreg = "0.55"
+winreg = "0.56"
 
 # Parakeet on the CPU of Intel Macs and Windows; Apple silicon runs it in the
 # meetings helper. Pinned: the crate is young, and upgrades are deliberate.
