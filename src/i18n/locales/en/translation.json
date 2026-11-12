@@ -599,8 +599,16 @@
       "missing": "Not signed in",
       "groups": {
         "processing": "Text processing",
+        "styleByApp": "Style by app type",
         "output": "Output",
         "engine": "How Murmur transcribes"
+      },
+      "styleByApp": {
+        "description": "The style of dictations into this kind of app. Same as general follows the dictation style. No cleanup pastes the text as transcribed.",
+        "options": {
+          "general": "Same as general",
+          "off": "No cleanup"
+        }
       },
       "sessionExpired": "Session expired, sign in again",
       "aiCleanup": {

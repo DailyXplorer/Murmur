@@ -4,6 +4,7 @@ use crate::audio_toolkit::text_passes::{self, PassLanguage};
 use crate::audio_toolkit::{is_microphone_access_denied, is_no_input_device_error, Capture};
 use crate::cleanup::{CleanupOutcome, ProcessedText, PromptContext};
 use crate::engine::EngineUsed;
+use crate::insights::categories::AppCategory;
 use crate::managers::audio::AudioRecordingManager;
 use crate::managers::history::HistoryManager;
 use crate::managers::transcription::{Transcript, TranscriptionManager};
@@ -249,7 +250,8 @@ pub(crate) async fn process_transcription_output_in(
         crate::chinese_script::in_chosen_script(Some(&settings.selected_language), transcription);
 
     let available = settings.ai_cleanup_enabled && crate::cleanup::available();
-    let plan = cleanup_plan(&settings, available, &final_text, window);
+    let category = dictation_category(&settings).await;
+    let plan = cleanup_plan(&settings, available, &final_text, window, category);
     deliver(
         final_text,
         plan,
@@ -325,22 +327,30 @@ fn cleanup_plan(
     available: bool,
     text: &str,
     window: WindowContext,
+    category: Option<AppCategory>,
 ) -> CleanupPlan {
     if !(settings.ai_cleanup_enabled && available) {
         return CleanupPlan::Off;
     }
+    let Some(style) = style_for(settings, category) else {
+        return CleanupPlan::Off;
+    };
     let words = text.unicode_words().count();
-    let explicit_transform = settings.dictation_style != DictationStyle::Normal;
+    let explicit_transform = style != DictationStyle::Normal;
     if (1..SHORT_DICTATION_WORDS).contains(&words)
         && !settings.cleanup_short_dictations
         && !explicit_transform
     {
         return CleanupPlan::Short { words };
     }
-    CleanupPlan::Run(cleanup_context(settings, window))
+    CleanupPlan::Run(cleanup_context(settings, window, style))
 }
 
-fn cleanup_context(settings: &AppSettings, window: WindowContext) -> PromptContext {
+fn cleanup_context(
+    settings: &AppSettings,
+    window: WindowContext,
+    style: DictationStyle,
+) -> PromptContext {
     // The setting may have been turned off while the user was dictating.
     let window = if settings.window_names_enabled {
         window
@@ -354,7 +364,7 @@ fn cleanup_context(settings: &AppSettings, window: WindowContext) -> PromptConte
         language: (settings.selected_language != "auto")
             .then(|| settings.selected_language.clone()),
         faint_speech: settings.whisper_mode,
-        style: settings.dictation_style,
+        style,
     }
 }
 
@@ -952,6 +962,9 @@ pub static ACTION_MAP: Lazy<HashMap<String, Arc<dyn ShortcutAction>>> = Lazy::ne
     );
     map
 });
+
+mod kind_style;
+use kind_style::{dictation_category, style_for};
 
 #[cfg(test)]
 mod tests;

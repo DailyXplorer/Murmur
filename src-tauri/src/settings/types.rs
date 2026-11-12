@@ -201,6 +201,17 @@ pub enum DictationStyle {
     Casual,
 }
 
+/// The style of dictations into one kind of app, when it is not the general
+/// `DictationStyle`. `Off` pastes them without AI cleanup.
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Type)]
+#[serde(rename_all = "snake_case")]
+pub enum CategoryStyle {
+    Formal,
+    Normal,
+    Casual,
+    Off,
+}
+
 /// Which sources a meeting records. Without system audio support (before
 /// macOS 14.4, or on Intel) every mode records the microphone only; the
 /// stored choice is kept for when it becomes available.

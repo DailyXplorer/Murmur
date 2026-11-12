@@ -60,6 +60,9 @@ export const handleEngineCommand = (
       if (styleRefused) throw "The settings store is read-only";
       SETTINGS.dictation_style = args.style as DictationStyle;
       return { handled: true, value: null };
+    case "change_category_styles_setting":
+      SETTINGS.category_styles = args.styles as typeof SETTINGS.category_styles;
+      return { handled: true, value: null };
     case "change_cleanup_short_dictations_setting":
       SETTINGS.cleanup_short_dictations = args.enabled as boolean;
       return { handled: true, value: null };

@@ -1,4 +1,6 @@
-use crate::settings::{self, AppSettings, DictationStyle};
+use crate::insights::categories::AppCategory;
+use crate::settings::{self, AppSettings, CategoryStyle, DictationStyle};
+use std::collections::BTreeMap;
 use tauri::AppHandle;
 
 fn update(app: &AppHandle, change: impl FnOnce(&mut AppSettings)) -> Result<(), String> {
@@ -16,6 +18,15 @@ pub fn change_ai_cleanup_setting(app: AppHandle, enabled: bool) -> Result<(), St
 #[specta::specta]
 pub fn change_dictation_style_setting(app: AppHandle, style: DictationStyle) -> Result<(), String> {
     update(&app, |value| value.dictation_style = style)
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn change_category_styles_setting(
+    app: AppHandle,
+    styles: BTreeMap<AppCategory, CategoryStyle>,
+) -> Result<(), String> {
+    update(&app, |value| value.category_styles = styles)
 }
 
 #[tauri::command]

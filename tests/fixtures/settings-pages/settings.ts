@@ -111,6 +111,7 @@ export const SETTINGS: AppSettings = {
   custom_words: ["Murmur", "Tauri", "Playwright"],
   debug_mode: params.get("debug") !== "0",
   dictation_style: dictationStyle,
+  category_styles: {},
   experimental_enabled: true,
   extra_recording_buffer_ms: 0,
   history_limit: 50,

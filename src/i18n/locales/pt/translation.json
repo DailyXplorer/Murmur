@@ -599,8 +599,16 @@
       "missing": "Sem sessão iniciada",
       "groups": {
         "processing": "Processamento de texto",
+        "styleByApp": "Estilo por tipo de app",
         "output": "Saída",
         "engine": "Como o Murmur transcreve"
+      },
+      "styleByApp": {
+        "description": "O estilo dos ditados neste tipo de app. “Como o geral” segue o estilo de ditado, e “Sem limpeza” cola o texto como foi transcrito.",
+        "options": {
+          "general": "Como o geral",
+          "off": "Sem limpeza"
+        }
       },
       "sessionExpired": "Sessão expirada, entre novamente",
       "aiCleanup": {

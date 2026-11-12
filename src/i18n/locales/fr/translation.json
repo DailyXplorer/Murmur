@@ -599,8 +599,16 @@
       "missing": "Non connecté",
       "groups": {
         "processing": "Traitement du texte",
+        "styleByApp": "Style par type d’application",
         "output": "Sortie",
         "engine": "Mode de transcription"
+      },
+      "styleByApp": {
+        "description": "Le style des dictées dans ce type d’application. « Réglage général » suit le style de dictée, et « Sans nettoyage » colle le texte tel qu’il est transcrit.",
+        "options": {
+          "general": "Réglage général",
+          "off": "Sans nettoyage"
+        }
       },
       "sessionExpired": "Session expirée, reconnectez-vous",
       "aiCleanup": {

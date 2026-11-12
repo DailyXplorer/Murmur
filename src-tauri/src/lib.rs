@@ -351,6 +351,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             shortcut::change_lazy_stream_close_setting,
             commands::cleanup::change_ai_cleanup_setting,
             commands::cleanup::change_dictation_style_setting,
+            commands::cleanup::change_category_styles_setting,
             commands::cleanup::change_window_names_setting,
             commands::cleanup::change_whisper_mode_setting,
             commands::cleanup::change_cleanup_short_dictations_setting,
