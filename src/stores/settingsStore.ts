@@ -289,6 +289,10 @@ const settingUpdaters: {
     commands.changeAiCleanupSetting(value as boolean),
   dictation_style: (value) =>
     commands.changeDictationStyleSetting(value as DictationStyle),
+  category_styles: (value) =>
+    commands.changeCategoryStylesSetting(
+      value as NonNullable<Settings["category_styles"]>,
+    ),
   window_names_enabled: (value) =>
     commands.changeWindowNamesSetting(value as boolean),
   whisper_mode: (value) => commands.changeWhisperModeSetting(value as boolean),

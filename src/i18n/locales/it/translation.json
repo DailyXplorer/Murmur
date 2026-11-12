@@ -599,8 +599,16 @@
       "missing": "Non hai effettuato l'accesso",
       "groups": {
         "processing": "Elaborazione del testo",
+        "styleByApp": "Stile per tipo di app",
         "output": "Output",
         "engine": "Come trascrive Murmur"
+      },
+      "styleByApp": {
+        "description": "Lo stile dei dettati in questo tipo di app. «Come generale» segue lo stile di dettatura, e «Senza pulizia» incolla il testo così come viene trascritto.",
+        "options": {
+          "general": "Come generale",
+          "off": "Senza pulizia"
+        }
       },
       "sessionExpired": "Sessione scaduta, accedi di nuovo",
       "aiCleanup": {

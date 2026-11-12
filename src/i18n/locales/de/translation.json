@@ -599,8 +599,16 @@
       "missing": "Nicht angemeldet",
       "groups": {
         "processing": "Textverarbeitung",
+        "styleByApp": "Stil nach App-Typ",
         "output": "Ausgabe",
         "engine": "So transkribiert Murmur"
+      },
+      "styleByApp": {
+        "description": "Der Stil von Diktaten in dieser Art von App. „Wie allgemein“ folgt dem Diktierstil, und „Ohne Bereinigung“ fügt den Text so ein, wie er transkribiert wurde.",
+        "options": {
+          "general": "Wie allgemein",
+          "off": "Ohne Bereinigung"
+        }
       },
       "sessionExpired": "Sitzung abgelaufen, melde dich erneut an",
       "aiCleanup": {

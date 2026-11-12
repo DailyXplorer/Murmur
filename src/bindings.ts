@@ -284,6 +284,14 @@ async changeDictationStyleSetting(style: DictationStyle) : Promise<Result<null, 
     else return { status: "error", error: String(e) };
 }
 },
+async changeCategoryStylesSetting(styles: Partial<{ [key in AppCategory]: CategoryStyle }>) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("change_category_styles_setting", { styles }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
 async changeWindowNamesSetting(enabled: boolean) : Promise<Result<null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("change_window_names_setting", { enabled }) };
@@ -1336,6 +1344,11 @@ reliable_paste?: boolean;
  */
 ai_cleanup_enabled?: boolean; dictation_style?: DictationStyle; 
 /**
+ * The kinds of app whose dictations do not follow `dictation_style`. A
+ * kind without an entry follows it.
+ */
+category_styles?: Partial<{ [key in AppCategory]: CategoryStyle }>; 
+/**
  * Offer names visible in the frontmost window to the cleanup step.
  */
 window_names_enabled?: boolean; 
@@ -1435,6 +1448,11 @@ accept: string; decline: string;
  * The overlay's side of the screen, which the prompt sits on too.
  */
 position: OverlayPosition }
+/**
+ * The style of dictations into one kind of app, when it is not the general
+ * `DictationStyle`. `Off` pastes them without AI cleanup.
+ */
+export type CategoryStyle = "formal" | "normal" | "casual" | "off"
 export type CategoryUsage = { category: AppCategory; count: number }
 /**
  * What happened to a transcript, as kept in history.

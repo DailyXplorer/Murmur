@@ -1,13 +1,14 @@
 use super::{
-    captured_audio, cleanup_context, cleanup_plan, complete_unless_cancelled, context_reads,
-    deliver, pad_short_capture, paste_outcome_commits_history, settle_wav, CleanupPlan, PendingWav,
+    captured_audio, cleanup_plan, complete_unless_cancelled, context_reads, deliver,
+    pad_short_capture, paste_outcome_commits_history, settle_wav, CleanupPlan, PendingWav,
     SHORT_DICTATION_WORDS,
 };
 use crate::audio_toolkit::text_passes::PassLanguage;
 use crate::cleanup::{CleanupOutcome, ProcessedText, PromptContext};
 use crate::clipboard::PasteOutcome;
 use crate::field_excerpt::FieldExcerpt;
-use crate::settings::{get_default_settings, AppSettings, DictationStyle};
+use crate::insights::categories::AppCategory;
+use crate::settings::{get_default_settings, AppSettings, CategoryStyle, DictationStyle};
 use crate::window_names::{ContextReads, WindowContext};
 use std::cell::Cell;
 use std::fs;
@@ -45,8 +46,8 @@ fn cleanup_follows_the_chosen_dictation_style() {
         let mut settings = get_default_settings();
         settings.dictation_style = style;
         assert_eq!(
-            cleanup_context(&settings, WindowContext::default()).style,
-            style
+            request(&settings, true, WindowContext::default()).map(|context| context.style),
+            Some(style)
         );
     }
 }
@@ -65,6 +66,7 @@ fn the_window_is_read_only_with_cleanup_and_the_setting_on() {
         assert_eq!(
             context_reads(&settings),
             ContextReads {
+                kind: false,
                 names: read,
                 field: read
             },
@@ -75,6 +77,7 @@ fn the_window_is_read_only_with_cleanup_and_the_setting_on() {
 
 fn window() -> WindowContext {
     WindowContext {
+        kind: None,
         names: vec!["Ingrid".to_string()],
         field: Some(FieldExcerpt {
             before: "Hi Ingrid, ".to_string(),
@@ -390,4 +393,113 @@ fn pasted_or_recoverable_output_survives_late_cancellation() {
     assert!(paste_outcome_commits_history(PasteOutcome::CopyOffered));
     assert!(paste_outcome_commits_history(PasteOutcome::IntentionalNone));
     assert!(paste_outcome_commits_history(PasteOutcome::Skipped));
+}
+
+fn plan_for(settings: &AppSettings, text: &str, category: AppCategory) -> CleanupPlan {
+    let started_in = WindowContext {
+        kind: Some(category),
+        ..WindowContext::default()
+    };
+    cleanup_plan(settings, true, text, started_in)
+}
+
+#[test]
+fn a_dictation_reads_the_kind_of_app_only_when_a_kind_has_a_style() {
+    let mut settings = get_default_settings();
+    assert!(!context_reads(&settings).kind);
+
+    settings
+        .category_styles
+        .insert(AppCategory::Emails, CategoryStyle::Formal);
+    assert!(context_reads(&settings).kind);
+
+    // The window names switch does not gate it: the kind is not window text.
+    settings.window_names_enabled = false;
+    assert!(context_reads(&settings).kind);
+
+    settings.ai_cleanup_enabled = false;
+    assert!(!context_reads(&settings).kind);
+}
+
+#[test]
+fn a_kind_of_app_with_its_own_style_does_not_follow_the_general_one() {
+    let mut settings = get_default_settings();
+    settings.dictation_style = DictationStyle::Formal;
+    settings
+        .category_styles
+        .insert(AppCategory::PersonalMessages, CategoryStyle::Casual);
+
+    let style = |category| match plan_for(&settings, LONG, category) {
+        CleanupPlan::Run(context) => Some(context.style),
+        _ => None,
+    };
+    assert_eq!(
+        style(AppCategory::PersonalMessages),
+        Some(DictationStyle::Casual)
+    );
+    assert_eq!(style(AppCategory::Emails), Some(DictationStyle::Formal));
+}
+
+#[test]
+fn a_kind_of_app_set_to_off_gets_no_cleanup() {
+    let mut settings = get_default_settings();
+    settings
+        .category_styles
+        .insert(AppCategory::Coding, CategoryStyle::Off);
+
+    assert!(matches!(
+        plan_for(&settings, LONG, AppCategory::Coding),
+        CleanupPlan::Off
+    ));
+    assert!(matches!(
+        plan_for(&settings, LONG, AppCategory::Emails),
+        CleanupPlan::Run(_)
+    ));
+}
+
+#[test]
+fn a_short_dictation_is_cleaned_only_where_the_style_asks_for_it() {
+    let mut settings = get_default_settings();
+    settings
+        .category_styles
+        .insert(AppCategory::Emails, CategoryStyle::Formal);
+    assert!(matches!(
+        plan_for(&settings, SHORT, AppCategory::Emails),
+        CleanupPlan::Run(_)
+    ));
+    assert!(matches!(
+        plan_for(&settings, SHORT, AppCategory::Documents),
+        CleanupPlan::Short { .. }
+    ));
+
+    // Normal for one kind wins over a general Formal: the short text is left alone.
+    settings.dictation_style = DictationStyle::Formal;
+    settings
+        .category_styles
+        .insert(AppCategory::WorkMessages, CategoryStyle::Normal);
+    assert!(matches!(
+        plan_for(&settings, SHORT, AppCategory::WorkMessages),
+        CleanupPlan::Short { .. }
+    ));
+}
+
+#[test]
+fn settings_written_before_styles_by_kind_have_none() {
+    let old: AppSettings = serde_json::from_value(
+        serde_json::to_value(get_default_settings())
+            .map(|mut value| {
+                value.as_object_mut().unwrap().remove("category_styles");
+                value
+            })
+            .unwrap(),
+    )
+    .unwrap();
+    assert!(old.category_styles.is_empty());
+
+    let mut settings = get_default_settings();
+    settings
+        .category_styles
+        .insert(AppCategory::AiPrompts, CategoryStyle::Off);
+    let json = serde_json::to_value(&settings).unwrap();
+    assert_eq!(json["category_styles"]["ai_prompts"], "off");
 }

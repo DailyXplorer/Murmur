@@ -7,6 +7,7 @@
 //! or logged.
 
 use crate::field_excerpt::FieldExcerpt;
+use crate::insights::categories::{categorize, AppCategory};
 use std::collections::{HashMap, VecDeque};
 use std::sync::mpsc::{self, Receiver};
 use std::sync::Mutex;
@@ -34,6 +35,8 @@ const COLLECT_WAIT: Duration = Duration::from_millis(50);
 pub struct WindowContext {
     pub names: Vec<String>,
     pub field: Option<FieldExcerpt>,
+    /// The kind of app the window belongs to, read when a kind has a style.
+    pub kind: Option<AppCategory>,
 }
 
 /// Which parts of the frontmost window a dictation reads.
@@ -43,6 +46,8 @@ pub struct ContextReads {
     pub names: bool,
     /// The excerpt of the focused field around the insertion point.
     pub field: bool,
+    /// The kind of app in front, as Insights sorts it.
+    pub kind: bool,
 }
 
 static PENDING: Mutex<Option<Receiver<WindowContext>>> = Mutex::new(None);
@@ -54,12 +59,34 @@ pub fn capture(reads: ContextReads) {
     capture_with(reads, read_frontmost_window);
 }
 
+/// Asks which app is in front once: the kind and the window text of one
+/// dictation then come from the same app, even when the focus moves while
+/// they are read.
+fn read_one_app<App>(
+    reads: ContextReads,
+    frontmost: impl FnOnce() -> Option<App>,
+    window: impl FnOnce(&App) -> WindowContext,
+    kind: impl FnOnce(&App) -> Option<AppCategory>,
+) -> WindowContext {
+    let Some(app) = frontmost() else {
+        return WindowContext::default();
+    };
+    WindowContext {
+        kind: reads.kind.then(|| kind(&app)).flatten(),
+        ..window(&app)
+    }
+}
+
+fn kind_of(target: Option<crate::insights::frontmost::DictationTarget>) -> Option<AppCategory> {
+    target.map(|target| categorize(&target.bundle_id, target.host.as_deref()))
+}
+
 fn capture_with(
     reads: ContextReads,
     read: impl FnOnce(ContextReads) -> WindowContext + Send + 'static,
 ) {
     let (sender, receiver) = mpsc::channel();
-    let reads_any = reads.names || reads.field;
+    let reads_any = reads.names || reads.field || reads.kind;
     if let Ok(mut pending) = PENDING.lock() {
         *pending = reads_any.then_some(receiver);
     }
@@ -83,9 +110,21 @@ pub fn collect() -> WindowContext {
 #[cfg(target_os = "windows")]
 fn read_frontmost_window(reads: ContextReads) -> WindowContext {
     let started = Instant::now();
-    let Some(app) = crate::uia::frontmost_app() else {
-        return WindowContext::default();
-    };
+    read_one_app(
+        reads,
+        crate::uia::frontmost_app,
+        |app| read_window_of(reads, *app, started),
+        |app| kind_of(crate::insights::frontmost::of_window(*app)),
+    )
+}
+
+/// Logs lengths and counts only, never what was read.
+#[cfg(target_os = "windows")]
+fn read_window_of(
+    reads: ContextReads,
+    app: crate::foreground::ForegroundWindow,
+    started: Instant,
+) -> WindowContext {
     let automation = match crate::uia::Automation::new() {
         Ok(automation) => automation,
         Err(e) => {
@@ -172,9 +211,12 @@ impl WindowNode for UiaNode<'_> {
 #[cfg(target_os = "macos")]
 fn read_frontmost_window(reads: ContextReads) -> WindowContext {
     let started = Instant::now();
-    crate::accessibility::frontmost_app()
-        .map(|(pid, app)| read_app(reads, pid, &app, started))
-        .unwrap_or_default()
+    read_one_app(
+        reads,
+        crate::accessibility::frontmost_app,
+        |(pid, app)| read_app(reads, *pid, app, started),
+        |(pid, _)| kind_of(crate::insights::frontmost::of_pid(*pid)),
+    )
 }
 
 /// The focused field first, then the focused window with what is left of
@@ -207,7 +249,11 @@ fn read_window(
     } else {
         Vec::new()
     };
-    WindowContext { names, field }
+    WindowContext {
+        names,
+        field,
+        kind: None,
+    }
 }
 
 /// Names in the excerpt come first: they are next to what the user is

@@ -11,6 +11,7 @@ import { RadioOption } from "../../ui/RadioOption";
 import { AiCleanup } from "../AiCleanup";
 import { CleanupShortDictations } from "../CleanupShortDictations";
 import { DictationStyleSetting } from "../DictationStyle";
+import { CategoryStyles } from "../CategoryStyles";
 import { CustomWords } from "../CustomWords";
 import { WindowNames } from "../WindowNames";
 import { WhisperMode } from "../WhisperMode";
@@ -116,6 +117,8 @@ export const TranscriptionSettings: React.FC = () => {
         <LeadingSpace grouped={true} />
         <AppendTrailingSpace grouped={true} />
       </SettingsGroup>
+
+      <CategoryStyles noAccount={noAccount} />
 
       <SettingsGroup title={t("settings.transcription.groups.output")}>
         <PasteMethodSetting grouped={true} />

@@ -6,6 +6,7 @@ mod transaction;
 mod types;
 
 use crate::engine::Engine;
+use crate::insights::categories::AppCategory;
 pub use defaults::get_default_settings;
 pub use load::{
     flush_pending_save, get_settings, load_or_create_app_settings, validate_custom_words,
@@ -13,7 +14,7 @@ pub use load::{
 pub use recovery::{recover_damaged_store, SettingsRecovery};
 use serde::{Deserialize, Serialize};
 use specta::Type;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::convert::Infallible;
 use tauri::AppHandle;
 pub use types::*;
@@ -125,6 +126,10 @@ pub struct AppSettings {
     pub ai_cleanup_enabled: bool,
     #[serde(default)]
     pub dictation_style: DictationStyle,
+    /// The kinds of app whose dictations do not follow `dictation_style`. A
+    /// kind without an entry follows it.
+    #[serde(default)]
+    pub category_styles: BTreeMap<AppCategory, CategoryStyle>,
     /// Offer names visible in the frontmost window to the cleanup step.
     #[serde(default = "default_window_names_enabled")]
     pub window_names_enabled: bool,

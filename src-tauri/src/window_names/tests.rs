@@ -117,11 +117,57 @@ fn field(before: &str, after: &str) -> Option<FieldExcerpt> {
 }
 
 #[test]
+fn the_kind_and_the_window_text_come_from_one_app_when_the_focus_moves() {
+    // The app in front changes after the first question: nothing may ask again.
+    let asked = std::cell::Cell::new(0);
+    let all = ContextReads {
+        names: true,
+        field: true,
+        kind: true,
+    };
+    let context = read_one_app(
+        all,
+        || {
+            asked.set(asked.get() + 1);
+            Some(if asked.get() == 1 { "Mail" } else { "Chat" })
+        },
+        |app| WindowContext {
+            names: names(&[app]),
+            ..WindowContext::default()
+        },
+        |app| {
+            Some(match *app {
+                "Mail" => AppCategory::Emails,
+                _ => AppCategory::PersonalMessages,
+            })
+        },
+    );
+    assert_eq!(asked.get(), 1);
+    assert_eq!(context.names, names(&["Mail"]));
+    assert_eq!(context.kind, Some(AppCategory::Emails));
+}
+
+#[test]
+fn the_kind_of_app_is_captured_at_the_start_even_with_names_and_field_off() {
+    let _turn = PENDING_TESTS.lock().unwrap_or_else(|e| e.into_inner());
+    let only_kind = ContextReads {
+        kind: true,
+        ..ContextReads::default()
+    };
+    capture_with(only_kind, |reads| WindowContext {
+        kind: reads.kind.then_some(AppCategory::Emails),
+        ..WindowContext::default()
+    });
+    assert_eq!(collect().kind, Some(AppCategory::Emails));
+}
+
+#[test]
 fn a_dictation_started_with_names_off_drops_an_unclaimed_capture() {
     let _turn = PENDING_TESTS.lock().unwrap_or_else(|e| e.into_inner());
     let (sender, receiver) = mpsc::channel();
     sender
         .send(WindowContext {
+            kind: None,
             names: names(&["Ingrid"]),
             field: field("Hi Ingrid, ", ""),
         })
@@ -141,33 +187,39 @@ fn each_read_runs_only_when_asked_for() {
         (ContextReads::default(), vec![], WindowContext::default()),
         (
             ContextReads {
+                kind: false,
                 names: true,
                 field: false,
             },
             vec!["window"],
             WindowContext {
+                kind: None,
                 names: names(&["Ingrid"]),
                 field: None,
             },
         ),
         (
             ContextReads {
+                kind: false,
                 names: false,
                 field: true,
             },
             vec!["field"],
             WindowContext {
+                kind: None,
                 names: Vec::new(),
                 field: excerpt(),
             },
         ),
         (
             ContextReads {
+                kind: false,
                 names: true,
                 field: true,
             },
             vec!["field", "window"],
             WindowContext {
+                kind: None,
                 names: names(&["Priya", "Ingrid"]),
                 field: excerpt(),
             },
@@ -212,6 +264,7 @@ fn each_read_runs_only_when_asked_for() {
 #[test]
 fn the_excerpt_and_names_are_sent_as_read() {
     let all = ContextReads {
+        kind: false,
         names: true,
         field: true,
     };
@@ -223,6 +276,7 @@ fn the_excerpt_and_names_are_sent_as_read() {
     assert_eq!(
         context,
         WindowContext {
+            kind: None,
             names: names(&["Wi-Fi", "Corvina"]),
             field: field("Code porte : 4512B\n", ""),
         }
@@ -404,6 +458,7 @@ fn coverage_of_running_apps() {
 
         let started = Instant::now();
         let all = ContextReads {
+            kind: false,
             names: true,
             field: true,
         };
@@ -726,6 +781,7 @@ mod uia {
             Utf16Range { start: 700, len: 0 },
         );
         let all = ContextReads {
+            kind: false,
             names: true,
             field: true,
         };

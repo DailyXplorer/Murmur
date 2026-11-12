@@ -599,8 +599,16 @@
       "missing": "Sin iniciar sesión",
       "groups": {
         "processing": "Procesamiento de texto",
+        "styleByApp": "Estilo por tipo de app",
         "output": "Salida",
         "engine": "Cómo transcribe Murmur"
+      },
+      "styleByApp": {
+        "description": "El estilo de los dictados en este tipo de app. «Como el general» sigue el estilo de dictado, y «Sin limpieza» pega el texto tal como se transcribe.",
+        "options": {
+          "general": "Como el general",
+          "off": "Sin limpieza"
+        }
       },
       "sessionExpired": "Sesión caducada, vuelve a iniciar sesión",
       "aiCleanup": {

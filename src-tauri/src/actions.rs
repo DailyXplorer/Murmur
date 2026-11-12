@@ -309,6 +309,7 @@ fn context_reads(settings: &AppSettings) -> ContextReads {
     ContextReads {
         names: cleanup_reads,
         field: cleanup_reads,
+        kind: settings.ai_cleanup_enabled && !settings.category_styles.is_empty(),
     }
 }
 
@@ -329,18 +330,25 @@ fn cleanup_plan(
     if !(settings.ai_cleanup_enabled && available) {
         return CleanupPlan::Off;
     }
+    let Some(style) = style_for(settings, window.kind) else {
+        return CleanupPlan::Off;
+    };
     let words = text.unicode_words().count();
-    let explicit_transform = settings.dictation_style != DictationStyle::Normal;
+    let explicit_transform = style != DictationStyle::Normal;
     if (1..SHORT_DICTATION_WORDS).contains(&words)
         && !settings.cleanup_short_dictations
         && !explicit_transform
     {
         return CleanupPlan::Short { words };
     }
-    CleanupPlan::Run(cleanup_context(settings, window))
+    CleanupPlan::Run(cleanup_context(settings, window, style))
 }
 
-fn cleanup_context(settings: &AppSettings, window: WindowContext) -> PromptContext {
+fn cleanup_context(
+    settings: &AppSettings,
+    window: WindowContext,
+    style: DictationStyle,
+) -> PromptContext {
     // The setting may have been turned off while the user was dictating.
     let window = if settings.window_names_enabled {
         window
@@ -354,7 +362,7 @@ fn cleanup_context(settings: &AppSettings, window: WindowContext) -> PromptConte
         language: (settings.selected_language != "auto")
             .then(|| settings.selected_language.clone()),
         faint_speech: settings.whisper_mode,
-        style: settings.dictation_style,
+        style,
     }
 }
 
@@ -952,6 +960,9 @@ pub static ACTION_MAP: Lazy<HashMap<String, Arc<dyn ShortcutAction>>> = Lazy::ne
     );
     map
 });
+
+mod kind_style;
+use kind_style::style_for;
 
 #[cfg(test)]
 mod tests;

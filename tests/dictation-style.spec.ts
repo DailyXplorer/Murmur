@@ -171,3 +171,62 @@ test.describe("cleaning up short dictations", () => {
     });
   }
 });
+
+const kindPicker = (page: Page, category: string) =>
+  page.getByTestId(`style-${category}`).locator('[aria-haspopup="listbox"]');
+
+const kindWrites = (page: Page) =>
+  page.evaluate(() =>
+    window.settingsPages.calls
+      .filter((call) => call.command === "change_category_styles_setting")
+      .map((call) => call.args),
+  );
+
+test("each kind of app follows the general style until it gets its own", async ({
+  page,
+}) => {
+  await openTranscription(page);
+  for (const category of [
+    "ai_prompts",
+    "personal_messages",
+    "work_messages",
+    "emails",
+    "documents",
+    "coding",
+  ]) {
+    await expect(kindPicker(page, category)).toHaveText("Same as general");
+  }
+  await expect(page.getByTestId("style-other")).toHaveCount(0);
+
+  await kindPicker(page, "emails").click();
+  await page.getByRole("option", { name: "Formal", exact: true }).click();
+  await expect(kindPicker(page, "emails")).toHaveText("Formal");
+
+  await kindPicker(page, "coding").click();
+  await page.getByRole("option", { name: "No cleanup", exact: true }).click();
+  await expect(kindPicker(page, "coding")).toHaveText("No cleanup");
+
+  // Back to the general style: the kind leaves the setting, it is not saved
+  // as a style of its own.
+  await kindPicker(page, "emails").click();
+  await page
+    .getByRole("option", { name: "Same as general", exact: true })
+    .click();
+  await expect(kindPicker(page, "emails")).toHaveText("Same as general");
+
+  expect(await kindWrites(page)).toEqual([
+    { styles: { emails: "formal" } },
+    { styles: { emails: "formal", coding: "off" } },
+    { styles: { coding: "off" } },
+  ]);
+});
+
+test("the styles by kind of app are off with cleanup", async ({ page }) => {
+  await openTranscription(page, "cleanup=off");
+  await expect(kindPicker(page, "emails")).toBeDisabled();
+  await page
+    .getByTestId("style-emails")
+    .getByRole("button", { name: new RegExp(`^${CLEANUP_OFF}`) })
+    .hover();
+  await expect(page.getByRole("tooltip")).toContainText(CLEANUP_OFF);
+});
