@@ -738,7 +738,10 @@
     "copy": "Copy",
     "clear": "Clear",
     "noOptionsFound": "No options found",
-    "reset": "Reset"
+    "reset": "Reset",
+    "play": "Play",
+    "pause": "Pause",
+    "playbackPosition": "Playback position"
   },
   "accessibility": {
     "permissionsDescription": "Murmur needs accessibility permissions to type transcribed text.",

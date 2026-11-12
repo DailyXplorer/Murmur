@@ -56,6 +56,7 @@ export const HistoryLimit: React.FC<HistoryLimitProps> = ({
       <div className="flex items-center gap-2">
         <Input
           type="number"
+          aria-label={t("settings.debug.historyLimit.title")}
           min={MIN_HISTORY_LIMIT}
           max={MAX_HISTORY_LIMIT}
           value={draft ?? String(historyLimit)}

@@ -311,7 +311,7 @@
         "description": "Experimentelle Funktionen aktivieren, die sich noch in Entwicklung befinden."
       },
       "lazyStreamClose": {
-        "label": "Mikrofon zwischen Transkriptionen offen halten",
+        "label": "Mikrofon zwischen Diktaten offen halten",
         "description": "Hält den Mikrofon-Stream nach dem Aufnahmestopp 30 Sekunden lang offen, um die Latenz bei aufeinanderfolgenden Transkriptionen zu verringern. Kann die Bluetooth-Audioqualität beeinträchtigen."
       },
       "startHidden": {
@@ -355,9 +355,9 @@
       },
       "clipboardHandling": {
         "title": "Zwischenablage-Verhalten",
-        "description": "Murmur fügt über die Zwischenablage ein. „Vorherige Zwischenablage wiederherstellen“ legt zurück, was du kopiert hattest, sobald das 8-Sekunden-Fenster zum Einfügen endet, außer du hast inzwischen etwas anderes kopiert. „Transkription behalten“ lässt die Transkription in der Zwischenablage. Schlägt das Einfügen fehl, behält Murmur die Transkription zur Wiederherstellung in der Zwischenablage.",
+        "description": "Murmur fügt über die Zwischenablage ein. „Zwischenablage wiederherstellen“ legt zurück, was du kopiert hattest, sobald das 8-Sekunden-Fenster zum Einfügen endet, außer du hast inzwischen etwas anderes kopiert. „Transkription behalten“ lässt die Transkription in der Zwischenablage. Schlägt das Einfügen fehl, behält Murmur die Transkription zur Wiederherstellung in der Zwischenablage.",
         "options": {
-          "dontModify": "Vorherige Zwischenablage wiederherstellen",
+          "dontModify": "Zwischenablage wiederherstellen",
           "copyToClipboard": "Transkription behalten"
         }
       },
@@ -380,7 +380,7 @@
         "duplicate": "\"{{word}}\" existiert bereits"
       },
       "mcp": {
-        "label": "KI-Agenten deine Meetings lesen lassen (MCP)",
+        "label": "KI-Agenten Meetings lesen lassen (MCP)",
         "description": "Verbundene KI-Apps wie Claude oder Codex können deine Meetings auflisten, durchsuchen und lesen. Nur Lesezugriff. Sie senden das Gelesene möglicherweise an ihre eigenen Server.",
         "dictations": "Diktatverlauf einbeziehen",
         "dictationsDescription": "Erlaubt ihnen auch, deine letzten Diktate zu lesen, die persönlicher sind als Meetings.",
@@ -735,7 +735,10 @@
     "copy": "Kopieren",
     "clear": "Leeren",
     "noOptionsFound": "Keine Optionen gefunden",
-    "reset": "Zurücksetzen"
+    "reset": "Zurücksetzen",
+    "play": "Abspielen",
+    "pause": "Pausieren",
+    "playbackPosition": "Wiedergabeposition"
   },
   "accessibility": {
     "permissionsDescription": "Murmur benötigt Bedienungshilfen-Berechtigungen, um transkribierten Text einzugeben.",

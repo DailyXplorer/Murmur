@@ -144,3 +144,25 @@ test("the Windows build says this PC", async ({ page }) => {
     await page.screenshot({ path: `${SHOTS}/engine-labels-windows.png` });
   }
 });
+
+test("the info bubble of the earlier versions sits on the line of its link", async ({
+  page,
+}) => {
+  await openHistory(page);
+  const link = firstEntry(page).getByRole("button", {
+    name: "Earlier versions (2)",
+  });
+  const info = link.locator("..").getByRole("button").nth(1);
+  const [linkBox, infoBox] = [
+    await link.boundingBox(),
+    await info.boundingBox(),
+  ];
+  const middle = (box: { y: number; height: number } | null) =>
+    box ? box.y + box.height / 2 : Number.NaN;
+
+  expect(Math.abs(middle(linkBox) - middle(infoBox))).toBeLessThanOrEqual(1);
+  // The bubble's hit area must not make the line taller than its text.
+  expect((await link.locator("..").boundingBox())?.height).toBe(
+    linkBox?.height,
+  );
+});

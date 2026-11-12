@@ -213,7 +213,7 @@ const AppUsage: React.FC<{ summary: InsightsSummary }> = ({ summary }) => {
           return (
             <li
               key={category}
-              className="grid grid-cols-[minmax(0,10rem)_1fr_auto] items-center gap-3"
+              className="grid grid-cols-[minmax(0,13rem)_1fr_auto] items-center gap-3"
             >
               <span className="flex min-w-0 items-center gap-2 text-sm">
                 <CategoryIcon

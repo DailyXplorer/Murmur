@@ -7,6 +7,7 @@ import React, {
   useRef,
   useState,
 } from "react";
+import { useTranslation } from "react-i18next";
 import { PauseIcon } from "@phosphor-icons/react/dist/csr/Pause";
 import { PlayIcon } from "@phosphor-icons/react/dist/csr/Play";
 
@@ -57,6 +58,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
   className = "",
   autoPlay = false,
 }) => {
+  const { t } = useTranslation();
   const group = useContext(AudioPlayerGroupContext);
   const [isPlaying, setIsPlaying] = useState(false);
   const [duration, setDuration] = useState(0);
@@ -270,7 +272,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
         onClick={togglePlay}
         disabled={isLoading}
         className="transition-colors cursor-pointer text-text hover:text-accent-text disabled:opacity-50"
-        aria-label={isPlaying ? "Pause" : "Play"}
+        aria-label={isPlaying ? t("common.pause") : t("common.play")}
       >
         {isPlaying ? <PauseIcon size={18} /> : <PlayIcon size={18} />}
       </button>
@@ -282,6 +284,7 @@ export const AudioPlayer: React.FC<AudioPlayerProps> = ({
 
         <input
           type="range"
+          aria-label={t("common.playbackPosition")}
           min="0"
           max={duration || 0}
           step="0.01"

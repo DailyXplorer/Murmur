@@ -311,7 +311,7 @@
         "description": "Activer les fonctionnalités expérimentales encore en développement."
       },
       "lazyStreamClose": {
-        "label": "Garder le micro ouvert entre les transcriptions",
+        "label": "Garder le micro ouvert entre les dictées",
         "description": "Maintient le flux du microphone ouvert pendant 30 secondes après l'arrêt de l'enregistrement, réduisant la latence pour les transcriptions consécutives. Peut dégrader la qualité audio Bluetooth."
       },
       "startHidden": {
@@ -735,7 +735,10 @@
     "copy": "Copier",
     "clear": "Effacer",
     "noOptionsFound": "Aucune option trouvée",
-    "reset": "Réinitialiser"
+    "reset": "Réinitialiser",
+    "play": "Lire",
+    "pause": "Pause",
+    "playbackPosition": "Position de lecture"
   },
   "accessibility": {
     "permissionsDescription": "Murmur a besoin des autorisations d'accessibilité pour taper le texte transcrit.",
