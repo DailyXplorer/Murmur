@@ -11,7 +11,12 @@ pub struct DictationTarget {
 /// thread.
 #[cfg(target_os = "windows")]
 pub fn current() -> Option<DictationTarget> {
-    let foreground = crate::foreground::window()?;
+    of_window(crate::foreground::window()?)
+}
+
+/// The app that owns `foreground`. Off the main thread, like `current`.
+#[cfg(target_os = "windows")]
+pub fn of_window(foreground: crate::foreground::ForegroundWindow) -> Option<DictationTarget> {
     if foreground.pid == std::process::id() {
         return None;
     }
@@ -145,10 +150,17 @@ mod browser {
 #[cfg(target_os = "macos")]
 pub fn current() -> Option<DictationTarget> {
     let application = objc2_app_kit::NSWorkspace::sharedWorkspace().frontmostApplication()?;
-    let pid = application.processIdentifier();
+    of_pid(application.processIdentifier())
+}
+
+/// The running app with this process id.
+#[cfg(target_os = "macos")]
+pub fn of_pid(pid: i32) -> Option<DictationTarget> {
     if pid <= 0 || u32::try_from(pid).ok() == Some(std::process::id()) {
         return None;
     }
+    let application =
+        objc2_app_kit::NSRunningApplication::runningApplicationWithProcessIdentifier(pid)?;
     let bundle_id = application.bundleIdentifier()?.to_string();
     if bundle_id.is_empty() {
         return None;

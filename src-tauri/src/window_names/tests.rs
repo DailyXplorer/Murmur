@@ -117,6 +117,37 @@ fn field(before: &str, after: &str) -> Option<FieldExcerpt> {
 }
 
 #[test]
+fn the_kind_and_the_window_text_come_from_one_app_when_the_focus_moves() {
+    // The app in front changes after the first question: nothing may ask again.
+    let asked = std::cell::Cell::new(0);
+    let all = ContextReads {
+        names: true,
+        field: true,
+        kind: true,
+    };
+    let context = read_one_app(
+        all,
+        || {
+            asked.set(asked.get() + 1);
+            Some(if asked.get() == 1 { "Mail" } else { "Chat" })
+        },
+        |app| WindowContext {
+            names: names(&[app]),
+            ..WindowContext::default()
+        },
+        |app| {
+            Some(match *app {
+                "Mail" => AppCategory::Emails,
+                _ => AppCategory::PersonalMessages,
+            })
+        },
+    );
+    assert_eq!(asked.get(), 1);
+    assert_eq!(context.names, names(&["Mail"]));
+    assert_eq!(context.kind, Some(AppCategory::Emails));
+}
+
+#[test]
 fn the_kind_of_app_is_captured_at_the_start_even_with_names_and_field_off() {
     let _turn = PENDING_TESTS.lock().unwrap_or_else(|e| e.into_inner());
     let only_kind = ContextReads {

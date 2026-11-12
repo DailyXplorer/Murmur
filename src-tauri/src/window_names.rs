@@ -56,15 +56,29 @@ static PENDING: Mutex<Option<Receiver<WindowContext>>> = Mutex::new(None);
 /// window, and always drops the context of an earlier dictation nobody
 /// claimed, such as one cancelled with Escape.
 pub fn capture(reads: ContextReads) {
-    capture_with(reads, |reads| WindowContext {
-        kind: reads.kind.then(frontmost_kind).flatten(),
-        ..read_frontmost_window(reads)
-    });
+    capture_with(reads, read_frontmost_window);
 }
 
-fn frontmost_kind() -> Option<AppCategory> {
-    crate::insights::frontmost::current()
-        .map(|target| categorize(&target.bundle_id, target.host.as_deref()))
+/// Asks which app is in front once: the kind and the window text of one
+/// dictation then come from the same app, even when the focus moves while
+/// they are read.
+fn read_one_app<App>(
+    reads: ContextReads,
+    frontmost: impl FnOnce() -> Option<App>,
+    window: impl FnOnce(&App) -> WindowContext,
+    kind: impl FnOnce(&App) -> Option<AppCategory>,
+) -> WindowContext {
+    let Some(app) = frontmost() else {
+        return WindowContext::default();
+    };
+    WindowContext {
+        kind: reads.kind.then(|| kind(&app)).flatten(),
+        ..window(&app)
+    }
+}
+
+fn kind_of(target: Option<crate::insights::frontmost::DictationTarget>) -> Option<AppCategory> {
+    target.map(|target| categorize(&target.bundle_id, target.host.as_deref()))
 }
 
 fn capture_with(
@@ -96,9 +110,21 @@ pub fn collect() -> WindowContext {
 #[cfg(target_os = "windows")]
 fn read_frontmost_window(reads: ContextReads) -> WindowContext {
     let started = Instant::now();
-    let Some(app) = crate::uia::frontmost_app() else {
-        return WindowContext::default();
-    };
+    read_one_app(
+        reads,
+        crate::uia::frontmost_app,
+        |app| read_window_of(reads, *app, started),
+        |app| kind_of(crate::insights::frontmost::of_window(*app)),
+    )
+}
+
+/// Logs lengths and counts only, never what was read.
+#[cfg(target_os = "windows")]
+fn read_window_of(
+    reads: ContextReads,
+    app: crate::foreground::ForegroundWindow,
+    started: Instant,
+) -> WindowContext {
     let automation = match crate::uia::Automation::new() {
         Ok(automation) => automation,
         Err(e) => {
@@ -185,9 +211,12 @@ impl WindowNode for UiaNode<'_> {
 #[cfg(target_os = "macos")]
 fn read_frontmost_window(reads: ContextReads) -> WindowContext {
     let started = Instant::now();
-    crate::accessibility::frontmost_app()
-        .map(|(pid, app)| read_app(reads, pid, &app, started))
-        .unwrap_or_default()
+    read_one_app(
+        reads,
+        crate::accessibility::frontmost_app,
+        |(pid, app)| read_app(reads, *pid, app, started),
+        |(pid, _)| kind_of(crate::insights::frontmost::of_pid(*pid)),
+    )
 }
 
 /// The focused field first, then the focused window with what is left of
