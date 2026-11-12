@@ -330,12 +330,15 @@ jobs:
         run: |
           set -euo pipefail
           url="https://github.com/${GITHUB_REPOSITORY}/releases/download/windows-beta/latest.json"
-          for attempt in 1 2 3 4 5; do
+          # The asset was replaced in place, and GitHub serves the copy it
+          # replaced for a while: 25 s was too short for 1.14.2, which then
+          # read as failed although the feed was right a minute later.
+          for attempt in $(seq 1 30); do
             if manifest="$(curl --fail --silent --show-error --location "$url")" &&
               VERSION="$VERSION" MANIFEST="$manifest" node .github/scripts/publish-updater-manifest.mjs --verify-public-legacy; then
               exit 0
             fi
-            sleep 5
+            sleep 10
           done
           echo "The windows-beta feed did not become publicly available" >&2
           exit 1
@@ -367,12 +370,14 @@ jobs:
         run: |
           set -euo pipefail
           url="https://github.com/${GITHUB_REPOSITORY}/releases/download/updater-test/latest.json"
-          for attempt in 1 2 3 4 5; do
+          # This asset is replaced in place too, so GitHub serves the copy
+          # it replaced for a while.
+          for attempt in $(seq 1 30); do
             if manifest="$(curl --fail --silent --show-error --location "$url")" &&
               VERSION="$VERSION" MANIFEST="$manifest" node .github/scripts/publish-updater-manifest.mjs --verify-public; then
               exit 0
             fi
-            sleep 5
+            sleep 10
           done
           echo "The test feed did not become publicly available" >&2
           exit 1
