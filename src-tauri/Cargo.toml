@@ -137,7 +137,7 @@ windows = { version = "0.62.2", features = [
 # `#[implement]` names this crate in the code it generates: the callback that
 # ends the activation of the system audio capture, and a UI Automation
 # provider in the tests. The version `windows` already pulls in.
-windows-core = "0.62.2"
+windows-core = "0.100.0"
 # Microphone privacy consent, kept by Windows in the registry: the dictation
 # switch, and which apps hold the microphone for the call prompt.
 winreg = "0.56"
