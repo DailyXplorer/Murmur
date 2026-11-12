@@ -355,9 +355,9 @@
       },
       "clipboardHandling": {
         "title": "Manipulação da área de transferência",
-        "description": "O Murmur cola pela área de transferência. \"Restaurar área de transferência anterior\" devolve o que você tinha copiado quando termina a janela de colagem de 8 segundos, a menos que você tenha copiado outra coisa nesse meio-tempo. \"Manter transcrição\" deixa a transcrição na área de transferência. Se a colagem falhar, o Murmur mantém a transcrição na área de transferência para recuperação.",
+        "description": "O Murmur cola pela área de transferência. \"Restaurar área de transferência\" devolve o que você tinha copiado quando termina a janela de colagem de 8 segundos, a menos que você tenha copiado outra coisa nesse meio-tempo. \"Manter transcrição\" deixa a transcrição na área de transferência. Se a colagem falhar, o Murmur mantém a transcrição na área de transferência para recuperação.",
         "options": {
-          "dontModify": "Restaurar área de transferência anterior",
+          "dontModify": "Restaurar área de transferência",
           "copyToClipboard": "Manter transcrição"
         }
       },
@@ -380,7 +380,7 @@
         "duplicate": "\"{{word}}\" já existe"
       },
       "mcp": {
-        "label": "Permitir que agentes de IA leiam suas reuniões (MCP)",
+        "label": "Deixar agentes de IA lerem reuniões (MCP)",
         "description": "Os aplicativos de IA que você conectar, como Claude ou Codex, podem listar, pesquisar e ler suas reuniões. Somente leitura. Eles podem enviar o que leem para os próprios servidores.",
         "dictations": "Incluir o histórico de ditados",
         "dictationsDescription": "Também permite que leiam seus últimos ditados, mais pessoais que as reuniões.",
@@ -735,7 +735,10 @@
     "copy": "Copiar",
     "clear": "Limpar",
     "noOptionsFound": "Nenhuma opção encontrada",
-    "reset": "Repor"
+    "reset": "Repor",
+    "play": "Reproduzir",
+    "pause": "Pausar",
+    "playbackPosition": "Posição de reprodução"
   },
   "accessibility": {
     "permissionsDescription": "O Murmur precisa de permissões de acessibilidade para digitar o texto transcrito.",

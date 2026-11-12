@@ -37,3 +37,23 @@ test("settings controls expose names and keyboard-operable roles", async ({
     page.getByRole("slider", { name: "Overlay size" }),
   ).toBeVisible();
 });
+
+test("the history limit and the audio player are named in the app language", async ({
+  page,
+}) => {
+  await page.goto("/tests/fixtures/settings-pages.html?lang=fr");
+  await page
+    .getByRole("navigation")
+    .getByRole("button", { name: "Historique", exact: true })
+    .click();
+
+  await expect(
+    page.getByRole("spinbutton", { name: "Limite d'historique" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Lire", exact: true }).first(),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("slider", { name: "Position de lecture" }).first(),
+  ).toBeVisible();
+});

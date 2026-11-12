@@ -311,7 +311,7 @@
         "description": "Abilita le funzionalità sperimentali ancora in fase di sviluppo."
       },
       "lazyStreamClose": {
-        "label": "Mantieni il microfono aperto tra le trascrizioni",
+        "label": "Mantieni il microfono aperto tra i dettati",
         "description": "Mantiene lo stream del microfono aperto per 30 secondi dopo l'arresto della registrazione, riducendo la latenza per trascrizioni consecutive. Potrebbe degradare la qualità audio Bluetooth."
       },
       "startHidden": {
@@ -380,7 +380,7 @@
         "duplicate": "\"{{word}}\" esiste già"
       },
       "mcp": {
-        "label": "Lascia che gli agenti IA leggano le tue riunioni (MCP)",
+        "label": "Fai leggere le riunioni agli agenti IA (MCP)",
         "description": "Le app IA che colleghi, come Claude o Codex, possono elencare, cercare e leggere le tue riunioni. Sola lettura. Possono inviare ciò che leggono ai propri server.",
         "dictations": "Includi la cronologia dei dettati",
         "dictationsDescription": "Permette loro di leggere anche i tuoi ultimi dettati, più personali delle riunioni.",
@@ -735,7 +735,10 @@
     "copy": "Copia",
     "clear": "Svuota",
     "noOptionsFound": "Nessuna opzione trovata",
-    "reset": "Reimposta"
+    "reset": "Reimposta",
+    "play": "Riproduci",
+    "pause": "Pausa",
+    "playbackPosition": "Posizione di riproduzione"
   },
   "accessibility": {
     "permissionsDescription": "Murmur ha bisogno dei permessi di accessibilità per digitare il testo trascritto.",

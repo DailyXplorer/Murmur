@@ -56,10 +56,11 @@ export const HistoryVersions: React.FC<HistoryVersionsProps> = ({
 
   return (
     <div className="-mt-3 flex flex-col gap-2">
-      <div className="flex items-center gap-0.5">
+      {/* As tall as its text: the bubble's hit area overflows the line. */}
+      <div className="flex h-4 items-center gap-0.5">
         <button
           type="button"
-          className="self-start text-xs text-text/50 underline-offset-2 hover:underline"
+          className="text-xs text-text/50 underline-offset-2 hover:underline"
           onClick={() => setOpen((isOpen) => !isOpen)}
           aria-expanded={open}
         >
