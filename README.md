@@ -9,6 +9,12 @@
 </p>
 
 <p align="center">
+  <a href="https://murmur-desktop.vercel.app"><strong>Website</strong></a> ·
+  <a href="https://github.com/DailyXplorer/Murmur/releases/latest">Download</a> ·
+  <a href="https://murmur-desktop.vercel.app/alternatives">Compare with other apps</a>
+</p>
+
+<p align="center">
   <img alt="A meeting note in Murmur: summary with decisions and action items" src="docs/images/meetings-summary.jpg" width="49%">
   <img alt="Murmur Insights: words dictated, speed and daily streak" src="docs/images/insights.jpg" width="49%">
 </p>
