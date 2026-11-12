@@ -7,6 +7,7 @@
 //! or logged.
 
 use crate::field_excerpt::FieldExcerpt;
+use crate::insights::categories::{categorize, AppCategory};
 use std::collections::{HashMap, VecDeque};
 use std::sync::mpsc::{self, Receiver};
 use std::sync::Mutex;
@@ -34,6 +35,8 @@ const COLLECT_WAIT: Duration = Duration::from_millis(50);
 pub struct WindowContext {
     pub names: Vec<String>,
     pub field: Option<FieldExcerpt>,
+    /// The kind of app the window belongs to, read when a kind has a style.
+    pub kind: Option<AppCategory>,
 }
 
 /// Which parts of the frontmost window a dictation reads.
@@ -43,6 +46,8 @@ pub struct ContextReads {
     pub names: bool,
     /// The excerpt of the focused field around the insertion point.
     pub field: bool,
+    /// The kind of app in front, as Insights sorts it.
+    pub kind: bool,
 }
 
 static PENDING: Mutex<Option<Receiver<WindowContext>>> = Mutex::new(None);
@@ -51,7 +56,15 @@ static PENDING: Mutex<Option<Receiver<WindowContext>>> = Mutex::new(None);
 /// window, and always drops the context of an earlier dictation nobody
 /// claimed, such as one cancelled with Escape.
 pub fn capture(reads: ContextReads) {
-    capture_with(reads, read_frontmost_window);
+    capture_with(reads, |reads| WindowContext {
+        kind: reads.kind.then(frontmost_kind).flatten(),
+        ..read_frontmost_window(reads)
+    });
+}
+
+fn frontmost_kind() -> Option<AppCategory> {
+    crate::insights::frontmost::current()
+        .map(|target| categorize(&target.bundle_id, target.host.as_deref()))
 }
 
 fn capture_with(
@@ -59,7 +72,7 @@ fn capture_with(
     read: impl FnOnce(ContextReads) -> WindowContext + Send + 'static,
 ) {
     let (sender, receiver) = mpsc::channel();
-    let reads_any = reads.names || reads.field;
+    let reads_any = reads.names || reads.field || reads.kind;
     if let Ok(mut pending) = PENDING.lock() {
         *pending = reads_any.then_some(receiver);
     }
@@ -207,7 +220,11 @@ fn read_window(
     } else {
         Vec::new()
     };
-    WindowContext { names, field }
+    WindowContext {
+        names,
+        field,
+        kind: None,
+    }
 }
 
 /// Names in the excerpt come first: they are next to what the user is

@@ -66,6 +66,7 @@ fn the_window_is_read_only_with_cleanup_and_the_setting_on() {
         assert_eq!(
             context_reads(&settings),
             ContextReads {
+                kind: false,
                 names: read,
                 field: read
             },
@@ -76,6 +77,7 @@ fn the_window_is_read_only_with_cleanup_and_the_setting_on() {
 
 fn window() -> WindowContext {
     WindowContext {
+        kind: None,
         names: vec!["Ingrid".to_string()],
         field: Some(FieldExcerpt {
             before: "Hi Ingrid, ".to_string(),
@@ -93,7 +95,7 @@ fn request(
     available: bool,
     window: WindowContext,
 ) -> Option<PromptContext> {
-    match cleanup_plan(settings, available, LONG, window, None) {
+    match cleanup_plan(settings, available, LONG, window) {
         CleanupPlan::Run(context) => Some(context),
         _ => None,
     }
@@ -109,7 +111,7 @@ fn deliver_with(
     reply: Option<&str>,
 ) -> (ProcessedText, bool) {
     let asked = Cell::new(false);
-    let plan = cleanup_plan(settings, true, text, WindowContext::default(), None);
+    let plan = cleanup_plan(settings, true, text, WindowContext::default());
     let processed = tauri::async_runtime::block_on(deliver(
         text.to_string(),
         plan,
@@ -394,13 +396,29 @@ fn pasted_or_recoverable_output_survives_late_cancellation() {
 }
 
 fn plan_for(settings: &AppSettings, text: &str, category: AppCategory) -> CleanupPlan {
-    cleanup_plan(
-        settings,
-        true,
-        text,
-        WindowContext::default(),
-        Some(category),
-    )
+    let started_in = WindowContext {
+        kind: Some(category),
+        ..WindowContext::default()
+    };
+    cleanup_plan(settings, true, text, started_in)
+}
+
+#[test]
+fn a_dictation_reads_the_kind_of_app_only_when_a_kind_has_a_style() {
+    let mut settings = get_default_settings();
+    assert!(!context_reads(&settings).kind);
+
+    settings
+        .category_styles
+        .insert(AppCategory::Emails, CategoryStyle::Formal);
+    assert!(context_reads(&settings).kind);
+
+    // The window names switch does not gate it: the kind is not window text.
+    settings.window_names_enabled = false;
+    assert!(context_reads(&settings).kind);
+
+    settings.ai_cleanup_enabled = false;
+    assert!(!context_reads(&settings).kind);
 }
 
 #[test]

@@ -4,7 +4,6 @@ use crate::audio_toolkit::text_passes::{self, PassLanguage};
 use crate::audio_toolkit::{is_microphone_access_denied, is_no_input_device_error, Capture};
 use crate::cleanup::{CleanupOutcome, ProcessedText, PromptContext};
 use crate::engine::EngineUsed;
-use crate::insights::categories::AppCategory;
 use crate::managers::audio::AudioRecordingManager;
 use crate::managers::history::HistoryManager;
 use crate::managers::transcription::{Transcript, TranscriptionManager};
@@ -250,8 +249,7 @@ pub(crate) async fn process_transcription_output_in(
         crate::chinese_script::in_chosen_script(Some(&settings.selected_language), transcription);
 
     let available = settings.ai_cleanup_enabled && crate::cleanup::available();
-    let category = dictation_category(&settings).await;
-    let plan = cleanup_plan(&settings, available, &final_text, window, category);
+    let plan = cleanup_plan(&settings, available, &final_text, window);
     deliver(
         final_text,
         plan,
@@ -311,6 +309,7 @@ fn context_reads(settings: &AppSettings) -> ContextReads {
     ContextReads {
         names: cleanup_reads,
         field: cleanup_reads,
+        kind: settings.ai_cleanup_enabled && !settings.category_styles.is_empty(),
     }
 }
 
@@ -327,12 +326,11 @@ fn cleanup_plan(
     available: bool,
     text: &str,
     window: WindowContext,
-    category: Option<AppCategory>,
 ) -> CleanupPlan {
     if !(settings.ai_cleanup_enabled && available) {
         return CleanupPlan::Off;
     }
-    let Some(style) = style_for(settings, category) else {
+    let Some(style) = style_for(settings, window.kind) else {
         return CleanupPlan::Off;
     };
     let words = text.unicode_words().count();
@@ -964,7 +962,7 @@ pub static ACTION_MAP: Lazy<HashMap<String, Arc<dyn ShortcutAction>>> = Lazy::ne
 });
 
 mod kind_style;
-use kind_style::{dictation_category, style_for};
+use kind_style::style_for;
 
 #[cfg(test)]
 mod tests;
