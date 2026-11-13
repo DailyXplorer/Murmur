@@ -104,6 +104,10 @@ updates:
       - dependency-name: "sha2"
         update-types:
           - "version-update:semver-major"
+      # `#[implement]` names windows-core in the code it generates, so it must
+      # be the version that `windows` pulls in. A lone bump cannot compile.
+      # Move it by hand together with `windows`; see #416.
+      - dependency-name: "windows-core"
 
   - package-ecosystem: github-actions
     directory: /
