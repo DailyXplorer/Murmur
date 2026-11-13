@@ -81,6 +81,29 @@ for (const size of [MIN_WINDOW, DEFAULT_WINDOW]) {
   });
 }
 
+// A sideways scrollbar is 17px tall on a Mac with a mouse plugged in, and
+// WebKit then draws the setup over the copy button under it.
+for (const platform of ["macos", "windows"] as const) {
+  for (const size of [MIN_WINDOW, DEFAULT_WINDOW]) {
+    test(`setup wraps instead of scrolling sideways at ${size.width}px (${platform})`, async ({
+      page,
+    }) => {
+      await page.setViewportSize(size);
+      await openAdvanced(page, `?platform=${platform}&mcp=1`);
+      const setup = group(page).getByTestId("mcp-setup");
+
+      for (const client of ["Claude Code", "Codex", "Claude Desktop"]) {
+        await group(page).getByRole("tab", { name: client }).click();
+        await expect(setup).toBeVisible();
+        expect(
+          await setup.evaluate((pre) => pre.scrollWidth - pre.clientWidth),
+          `${client} setup overflows sideways`,
+        ).toBeLessThanOrEqual(0);
+      }
+    });
+  }
+}
+
 test("dictation history is a second switch", async ({ page }) => {
   await openAdvanced(page, "?mcp=1");
 
