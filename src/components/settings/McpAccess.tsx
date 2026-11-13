@@ -101,7 +101,7 @@ export const McpAccess: React.FC = () => {
             >
               <pre
                 data-testid="mcp-setup"
-                className="select-text overflow-x-auto whitespace-pre rounded-md border border-mid-gray/20 bg-mid-gray/10 p-3 font-mono text-xs"
+                className="select-text whitespace-pre-wrap break-words rounded-md border border-mid-gray/20 bg-mid-gray/10 p-3 font-mono text-xs"
               >
                 {setup}
               </pre>
