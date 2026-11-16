@@ -307,7 +307,11 @@ function App() {
     if (settingsView === undefined) return;
     void commands
       .reportSettingsView(
-        settingsView === "done" ? { section: currentSection } : "onboarding",
+        settingsView === "done"
+          ? { section: currentSection }
+          : settingsView === "finish"
+            ? "practice"
+            : "onboarding",
       )
       .catch((error: unknown) => {
         console.warn("Failed to report the settings view:", error);

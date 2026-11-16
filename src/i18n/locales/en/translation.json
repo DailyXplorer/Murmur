@@ -198,6 +198,10 @@
     "done": {
       "title": "You're set",
       "ready": "Hold your shortcut and speak.",
+      "readyWith": "Hold {{shortcut}} and speak.",
+      "practiceHint": "What you say appears here.",
+      "practiceLabel": "Your first dictation",
+      "practiced": "That's it. From now on, your words go wherever your cursor is.",
       "downloading": "The model is still downloading ({{percent}}%).",
       "preparing": "The model is getting ready for this Mac.",
       "cloudMeanwhile": "Until it's ready, Murmur uses the cloud.",

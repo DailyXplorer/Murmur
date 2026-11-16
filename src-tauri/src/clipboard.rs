@@ -77,6 +77,21 @@ fn complete_clipboard_only_output(
     PasteOutcome::IntentionalNone
 }
 
+/// On the practice step of onboarding Murmur itself is in front: nothing can
+/// be pasted and no pill is offered, the step's page shows the text (`show`).
+/// A text the page did not get is `Skipped`, so the caller's recovery keeps
+/// it.
+fn hand_to_practice(operation: &ProcessingOperation, show: impl FnOnce() -> bool) -> PasteOutcome {
+    let Some(_permit) = operation.try_enter_paste() else {
+        return PasteOutcome::Cancelled;
+    };
+    if show() {
+        PasteOutcome::IntentionalNone
+    } else {
+        PasteOutcome::Skipped
+    }
+}
+
 /// Where no text field takes the paste, the overlay offers the text instead
 /// of a keystroke going nowhere. `show` gets the text and `write` for the
 /// pill's Copy click; nothing writes the clipboard before that click. With no
@@ -510,6 +525,18 @@ pub(crate) async fn paste(
     let _ = mic_lost;
     if operation.cancellation_requested() {
         return Ok(PasteOutcome::Cancelled);
+    }
+    if crate::settings_window::takes_practice(&app_handle) {
+        return Ok(hand_to_practice(&operation, || {
+            use tauri_specta::Event;
+            match crate::settings_window::PracticeDictation(text).emit(&app_handle) {
+                Ok(()) => true,
+                Err(error) => {
+                    warn!("Failed to show the practice dictation: {error}");
+                    false
+                }
+            }
+        }));
     }
 
     let settings = get_settings(&app_handle);

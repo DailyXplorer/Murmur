@@ -10,6 +10,12 @@ const fixture = (page: Page) => ({
   engines: () =>
     page.evaluate(() => window.providerOnboardingFixture.engines()),
   writes: () => page.evaluate(() => window.providerOnboardingFixture.writes()),
+  views: () => page.evaluate(() => window.providerOnboardingFixture.views()),
+  dictate: (text: string) =>
+    page.evaluate(
+      (said) => window.providerOnboardingFixture.dictate(said),
+      text,
+    ),
   setModel: (name: "ready" | "failed" | "downloading") =>
     page.evaluate(
       (model) => window.providerOnboardingFixture.setModel(model),
@@ -157,6 +163,117 @@ test("a ready model and a connected account finish at once", async ({
   expect(await app.calls()).not.toContain("download_local_model");
   await page.getByRole("button", { name: "Start using Murmur" }).click();
   await expect(page.getByRole("button", { name: "General" })).toBeVisible();
+});
+
+const practice = (page: Page) => page.getByTestId("practice");
+
+const reachTheLastStep = async (page: Page, query: string) => {
+  await page.goto(`${fixturePath}?${query}`);
+  await page.getByRole("button", { name: "Continue" }).click();
+  await page.getByRole("button", { name: "Continue" }).click();
+  await expect(page.getByRole("heading", { name: "You're set" })).toBeVisible();
+};
+
+test("the last step shows the first dictation instead of sending it nowhere", async ({
+  page,
+}) => {
+  await reachTheLastStep(
+    page,
+    "model=ready&codex=configured&shortcut=option%2Bspace",
+  );
+  const app = fixture(page);
+
+  await expect(
+    page.getByText("Hold Option + Space and speak.", { exact: true }),
+  ).toBeVisible();
+  await expect(practice(page)).toHaveText("What you say appears here.");
+  await expect(practice(page)).toHaveAccessibleName("Your first dictation");
+  // Murmur hands a dictation to the page only while the page says it is
+  // on this step.
+  await expect.poll(async () => (await app.views()).at(-1)).toBe("practice");
+
+  await app.dictate("Hello, this is my first dictation.");
+  await expect(practice(page)).toHaveText("Hello, this is my first dictation.");
+  await expect(
+    page.getByText(
+      "That's it. From now on, your words go wherever your cursor is.",
+      { exact: true },
+    ),
+  ).toBeVisible();
+
+  // A second try replaces the first.
+  await app.dictate("And a second one.");
+  await expect(practice(page)).toHaveText("And a second one.");
+
+  await page.getByRole("button", { name: "Start using Murmur" }).click();
+  await expect(page.getByRole("button", { name: "General" })).toBeVisible();
+  expect((await app.views()).at(-1)).toEqual({ section: "general" });
+});
+
+test("nothing invites a dictation that could not be transcribed yet", async ({
+  page,
+}) => {
+  // No account: the model is the only engine, and it is still downloading.
+  await page.goto(`${fixturePath}?model=missing`);
+  await page.getByRole("button", { name: "Download and continue" }).click();
+  await page.getByRole("button", { name: "Skip" }).click();
+  await expect(page.getByRole("heading", { name: "You're set" })).toBeVisible();
+  await expect(practice(page)).toHaveCount(0);
+
+  await fixture(page).setModel("ready");
+  await expect(practice(page)).toHaveText("What you say appears here.");
+});
+
+test("a dictation that arrives after the download stopped is still shown", async ({
+  page,
+}) => {
+  // With an account the cloud transcribes while the model downloads.
+  await page.goto(`${fixturePath}?model=missing&codex=configured`);
+  await page.getByRole("button", { name: "Download and continue" }).click();
+  await page.getByRole("button", { name: "Continue" }).click();
+  await expect(practice(page)).toHaveText("What you say appears here.");
+
+  const app = fixture(page);
+  await app.setModel("failed");
+  await expect(
+    page.getByRole("heading", { name: "The download stopped" }),
+  ).toBeVisible();
+  await expect(practice(page)).toHaveCount(0);
+
+  await app.dictate("Said before the download stopped.");
+  await expect(practice(page)).toHaveText("Said before the download stopped.");
+  // The failure is still what the step says.
+  await expect(
+    page.getByRole("heading", { name: "The download stopped" }),
+  ).toBeVisible();
+  await expect(page.getByRole("button", { name: "Try again" })).toBeVisible();
+});
+
+test("the practice step speaks French and fits the smallest window", async ({
+  page,
+}) => {
+  await page.setViewportSize(MIN_WINDOW);
+  await page.goto(
+    `${fixturePath}?model=ready&codex=configured&lang=fr&shortcut=option%2Bspace`,
+  );
+  await page.getByRole("button", { name: "Continuer" }).click();
+  await page.getByRole("button", { name: "Continuer" }).click();
+
+  await expect(
+    page.getByText("Maintenez Option + Space et parlez.", { exact: true }),
+  ).toBeVisible();
+  await expect(practice(page)).toHaveText("Ce que vous dites s'affiche ici.");
+  await fixture(page).dictate(
+    "Bonjour, ceci est ma première dictée, et elle est assez longue pour tenir sur plusieurs lignes dans la plus petite fenêtre.",
+  );
+  await expect(practice(page)).toContainText("ma première dictée");
+  await expect
+    .poll(() =>
+      page
+        .getByTestId("done-onboarding")
+        .evaluate((element) => element.scrollHeight <= element.clientHeight),
+    )
+    .toBe(true);
 });
 
 test("with an account, the cloud fills in until the model is ready", async ({
