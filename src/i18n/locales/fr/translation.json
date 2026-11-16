@@ -541,7 +541,7 @@
       },
       "muteWhileRecording": {
         "label": "Muet pendant l'enregistrement",
-        "description": "Couper le son du système pendant l'enregistrement"
+        "description": "Couper le son du système pendant l'enregistrement, sauf au casque"
       },
       "leadingSpace": {
         "label": "Ajouter une espace avant",

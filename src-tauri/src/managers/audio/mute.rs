@@ -1,3 +1,5 @@
+use crate::meetings::capture::route::OutputRoute;
+use crate::meetings::capture::system::output_route_facts;
 use crate::settings::get_settings;
 use log::debug;
 
@@ -92,6 +94,14 @@ pub(super) fn restore_mute(prev_muted: Option<bool>) {
     }
 }
 
+/// Whether a recording mutes an output on `route`. Headphones are left alone:
+/// the microphone cannot hear what they play, so muting would only cut off
+/// what the user is listening to. An output that cannot be placed (an Intel
+/// Mac, a virtual device) counts as speakers, as before routes were read.
+pub(super) fn mutes(route: OutputRoute) -> bool {
+    route != OutputRoute::Headphones
+}
+
 /// Tracks our forced "mute while recording" so we can restore the user's audio
 /// exactly as it was. `did_mute` is true while our mute is active; `prev_muted`
 /// is the system mute state captured just before we muted, used to decide
@@ -141,13 +151,19 @@ impl MuteState {
 }
 
 impl AudioRecordingManager {
-    /// Applies mute if mute_while_recording is enabled, the stream is open and
-    /// the recording that became ready at `readiness_generation` is still
-    /// current. Snapshots the system's prior mute state first so
-    /// `remove_mute` can restore it instead of unconditionally unmuting.
+    /// Applies mute if mute_while_recording is enabled, the output is not
+    /// headphones, the stream is open and the recording that became ready at
+    /// `readiness_generation` is still current. Snapshots the system's prior
+    /// mute state first so `remove_mute` can restore it instead of
+    /// unconditionally unmuting. The output is read once, here: headphones
+    /// unplugged during a dictation leave the rest of it unmuted.
     pub fn apply_mute(&self, readiness_generation: u64) {
         let settings = get_settings(&self.app_handle);
         if !settings.mute_while_recording {
+            return;
+        }
+        if !mutes(OutputRoute::of(output_route_facts())) {
+            debug!("Mute skipped: the output is headphones");
             return;
         }
 

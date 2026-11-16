@@ -46,6 +46,17 @@ fn late_stop_cannot_claim_a_new_recording_with_the_same_binding() {
 }
 
 #[test]
+fn only_headphones_are_spared_the_mute() {
+    use crate::meetings::capture::route::OutputRoute;
+
+    assert!(!mutes(OutputRoute::Headphones));
+    assert!(mutes(OutputRoute::Speakers));
+    // An Intel Mac, a virtual device or no answer: muted as before.
+    assert!(mutes(OutputRoute::Unknown));
+    assert!(mutes(OutputRoute::of(None)));
+}
+
+#[test]
 fn a_readiness_thread_cannot_mute_after_cancel_released_the_mute() {
     let system = RefCell::new(Vec::new());
     let mut mute = MuteState::default();

@@ -548,7 +548,7 @@
       },
       "muteWhileRecording": {
         "label": "Mute while recording",
-        "description": "Mute system audio during recording"
+        "description": "Mute system audio during recording, except on headphones"
       },
       "leadingSpace": {
         "label": "Add leading space",
