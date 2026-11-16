@@ -385,9 +385,13 @@ murmur --cancel
 murmur --start-hidden
 murmur --no-tray
 murmur --debug
-murmur --transcribe-file recording.wav --json
+murmur --transcribe-file recording.m4a --json
 murmur mcp
 ```
+
+`--transcribe-file` prints the transcript of an audio file of up to 15 minutes
+(WAV, MP3, M4A, AIFF, CAF or FLAC) without the app's window or microphone. A
+longer recording goes through Import audio on the Meetings page.
 
 `murmur mcp` (`murmur.exe mcp` on Windows) is for AI assistants to launch, not to run by hand; see
 [Use your meetings from an AI assistant](#use-your-meetings-from-an-ai-assistant).

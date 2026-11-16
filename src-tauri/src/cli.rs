@@ -34,9 +34,10 @@ pub struct CliArgs {
     #[arg(long)]
     pub debug: bool,
 
-    /// Transcribe this WAV (16 kHz mono 16-bit PCM) headlessly and exit. Runs
-    /// the same batch transcription path as the app, without the microphone.
-    #[arg(short = 'f', long, value_name = "WAV")]
+    /// Transcribe this audio file (WAV, MP3, M4A, AIFF, CAF or FLAC, up to 15
+    /// minutes) headlessly and exit. Runs the same batch transcription path as
+    /// the app, without the microphone.
+    #[arg(short = 'f', long, value_name = "FILE")]
     pub transcribe_file: Option<PathBuf>,
 
     /// Emit --transcribe-file results as JSON.
