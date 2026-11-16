@@ -123,7 +123,7 @@ where
 /// The language of a one-off re-transcription as the engine takes it: "auto"
 /// or a code such as `fr`, `yue` or `zh-Hans`. Anything else is refused before
 /// any audio is read, so a bad value never reaches an engine.
-fn checked_language(language: Option<String>) -> Result<Option<String>, String> {
+pub(super) fn checked_language(language: Option<String>) -> Result<Option<String>, String> {
     let Some(language) = language else {
         return Ok(None);
     };

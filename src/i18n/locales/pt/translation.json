@@ -600,6 +600,7 @@
       "groups": {
         "processing": "Processamento de texto",
         "styleByApp": "Estilo por tipo de app",
+        "languageByApp": "Idioma por tipo de app",
         "output": "Saída",
         "engine": "Como o Murmur transcreve"
       },
@@ -609,6 +610,10 @@
           "general": "Como o geral",
           "off": "Sem limpeza"
         }
+      },
+      "languageByApp": {
+        "description": "O idioma dos ditados neste tipo de app. “Como o geral” segue o idioma escolhido em Geral.",
+        "error": "Não foi possível mudar o idioma."
       },
       "sessionExpired": "Sessão expirada, entre novamente",
       "aiCleanup": {

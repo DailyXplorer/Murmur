@@ -292,6 +292,18 @@ async changeCategoryStylesSetting(styles: Partial<{ [key in AppCategory]: Catego
     else return { status: "error", error: String(e) };
 }
 },
+/**
+ * Each language is "auto" or a code, checked the way a one-off
+ * re-transcription language is, so a bad one never reaches an engine.
+ */
+async changeCategoryLanguagesSetting(languages: Partial<{ [key in AppCategory]: string }>) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("change_category_languages_setting", { languages }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
 async changeWindowNamesSetting(enabled: boolean) : Promise<Result<null, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("change_window_names_setting", { enabled }) };
@@ -1348,6 +1360,11 @@ ai_cleanup_enabled?: boolean; dictation_style?: DictationStyle;
  * kind without an entry follows it.
  */
 category_styles?: Partial<{ [key in AppCategory]: CategoryStyle }>; 
+/**
+ * The kinds of app whose dictations are not in `selected_language`:
+ * "auto" or a language code. A kind without an entry follows it.
+ */
+category_languages?: Partial<{ [key in AppCategory]: string }>; 
 /**
  * Offer names visible in the frontmost window to the cleanup step.
  */

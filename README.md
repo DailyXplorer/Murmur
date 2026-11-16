@@ -131,6 +131,9 @@ and older have no updater, so install a newer build by hand once, as above.
 - When no text field is focused, nothing is pasted or copied; the overlay
   offers a Copy button that puts the text on the clipboard
 - Automatic language detection, or an explicit dictation language
+- A dictation language per kind of app (AI prompts, messages, emails,
+  documents, code), for those who write to people in one language and to a
+  code editor in another
 - Microphone and output-device selection
 - AI cleanup through your ChatGPT account, on by default: removes fillers,
   applies self-corrections, fixes punctuation, and formats lists and spoken

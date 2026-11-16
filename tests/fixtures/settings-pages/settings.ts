@@ -112,6 +112,7 @@ export const SETTINGS: AppSettings = {
   debug_mode: params.get("debug") !== "0",
   dictation_style: dictationStyle,
   category_styles: {},
+  category_languages: {},
   experimental_enabled: true,
   extra_recording_buffer_ms: 0,
   history_limit: 50,

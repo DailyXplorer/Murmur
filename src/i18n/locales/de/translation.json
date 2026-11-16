@@ -600,6 +600,7 @@
       "groups": {
         "processing": "Textverarbeitung",
         "styleByApp": "Stil nach App-Typ",
+        "languageByApp": "Sprache nach App-Typ",
         "output": "Ausgabe",
         "engine": "So transkribiert Murmur"
       },
@@ -609,6 +610,10 @@
           "general": "Wie allgemein",
           "off": "Ohne Bereinigung"
         }
+      },
+      "languageByApp": {
+        "description": "Die Sprache von Diktaten in dieser Art von App. „Wie allgemein“ folgt der unter „Allgemein“ gewählten Sprache.",
+        "error": "Die Sprache konnte nicht geändert werden."
       },
       "sessionExpired": "Sitzung abgelaufen, melde dich erneut an",
       "aiCleanup": {

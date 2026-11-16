@@ -1,5 +1,5 @@
 use super::{
-    captured_audio, cleanup_plan, complete_unless_cancelled, context_reads, deliver,
+    captured_audio, cleanup_plan, complete_unless_cancelled, context_reads, deliver, language_for,
     pad_short_capture, paste_outcome_commits_history, settle_wav, CleanupPlan, PendingWav,
     SHORT_DICTATION_WORDS,
 };
@@ -419,6 +419,57 @@ fn a_dictation_reads_the_kind_of_app_only_when_a_kind_has_a_style() {
 
     settings.ai_cleanup_enabled = false;
     assert!(!context_reads(&settings).kind);
+}
+
+#[test]
+fn a_language_for_a_kind_of_app_reads_the_kind_even_without_cleanup() {
+    let mut settings = get_default_settings();
+    settings.ai_cleanup_enabled = false;
+    assert!(!context_reads(&settings).kind);
+
+    settings
+        .category_languages
+        .insert(AppCategory::Coding, "en".to_string());
+    let reads = context_reads(&settings);
+    assert!(reads.kind);
+    // The language needs no window text.
+    assert!(!reads.names && !reads.field);
+}
+
+#[test]
+fn a_dictation_takes_the_language_of_its_kind_of_app_else_the_setting() {
+    let mut settings = get_default_settings();
+    settings.selected_language = "fr".to_string();
+    settings
+        .category_languages
+        .insert(AppCategory::Coding, "en".to_string());
+    settings
+        .category_languages
+        .insert(AppCategory::AiPrompts, "auto".to_string());
+
+    assert_eq!(
+        language_for(&settings, Some(AppCategory::Coding)),
+        Some("en")
+    );
+    assert_eq!(
+        language_for(&settings, Some(AppCategory::AiPrompts)),
+        Some("auto")
+    );
+    // A kind with no language of its own, and an app Murmur could not place
+    // in time: `None`, which leaves the setting in charge.
+    assert_eq!(language_for(&settings, Some(AppCategory::Emails)), None);
+    assert_eq!(language_for(&settings, None), None);
+
+    let followed = crate::managers::transcription::with_language(
+        settings.clone(),
+        language_for(&settings, Some(AppCategory::Coding)),
+    );
+    assert_eq!(followed.selected_language, "en");
+    let kept = crate::managers::transcription::with_language(
+        settings.clone(),
+        language_for(&settings, Some(AppCategory::Emails)),
+    );
+    assert_eq!(kept.selected_language, "fr");
 }
 
 #[test]

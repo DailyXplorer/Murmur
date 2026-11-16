@@ -9,8 +9,9 @@ import { SettingsGroup } from "../ui/SettingsGroup";
 import { DICTATION_STYLES } from "./DictationStyle";
 import { CATEGORY_LABEL_KEYS } from "./insights/insightsModel";
 
-/** "Other" has no row: an app Murmur cannot place follows the general style. */
-const KINDS: AppCategory[] = [
+/** "Other" has no row: an app Murmur cannot place follows the general style
+ * and language. */
+export const KINDS: AppCategory[] = [
   "ai_prompts",
   "personal_messages",
   "work_messages",

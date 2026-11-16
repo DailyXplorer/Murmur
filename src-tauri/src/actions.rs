@@ -221,21 +221,9 @@ fn save_history(
 /// Converts the Chinese variant, then runs AI cleanup when it is on, a Codex
 /// session exists and the dictation is long enough. `window` comes from the
 /// window the user dictated into; `pass_language` is the language the text
-/// passes ran in.
-pub(crate) async fn process_transcription_output(
-    app: &AppHandle,
-    transcription: &str,
-    pass_language: Option<PassLanguage>,
-    window: WindowContext,
-    operation: &ProcessingOperation,
-) -> ProcessedText {
-    process_transcription_output_in(app, transcription, pass_language, window, operation, None)
-        .await
-}
-
-/// Like `process_transcription_output`, with `language` standing in for the
-/// language setting when it is given: a re-transcription in a one-off language
-/// converts the Chinese variant and hints the cleanup in that language.
+/// passes ran in. `language` stands in for the language setting when it is
+/// given (the language of a kind of app, or of a one-off re-transcription):
+/// the Chinese variant and the cleanup's hint follow it.
 pub(crate) async fn process_transcription_output_in(
     app: &AppHandle,
     transcription: &str,
@@ -302,14 +290,16 @@ where
     }
 }
 
-/// What a dictation starting now reads from the frontmost window: only
-/// cleanup uses what it finds.
+/// What a dictation starting now reads from the frontmost window. Cleanup
+/// uses the names, the field and the kind of app; a language set for a kind
+/// of app needs the kind too, with or without cleanup.
 fn context_reads(settings: &AppSettings) -> ContextReads {
     let cleanup_reads = settings.window_names_enabled && settings.ai_cleanup_enabled;
     ContextReads {
         names: cleanup_reads,
         field: cleanup_reads,
-        kind: settings.ai_cleanup_enabled && !settings.category_styles.is_empty(),
+        kind: (settings.ai_cleanup_enabled && !settings.category_styles.is_empty())
+            || !settings.category_languages.is_empty(),
     }
 }
 
@@ -629,6 +619,7 @@ impl TranscribeAction {
 
             let stop_recording_time = Instant::now();
             let window = crate::window_names::collect();
+            let language = language_for(&get_settings(&ah), window.kind).map(str::to_string);
             let captured = match input {
                 Input::Recording { binding_id } => rm
                     .stop_recording(&binding_id, cancel_generation)
@@ -697,8 +688,12 @@ impl TranscribeAction {
                     let transcription_result = match kept_transcript {
                         Some(transcript) => Ok(transcript),
                         None => {
-                            tm.transcribe_samples(Arc::clone(&samples), operation.clone())
-                                .await
+                            tm.transcribe_samples_in(
+                                Arc::clone(&samples),
+                                operation.clone(),
+                                language.as_deref(),
+                            )
+                            .await
                         }
                     };
 
@@ -722,12 +717,13 @@ impl TranscribeAction {
                             );
 
                             let Some(processed) = complete_unless_cancelled(
-                                process_transcription_output(
+                                process_transcription_output_in(
                                     &ah,
                                     &transcription,
                                     pass_language,
                                     window,
                                     &operation,
+                                    language.as_deref(),
                                 ),
                                 || operation_was_cancelled(&operation, &rm, cancel_generation),
                             )
@@ -962,7 +958,7 @@ pub static ACTION_MAP: Lazy<HashMap<String, Arc<dyn ShortcutAction>>> = Lazy::ne
 });
 
 mod kind_style;
-use kind_style::style_for;
+use kind_style::{language_for, style_for};
 
 #[cfg(test)]
 mod tests;

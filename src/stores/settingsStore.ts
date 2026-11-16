@@ -293,6 +293,10 @@ const settingUpdaters: {
     commands.changeCategoryStylesSetting(
       value as NonNullable<Settings["category_styles"]>,
     ),
+  category_languages: (value) =>
+    commands.changeCategoryLanguagesSetting(
+      value as NonNullable<Settings["category_languages"]>,
+    ),
   window_names_enabled: (value) =>
     commands.changeWindowNamesSetting(value as boolean),
   whisper_mode: (value) => commands.changeWhisperModeSetting(value as boolean),

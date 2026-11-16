@@ -600,6 +600,7 @@
       "groups": {
         "processing": "Traitement du texte",
         "styleByApp": "Style par type d’application",
+        "languageByApp": "Langue par type d’application",
         "output": "Sortie",
         "engine": "Mode de transcription"
       },
@@ -609,6 +610,10 @@
           "general": "Réglage général",
           "off": "Sans nettoyage"
         }
+      },
+      "languageByApp": {
+        "description": "La langue des dictées dans ce type d’application. « Réglage général » suit la langue choisie dans Général.",
+        "error": "Impossible de changer la langue."
       },
       "sessionExpired": "Session expirée, reconnectez-vous",
       "aiCleanup": {

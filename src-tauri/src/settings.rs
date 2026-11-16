@@ -130,6 +130,10 @@ pub struct AppSettings {
     /// kind without an entry follows it.
     #[serde(default)]
     pub category_styles: BTreeMap<AppCategory, CategoryStyle>,
+    /// The kinds of app whose dictations are not in `selected_language`:
+    /// "auto" or a language code. A kind without an entry follows it.
+    #[serde(default)]
+    pub category_languages: BTreeMap<AppCategory, String>,
     /// Offer names visible in the frontmost window to the cleanup step.
     #[serde(default = "default_window_names_enabled")]
     pub window_names_enabled: bool,
