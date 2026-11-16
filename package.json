@@ -60,7 +60,7 @@
     "zustand": "^5.1.0"
   },
   "devDependencies": {
-    "@playwright/test": "^1.65.0",
+    "@playwright/test": "^1.65.1",
     "@tauri-apps/cli": "^2.12.4",
     "@types/node": "^22.20.5",
     "@types/react": "^19.3.0",
@@ -68,12 +68,12 @@
     "@typescript-eslint/eslint-plugin": "8.72.2",
     "@typescript-eslint/parser": "^8.72.2",
     "@vitejs/plugin-react": "^6.3.0",
-    "eslint": "^10.14.0",
+    "eslint": "^10.15.0",
     "eslint-plugin-i18next": "6.1.5",
     "eslint-plugin-react-hooks": "7.1.1",
-    "prettier": "^3.9.10",
+    "prettier": "^3.10.1",
     "typescript": "~5.9.3",
-    "vite": "^8.3.7"
+    "vite": "^8.3.8"
   },
   "overrides": {
     "@babel/core": "7.29.7",
