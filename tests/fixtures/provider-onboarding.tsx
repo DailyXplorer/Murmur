@@ -2,6 +2,7 @@ import "./macos-os";
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { emit } from "@tauri-apps/api/event";
+import { events } from "../../src/bindings";
 import { mockIPC } from "@tauri-apps/api/mocks";
 import type {
   AppSettings,
@@ -75,6 +76,7 @@ let failNextInitialization = false;
 let signIn: Deferred<null> | null = null;
 const writes: string[] = [];
 const calls: string[] = [];
+const views: unknown[] = [];
 
 type DeferredStatusRefresh = {
   codex: Deferred<{ signed_in: boolean; expired: boolean }>;
@@ -130,6 +132,20 @@ let backendSettings: AppSettings = {
   selected_language: "fr",
   theme: (query.get("theme") ?? "light") as AppSettings["theme"],
   transcription_engine: returning ? "cloud" : "local",
+  // `shortcut=option+space`: the dictation shortcut the last step names.
+  ...(query.get("shortcut")
+    ? {
+        bindings: {
+          transcribe: {
+            id: "transcribe",
+            name: "Transcribe",
+            description: "",
+            default_binding: query.get("shortcut") ?? "",
+            current_binding: query.get("shortcut") ?? "",
+          },
+        },
+      }
+    : {}),
 };
 
 const engines: Engine[] = [];
@@ -226,9 +242,11 @@ mockIPC(
           throw new Error("Keyboard automation is temporarily unavailable");
         }
         return null;
+      case "report_settings_view":
+        views.push((args as { view: unknown }).view);
+        return null;
       case "initialize_shortcuts":
       case "show_main_window_command":
-      case "report_settings_view":
       case "get_last_settings_section":
       case "take_meetings_action":
         return null;
@@ -254,6 +272,10 @@ declare global {
        * IPC call itself threw. */
       failSignIn: (error: SignInError | "exception") => void;
       calls: () => string[];
+      /** What the page reported it shows, in order. */
+      views: () => unknown[];
+      /** A dictation ended while the practice step had the keyboard. */
+      dictate: (text: string) => Promise<void>;
       engine: () => Engine | undefined;
       engines: () => Engine[];
       initializationError: () => string | null;
@@ -295,6 +317,8 @@ window.providerOnboardingFixture = {
     signIn = null;
   },
   calls: () => [...calls],
+  views: () => [...views],
+  dictate: (text) => events.practiceDictation.emit(text),
   engine: () => backendSettings.transcription_engine,
   engines: () => [...engines],
   initializationError: () => initializationError,

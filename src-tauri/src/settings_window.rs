@@ -8,6 +8,7 @@ use std::sync::Mutex;
 use serde::{Deserialize, Serialize};
 use specta::Type;
 use tauri::{AppHandle, Manager};
+use tauri_specta::Event;
 
 use crate::cli::CliArgs;
 use crate::commands::ShortcutsInitialized;
@@ -20,8 +21,15 @@ pub const MAIN_WINDOW: &str = "main";
 #[serde(rename_all = "snake_case")]
 pub enum SettingsView {
     Onboarding,
+    /// The last step of onboarding, where the user tries a dictation: the
+    /// page shows it (`PracticeDictation`) instead of Murmur pasting it.
+    Practice,
     Section(String),
 }
+
+/// A dictation made on the practice step of onboarding, for its page to show.
+#[derive(Serialize, Debug, Clone, PartialEq, Eq, Type, Event)]
+pub struct PracticeDictation(pub String);
 
 /// Something that happened while the settings window was gone, for the
 /// next one to act on.
@@ -104,7 +112,14 @@ impl SettingsWindow {
     }
 
     fn onboarding(&self) -> bool {
-        self.lock().view == SettingsView::Onboarding
+        matches!(
+            self.lock().view,
+            SettingsView::Onboarding | SettingsView::Practice
+        )
+    }
+
+    fn practice(&self) -> bool {
+        self.lock().view == SettingsView::Practice
     }
 
     fn report_meeting(&self, id: Option<i64>) {
@@ -247,6 +262,18 @@ pub fn remember_size(app: &AppHandle, size: (f64, f64)) {
 pub fn remembered_size(app: &AppHandle) -> Option<(f64, f64)> {
     app.try_state::<SettingsWindow>()
         .and_then(|state| state.size())
+}
+
+/// Whether a dictation finishing now belongs to the practice step: its page
+/// is up and has the keyboard, so Murmur is the app in front and there is
+/// nowhere to paste. In any other app the dictation is pasted as usual, even
+/// while the step shows.
+pub fn takes_practice(app: &AppHandle) -> bool {
+    app.try_state::<SettingsWindow>()
+        .is_some_and(|state| state.practice())
+        && app
+            .get_webview_window(MAIN_WINDOW)
+            .is_some_and(|window| window.is_focused().unwrap_or(false))
 }
 
 /// What closing the settings window does now.
@@ -433,6 +460,24 @@ mod tests {
         state.forget_page();
 
         assert_eq!(state.size(), Some((900.0, 640.0)));
+    }
+
+    #[test]
+    fn the_practice_step_is_part_of_onboarding_and_ends_with_its_page() {
+        let state = SettingsWindow::default();
+        assert!(!state.practice());
+
+        state.report(SettingsView::Practice);
+        assert!(state.practice());
+        // Closing still hides the window instead of destroying it.
+        assert!(state.onboarding());
+
+        state.report(SettingsView::Section("general".into()));
+        assert!(!state.practice());
+
+        state.report(SettingsView::Practice);
+        state.forget_page();
+        assert!(!state.practice());
     }
 
     #[test]

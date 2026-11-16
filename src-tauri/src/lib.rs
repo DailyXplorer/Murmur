@@ -477,7 +477,8 @@ fn specta_builder() -> Builder<tauri::Wry> {
             local_models::LocalModelStatus,
             local_models::SwitchedToLocal,
             updates::UpdateStatus,
-            meetings::live::MeetingLiveUpdated
+            meetings::live::MeetingLiveUpdated,
+            settings_window::PracticeDictation
         ])
 }
 

@@ -165,6 +165,36 @@ fn frontmost_target_comparison_fails_closed() {
 }
 
 #[test]
+fn a_practice_dictation_is_shown_once_and_never_after_a_cancel() {
+    let operation = ProcessingOperation::new(OperationId(30));
+    let mut shown = 0;
+    assert_eq!(
+        hand_to_practice(&operation, || {
+            shown += 1;
+            true
+        }),
+        PasteOutcome::IntentionalNone
+    );
+    assert_eq!(shown, 1);
+    assert!(!operation.cancel(), "the practice step claimed the output");
+
+    // The page did not get the text: not delivered, so recovery keeps it.
+    assert_eq!(
+        hand_to_practice(&ProcessingOperation::new(OperationId(32)), || false),
+        PasteOutcome::Skipped
+    );
+
+    let cancelled = ProcessingOperation::new(OperationId(31));
+    assert!(cancelled.cancel());
+    assert_eq!(
+        hand_to_practice(&cancelled, || panic!(
+            "a cancelled dictation must not reach the page"
+        )),
+        PasteOutcome::Cancelled
+    );
+}
+
+#[test]
 fn clipboard_only_failure_is_reported_as_recoverable_output() {
     let operation = ProcessingOperation::new(OperationId(10));
     let outcome =

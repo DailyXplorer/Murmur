@@ -198,6 +198,10 @@
     "done": {
       "title": "Tout est prêt",
       "ready": "Maintenez votre raccourci et parlez.",
+      "readyWith": "Maintenez {{shortcut}} et parlez.",
+      "practiceHint": "Ce que vous dites s'affiche ici.",
+      "practiceLabel": "Votre première dictée",
+      "practiced": "C'est tout. Désormais, vos mots vont là où se trouve votre curseur.",
       "downloading": "Le modèle est encore en cours de téléchargement ({{percent}} %).",
       "preparing": "Le modèle se prépare pour ce Mac.",
       "cloudMeanwhile": "En attendant, Murmur utilise le cloud.",

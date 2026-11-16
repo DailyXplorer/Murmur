@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { commands } from "@/bindings";
+import { commands, events } from "@/bindings";
 import { useCodexStatus } from "@/components/transcription/providerStatus";
 import { downloadPercent, useLocalModel } from "@/hooks/useLocalModel";
+import { useSettings } from "@/hooks/useSettings";
+import { formatKeyCombination } from "@/lib/utils/keyboard";
 import { Button } from "../ui/Button";
 import MurmurTextLogo from "../icons/MurmurTextLogo";
 import {
@@ -17,7 +19,9 @@ interface DoneOnboardingProps {
 }
 
 /** The last step when dictation runs on this Mac: says whether the model
- * is there yet and what happens until it is. */
+ * is there yet and what happens until it is, and lets the user try. Murmur
+ * is the app in front here, so a dictation cannot be pasted: the backend
+ * hands it to this page instead (`PracticeDictation`), which shows it. */
 const DoneOnboarding: React.FC<DoneOnboardingProps> = ({
   onFinish,
   onUseCloud,
@@ -27,10 +31,23 @@ const DoneOnboarding: React.FC<DoneOnboardingProps> = ({
   const { refreshStatus, status: account } = useCodexStatus();
   const run = useModelAction("settings.transcription.localModel.error");
   const [leaving, setLeaving] = useState(false);
+  const { getSetting } = useSettings();
+  const [practiced, setPracticed] = useState<string | null>(null);
 
   useEffect(() => {
     void refreshStatus();
   }, [refreshStatus]);
+
+  useEffect(() => {
+    let disposed = false;
+    const listening = events.practiceDictation.listen((event) => {
+      if (!disposed) setPracticed(event.payload);
+    });
+    return () => {
+      disposed = true;
+      void listening.then((stop) => stop());
+    };
+  }, []);
 
   if (!model) return null;
 
@@ -43,12 +60,27 @@ const DoneOnboarding: React.FC<DoneOnboardingProps> = ({
         ? null
         : t("onboarding.done.waitForIt");
 
+  // What is said goes somewhere now: on this Mac, or in the cloud meanwhile.
+  const canDictate =
+    state.state === "ready" ||
+    state.state === "optimizing" ||
+    state.state === "unsupported" ||
+    ((state.state === "downloading" || state.state === "preparing") &&
+      account.kind === "configured");
+  const shortcut = formatKeyCombination(
+    getSetting("bindings")?.transcribe?.current_binding ?? "",
+  );
+
   const text = (() => {
+    // A download that stopped meanwhile still has to be said.
+    if (practiced !== null && !stopped) return t("onboarding.done.practiced");
     switch (state.state) {
       case "ready":
       case "optimizing":
       case "unsupported":
-        return t("onboarding.done.ready");
+        return shortcut
+          ? t("onboarding.done.readyWith", { shortcut })
+          : t("onboarding.done.ready");
       case "downloading":
         return [
           t("onboarding.done.downloading", { percent: downloadPercent(model) }),
@@ -95,6 +127,21 @@ const DoneOnboarding: React.FC<DoneOnboardingProps> = ({
           </h2>
           <p className="mt-2 text-pretty text-text/70">{text}</p>
         </div>
+        {/* What was said stays, even if nothing more can be dictated. */}
+        {(canDictate || practiced !== null) && (
+          <p
+            role="status"
+            aria-label={t("onboarding.done.practiceLabel")}
+            data-testid="practice"
+            className={`min-h-24 w-full rounded-lg border px-4 py-3 text-start text-pretty transition-colors duration-150 ${
+              practiced === null
+                ? "border-dashed border-mid-gray/40 text-text/50"
+                : "border-logo-primary/60 bg-logo-primary/5 text-text"
+            }`}
+          >
+            {practiced ?? t("onboarding.done.practiceHint")}
+          </p>
+        )}
         <div className="flex flex-col items-center gap-2">
           <div className="flex flex-wrap justify-center gap-2">
             {stopped && (

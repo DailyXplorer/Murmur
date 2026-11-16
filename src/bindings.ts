@@ -1278,6 +1278,7 @@ meetingLiveUpdated: MeetingLiveUpdated,
 meetingProgress: MeetingProgress,
 meetingStateChanged: MeetingStateChanged,
 meetingsUpdated: MeetingsUpdated,
+practiceDictation: PracticeDictation,
 switchedToLocal: SwitchedToLocal,
 updateStatus: UpdateStatus
 }>({
@@ -1289,6 +1290,7 @@ meetingLiveUpdated: "meeting-live-updated",
 meetingProgress: "meeting-progress",
 meetingStateChanged: "meeting-state-changed",
 meetingsUpdated: "meetings-updated",
+practiceDictation: "practice-dictation",
 switchedToLocal: "switched-to-local",
 updateStatus: "update-status"
 })
@@ -1931,6 +1933,10 @@ export type OverlayStyle = "none" | "minimal"
 export type PaginatedHistory = { entries: HistoryEntry[]; has_more: boolean }
 export type PasteMethod = "ctrl_v" | "direct" | "none"
 /**
+ * A dictation made on the practice step of onboarding, for its page to show.
+ */
+export type PracticeDictation = string
+/**
  * Why the last processing run did not finish everything.
  */
 export type ProcessingError = 
@@ -1990,7 +1996,12 @@ export type RecordingRetentionPeriod = "never" | "preserve_limit" | "days_3" | "
 /**
  * What the settings page shows, as it reports it.
  */
-export type SettingsView = "onboarding" | { section: string }
+export type SettingsView = "onboarding" | 
+/**
+ * The last step of onboarding, where the user tries a dictation: the
+ * page shows it (`PracticeDictation`) instead of Murmur pasting it.
+ */
+"practice" | { section: string }
 export type ShortcutBinding = { id: string; name: string; description: string; default_binding: string; current_binding: string }
 /**
  * Why a binding holds no hotkey.
