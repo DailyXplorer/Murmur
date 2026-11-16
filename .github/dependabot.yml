@@ -108,6 +108,12 @@ updates:
       # be the version that `windows` pulls in. A lone bump cannot compile.
       # Move it by hand together with `windows`; see #416.
       - dependency-name: "windows-core"
+      # Pinned to one exact version in two target sections of Cargo.toml: the
+      # x86_64 one and the Windows one with its CPU modules. Dependabot bumps
+      # one of them and cargo can no longer resolve the crate. Each upgrade is
+      # checked on Intel Macs and Windows first, so move both by hand; see
+      # #434.
+      - dependency-name: "transcribe-cpp"
 
   - package-ecosystem: github-actions
     directory: /
