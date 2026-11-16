@@ -541,7 +541,7 @@
       },
       "muteWhileRecording": {
         "label": "Silenciar durante la grabación",
-        "description": "Silenciar el audio del sistema durante la grabación"
+        "description": "Silenciar el audio del sistema durante la grabación, salvo con auriculares"
       },
       "leadingSpace": {
         "label": "Agregar espacio inicial",

@@ -541,7 +541,7 @@
       },
       "muteWhileRecording": {
         "label": "Während Aufnahme stummschalten",
-        "description": "Systemaudio während der Aufnahme stummschalten"
+        "description": "Systemaudio während der Aufnahme stummschalten, außer bei Kopfhörern"
       },
       "leadingSpace": {
         "label": "Leerzeichen voranstellen",
