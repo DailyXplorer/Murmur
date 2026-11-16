@@ -261,8 +261,9 @@ and 8 read it). Every stable release with `windows` on rewrites its
 `latest.json` to the Windows entries of the unified manifest, with the same
 installer and signature, so a beta that stayed offline for months jumps to the
 newest build. The `windows-beta` and `v1.9.0-beta.*` releases are never
-deleted. The feed tooling is `.github/scripts/windows-updater-manifest.mjs`
-with `minisign.mjs`; its tests are `bun run test:windows-updater`.
+deleted. `publish-updater-manifest.mjs` writes and checks that feed
+(`--emit-legacy-feed`, `--verify-public-legacy`), tested by
+`bun run test:updater-manifest`.
 
 **The first update.** Beta 6 and older have no updater, so a build with one is
 installed by hand once. The installer has no Authenticode certificate, so

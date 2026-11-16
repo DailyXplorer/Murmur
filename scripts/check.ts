@@ -69,11 +69,6 @@ export const ciSteps: CheckStep[] = [
     args: ["run", "test:release-contract"],
   },
   {
-    name: "Windows updater feed",
-    command: "bun",
-    args: ["run", "test:windows-updater"],
-  },
-  {
     name: "changed paths script",
     command: "bun",
     args: ["run", "test:changed-paths"],

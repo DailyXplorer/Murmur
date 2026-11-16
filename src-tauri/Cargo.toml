@@ -10,8 +10,6 @@ default-run = "murmur"
 [profile.dev]
 incremental = true # Compile your binary in smaller steps.
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [[bin]]
 name = "murmur"
 path = "src/main.rs"
@@ -34,7 +32,6 @@ tauri-plugin-os = "2.3.2"
 tauri-plugin-clipboard-manager = "2.3.2"
 tauri-plugin-macos-permissions = "2.3.0"
 tauri-plugin-notification = "2"
-tauri-plugin-process = "2.3.1"
 tauri-plugin-autostart = "2.5.1"
 tauri-plugin-global-shortcut = "2.3.1"
 tauri-plugin-single-instance = "2.3.2"

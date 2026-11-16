@@ -5,7 +5,8 @@
 //! turns the helper found, and uploads both (`parity-dialogue` artifact). The
 //! owner commits them next to this file's sibling fixtures as
 //! `parity-dialogue.wav` and `parity-dialogue.turns.json`
-//! (`OWNER_CHECKS.md` of the lane), and the ignored test below then compares.
+//! (`docs/windows-meetings-owner-checks.md`), and the ignored test below then
+//! compares.
 //!
 //! The comparison is plain Rust and tested here with invented turns. The
 //! thresholds are the lane's acceptance numbers, not tuned to pass.
