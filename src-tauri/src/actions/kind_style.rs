@@ -1,4 +1,5 @@
-//! The dictation style of the kind of app a dictation was started in.
+//! The dictation style and language of the kind of app a dictation was
+//! started in.
 
 use crate::insights::categories::AppCategory;
 use crate::settings::{AppSettings, CategoryStyle, DictationStyle};
@@ -16,4 +17,12 @@ pub(super) fn style_for(
         Some(CategoryStyle::Casual) => Some(DictationStyle::Casual),
         None => Some(settings.dictation_style),
     }
+}
+
+/// The language of a dictation into `category` when the user set one for that
+/// kind of app: "auto" or a code. `None` follows the language setting.
+pub(super) fn language_for(settings: &AppSettings, category: Option<AppCategory>) -> Option<&str> {
+    category
+        .and_then(|category| settings.category_languages.get(&category))
+        .map(String::as_str)
 }

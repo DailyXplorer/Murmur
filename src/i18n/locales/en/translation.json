@@ -600,6 +600,7 @@
       "groups": {
         "processing": "Text processing",
         "styleByApp": "Style by app type",
+        "languageByApp": "Language by app type",
         "output": "Output",
         "engine": "How Murmur transcribes"
       },
@@ -609,6 +610,10 @@
           "general": "Same as general",
           "off": "No cleanup"
         }
+      },
+      "languageByApp": {
+        "description": "The language of dictations into this kind of app. Same as general follows the language set in the general settings.",
+        "error": "Couldn't change the language."
       },
       "sessionExpired": "Session expired, sign in again",
       "aiCleanup": {

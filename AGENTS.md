@@ -104,6 +104,8 @@ Murmur is a macOS and Windows (beta) desktop speech-to-text application built wi
 
 **Short dictations:** a dictation under 20 words (UAX #29 word count, so Chinese or Japanese count per word) skips the default AI cleanup and is pasted at once, recorded in History as `CleanupOutcome::ShortDictation` without a raw text, and logged as `AI cleanup skipped: short dictation ({n} words)`. Cleanup still runs on it when `cleanup_short_dictations` is on or the user chose a transformation: today only a Formal or Casual `dictation_style` (`actions.rs`, `cleanup_plan`). A future user-chosen transformation (custom prompt, translation, per-app prompt) must keep cleanup on short dictations too.
 
+**Language by kind of app:** `category_languages` gives a kind of app (`AppCategory`, the six rows of "Style by app type"; Other has none) a dictation language of its own, "auto" or a code. A kind without an entry follows `selected_language`. The kind is read from the frontmost app when the dictation starts (`window_names.rs`, `ContextReads::kind`, also read when cleanup is off), and `actions::kind_style::language_for` hands the language to `transcribe_samples_in` and `process_transcription_output_in`, the path of a one-off re-transcription: the engine route, the text passes and the cleanup hint follow it, and the Language setting is never written. An app Murmur could not place before the key was released dictates in the general language. Settings → Transcription → "Language by app type" (`CategoryLanguages.tsx`, with the searchable list of the Language row, `LanguageMenu.tsx`); it needs neither AI cleanup nor an account.
+
 **State Flow:** Zustand → Tauri Command → Rust State → Persistence (`settings_store.json` through `durable::write`)
 
 ### Technology Stack

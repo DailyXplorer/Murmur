@@ -69,6 +69,8 @@ export const dictationStyle = (params.get("style") ??
   "normal") as DictationStyle;
 /** `styleRefused=1`: the backend refuses every style change. */
 export const styleRefused = params.get("styleRefused") === "1";
+/** `languageSave=slow`: saving the languages by kind of app takes 600 ms. */
+export const slowLanguageSave = params.get("languageSave") === "slow";
 /** `card=1` shows the one-time local transcription card. */
 export const cardShown = params.get("card") === "1";
 /** `history=fallback`: entries transcribed by the engine not chosen. */

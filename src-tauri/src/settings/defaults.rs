@@ -102,6 +102,7 @@ pub fn get_default_settings() -> AppSettings {
         ai_cleanup_enabled: default_ai_cleanup_enabled(),
         dictation_style: DictationStyle::default(),
         category_styles: Default::default(),
+        category_languages: Default::default(),
         window_names_enabled: default_window_names_enabled(),
         window_names_turned_on_once: cfg!(target_os = "windows"),
         whisper_mode: false,

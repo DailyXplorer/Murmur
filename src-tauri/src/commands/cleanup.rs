@@ -29,6 +29,20 @@ pub fn change_category_styles_setting(
     update(&app, |value| value.category_styles = styles)
 }
 
+/// Each language is "auto" or a code, checked the way a one-off
+/// re-transcription language is, so a bad one never reaches an engine.
+#[tauri::command]
+#[specta::specta]
+pub fn change_category_languages_setting(
+    app: AppHandle,
+    languages: BTreeMap<AppCategory, String>,
+) -> Result<(), String> {
+    for language in languages.values() {
+        super::history::checked_language(Some(language.clone()))?;
+    }
+    update(&app, |value| value.category_languages = languages)
+}
+
 #[tauri::command]
 #[specta::specta]
 pub fn change_window_names_setting(app: AppHandle, enabled: bool) -> Result<(), String> {

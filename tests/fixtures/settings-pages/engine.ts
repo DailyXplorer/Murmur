@@ -6,7 +6,12 @@ import type {
 } from "../../../src/bindings";
 import { events } from "../../../src/bindings";
 import { MODELS, modelsStatus } from "./models";
-import { engineRefused, pendingMainActions, styleRefused } from "./params";
+import {
+  engineRefused,
+  pendingMainActions,
+  slowLanguageSave,
+  styleRefused,
+} from "./params";
 import { SETTINGS } from "./settings";
 
 let modelNow = modelsStatus;
@@ -63,6 +68,15 @@ export const handleEngineCommand = (
     case "change_category_styles_setting":
       SETTINGS.category_styles = args.styles as typeof SETTINGS.category_styles;
       return { handled: true, value: null };
+    case "change_category_languages_setting":
+      SETTINGS.category_languages =
+        args.languages as typeof SETTINGS.category_languages;
+      return {
+        handled: true,
+        value: slowLanguageSave
+          ? new Promise((resolve) => setTimeout(() => resolve(null), 600))
+          : null,
+      };
     case "change_cleanup_short_dictations_setting":
       SETTINGS.cleanup_short_dictations = args.enabled as boolean;
       return { handled: true, value: null };

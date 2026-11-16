@@ -39,6 +39,7 @@ permissions = [
   "allow-change-ai-cleanup-setting",
   "allow-change-dictation-style-setting",
   "allow-change-category-styles-setting",
+  "allow-change-category-languages-setting",
   "allow-change-window-names-setting",
   "allow-change-whisper-mode-setting",
   "allow-change-cleanup-short-dictations-setting",
