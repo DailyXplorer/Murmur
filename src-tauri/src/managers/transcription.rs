@@ -160,18 +160,6 @@ impl TranscriptionManager {
         }
     }
 
-    /// Transcribes mono PCM samples and applies the configured local text
-    /// normalization. An empty input produces an empty transcript.
-    pub async fn transcribe(
-        &self,
-        audio: Vec<f32>,
-        operation: ProcessingOperation,
-    ) -> Result<String> {
-        self.transcribe_samples(Arc::new(audio), operation)
-            .await
-            .map(|transcript| transcript.text)
-    }
-
     /// Transcribes shared samples and corrects them with the dictionary.
     /// The local engine listens for the custom words.
     pub(crate) async fn transcribe_samples(
@@ -327,9 +315,9 @@ impl TranscriptionManager {
     }
 
     /// Keeps CLI calls synchronous and independent of desktop cancellation.
-    pub fn transcribe_sync(&self, audio: Vec<f32>) -> Result<String> {
+    pub fn transcribe_sync(&self, audio: Vec<f32>) -> Result<Transcript> {
         let operation = ProcessingOperation::new(OperationId(0));
-        tauri::async_runtime::block_on(self.transcribe(audio, operation))
+        tauri::async_runtime::block_on(self.transcribe_samples(Arc::new(audio), operation))
     }
 
     /// Cancels every active request and refuses new ones, without waiting.
