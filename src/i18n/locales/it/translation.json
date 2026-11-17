@@ -1151,5 +1151,18 @@
       "downloading": "Download in corso… {{percent}}%. Al termine Murmur passerà a questo PC.",
       "switched": "Ora la trascrizione avviene su questo PC."
     }
+  },
+  "keyNames": {
+    "space": "Spazio",
+    "enter": "Invio",
+    "escape": "Esc",
+    "esc": "Esc",
+    "tab": "Tab",
+    "backspace": "Backspace",
+    "delete": "Canc",
+    "up": "Su",
+    "down": "Giù",
+    "left": "Sinistra",
+    "right": "Destra"
   }
 }

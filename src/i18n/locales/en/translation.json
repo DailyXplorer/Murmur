@@ -1151,5 +1151,18 @@
       "downloading": "Downloading… {{percent}}%. Murmur switches to this PC when it's done.",
       "switched": "Now transcribing on this PC."
     }
+  },
+  "keyNames": {
+    "space": "Space",
+    "enter": "Enter",
+    "escape": "Escape",
+    "esc": "Esc",
+    "tab": "Tab",
+    "backspace": "Backspace",
+    "delete": "Delete",
+    "up": "Up",
+    "down": "Down",
+    "left": "Left",
+    "right": "Right"
   }
 }

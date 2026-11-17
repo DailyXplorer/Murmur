@@ -144,11 +144,24 @@ const capitalizeKey = (key: string): string => {
  */
 export type KeyLabels = Partial<Record<string, string>>;
 
-const formatKeyPart = (part: string, labels: KeyLabels): string => {
+/**
+ * The name of a key in the app's language, by its name in a shortcut, for
+ * the keys that are named rather than printed ("space"). `undefined` leaves
+ * the key to its English name.
+ */
+export type KeyNames = (key: string) => string | undefined;
+
+const formatKeyPart = (
+  part: string,
+  labels: KeyLabels,
+  names?: KeyNames,
+): string => {
   const trimmed = part.trim();
   if (!trimmed) return "";
   const label = labels[trimmed];
   if (label) return capitalizeKey(label);
+  const named = names?.(trimmed);
+  if (named) return named;
 
   if (trimmed.endsWith("_left")) {
     const name = trimmed.slice(0, -5);
@@ -165,11 +178,12 @@ const formatKeyPart = (part: string, labels: KeyLabels): string => {
 export const formatKeyCombination = (
   combination: string,
   labels: KeyLabels = {},
+  names?: KeyNames,
 ): string => {
   if (!combination) return "";
   return combination
     .split("+")
-    .map((part) => formatKeyPart(part, labels))
+    .map((part) => formatKeyPart(part, labels, names))
     .join(" + ");
 };
 

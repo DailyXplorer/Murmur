@@ -260,7 +260,7 @@ test("the practice step speaks French and fits the smallest window", async ({
   await page.getByRole("button", { name: "Continuer" }).click();
 
   await expect(
-    page.getByText("Maintenez Option + Space et parlez.", { exact: true }),
+    page.getByText("Maintenez Option + Espace et parlez.", { exact: true }),
   ).toBeVisible();
   await expect(practice(page)).toHaveText("Ce que vous dites s'affiche ici.");
   await fixture(page).dictate(

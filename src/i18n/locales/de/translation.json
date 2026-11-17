@@ -1151,5 +1151,18 @@
       "downloading": "Wird geladen… {{percent}} %. Danach wechselt Murmur auf diesen PC.",
       "switched": "Es wird jetzt auf diesem PC transkribiert."
     }
+  },
+  "keyNames": {
+    "space": "Leertaste",
+    "enter": "Eingabetaste",
+    "escape": "Esc",
+    "esc": "Esc",
+    "tab": "Tab",
+    "backspace": "Rücktaste",
+    "delete": "Entf",
+    "up": "Oben",
+    "down": "Unten",
+    "left": "Links",
+    "right": "Rechts"
   }
 }
