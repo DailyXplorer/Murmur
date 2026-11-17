@@ -104,7 +104,9 @@ export const RESPONSES: Record<string, unknown> = {
   hold_settings_window: null,
   release_settings_window: null,
   is_laptop: true,
-  "plugin:app|version": "1.3.7",
+  // `appVersion=1.16.1`: the version the app says it is.
+  "plugin:app|version": params.get("appVersion") ?? "1.3.7",
+  change_whats_new_last_seen_version_setting: null,
   "plugin:macos-permissions|check_accessibility_permission": !showOnboarding,
   "plugin:macos-permissions|check_microphone_permission": !showOnboarding,
   "plugin:os|locale": language,
