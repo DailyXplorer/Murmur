@@ -78,7 +78,7 @@ fn processed(store: &MeetingsStore, root: &Path, now_ms: i64, days_ago: i64) -> 
         )
         .unwrap();
     store.finish_processing(id, None).unwrap();
-    assert!(store.save_summary(id, None, "Notes.").unwrap());
+    assert!(store.save_summary(id, None, "Notes.", &[]).unwrap());
     assert!(store.audio_compressed(id, 10).unwrap());
     let dir = paths::fresh_meeting_dir(root, id, now_ms).unwrap();
     std::fs::write(dir.join(paths::AUDIO_FILE), b"audio").unwrap();
@@ -259,7 +259,7 @@ fn uncompressed_audio_deletion_is_retryable_after_a_partial_failure() {
         .unwrap();
     store.finish_recording(id, 3_000, 3_000).unwrap();
     store.finish_processing(id, None).unwrap();
-    store.save_summary(id, None, "Notes.").unwrap();
+    store.save_summary(id, None, "Notes.", &[]).unwrap();
     let meeting_dir = paths::fresh_meeting_dir(&root, id, 0).unwrap();
     std::fs::write(meeting_dir.join(paths::MIC_TRACK), b"audio").unwrap();
     let fault = meeting_dir.join(paths::SYSTEM_TRACK);
@@ -780,7 +780,9 @@ fn a_pending_summary_survives_a_rate_limit_hold_and_recovers() {
                 queue.state().take_next(until, local_ready),
                 Next::Process(id)
             );
-            assert!(store.save_summary(id, None, "Recovered notes.").unwrap());
+            assert!(store
+                .save_summary(id, None, "Recovered notes.", &[])
+                .unwrap());
             processing_finished(&queue, &store, id, CodexVerdict::Answered, local_tried);
             assert!(queue.queued().is_empty());
             assert_eq!(
@@ -843,7 +845,7 @@ fn a_rate_limit_does_not_requeue_a_settled_summary_or_failed_transcript() {
         .summary_failed(failed, summary::SummaryError::RateLimited)
         .unwrap();
     let ready = pending_summary(&store);
-    store.save_summary(ready, None, "Notes.").unwrap();
+    store.save_summary(ready, None, "Notes.", &[]).unwrap();
     let untranscribed = store
         .insert_recording(0, store::MeetingTracks::Mic)
         .unwrap();

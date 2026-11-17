@@ -894,7 +894,7 @@
     },
     "renameDialog": {
       "title": "Sprecher umbenennen",
-      "description": "Ein neuer Name erscheint überall in diesem Meeting.",
+      "description": "Ein neuer Name erscheint überall in diesem Meeting. Murmur benennt einen Sprecher selbst, wenn das Gespräch sagt, wer er ist.",
       "nameLabel": "Name für {{name}}",
       "save": "Sichern",
       "error": "Der Sprecher konnte nicht umbenannt werden."

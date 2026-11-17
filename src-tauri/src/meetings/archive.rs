@@ -252,7 +252,7 @@ mod tests {
         store.finish_recording(id, 3_000, 3_000).unwrap();
         store.begin_processing(id).unwrap();
         store.finish_processing(id, None).unwrap();
-        store.save_summary(id, None, "Notes.").unwrap();
+        store.save_summary(id, None, "Notes.", &[]).unwrap();
         let meeting_dir = paths::meeting_dir(&root, id);
         std::fs::create_dir_all(&meeting_dir).unwrap();
         std::fs::write(meeting_dir.join(MIC_TRACK), b"not audio").unwrap();

@@ -225,7 +225,9 @@ fn transcribing_again_forgets_the_pieces_and_the_summary_goes_with_the_words() {
     transcript("Bonjour.");
     store.finish_processing(id, None).unwrap();
     store.rename(id, Some("Kept")).unwrap();
-    store.save_summary(id, Some("Ignored"), "Notes.").unwrap();
+    store
+        .save_summary(id, Some("Ignored"), "Notes.", &[])
+        .unwrap();
 
     assert!(store.retranscribe(id).unwrap());
     let meeting = store.get(id).unwrap().unwrap();

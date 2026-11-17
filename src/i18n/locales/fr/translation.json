@@ -894,7 +894,7 @@
     },
     "renameDialog": {
       "title": "Renommer les intervenants",
-      "description": "Le nouveau nom s’affiche partout dans cette réunion.",
+      "description": "Le nouveau nom s’affiche partout dans cette réunion. Murmur nomme lui-même un intervenant quand la conversation dit qui il est.",
       "nameLabel": "Nom pour {{name}}",
       "save": "Enregistrer",
       "error": "Impossible de renommer l’intervenant."

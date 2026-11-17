@@ -894,7 +894,7 @@
     },
     "renameDialog": {
       "title": "Renombrar participantes",
-      "description": "El nuevo nombre aparece en toda la reunión.",
+      "description": "El nuevo nombre aparece en toda la reunión. Murmur nombra por sí mismo a un participante cuando la conversación dice quién es.",
       "nameLabel": "Nombre para {{name}}",
       "save": "Guardar",
       "error": "No se pudo renombrar al participante."

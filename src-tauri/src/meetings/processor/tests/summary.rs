@@ -40,6 +40,34 @@ fn a_transcribed_meeting_gets_its_summary_title_and_small_audio() {
 }
 
 #[test]
+fn a_speaker_whose_name_was_said_in_the_meeting_is_shown_under_it() {
+    let h = harness();
+    let id = spoken_meeting(&h);
+    let summarizer = FakeSummarizer::answering(vec![Ok(
+        "# Point budget\n\n[[s1]] et [[me]] valident le budget.\n\n[[s1]] = Marie\n[[me]] = Louis"
+            .into(),
+    )]);
+    h.process_all(
+        id,
+        codex(|_| Ok("Le budget est validé.".into())),
+        Arc::new(FakeAnalyzer::without_models()),
+        Arc::clone(&summarizer),
+    );
+
+    let meeting = h.store.get(id).unwrap().unwrap();
+    assert_eq!(
+        meeting.summary.as_deref(),
+        Some("[[s1]] et [[me]] valident le budget.")
+    );
+    let shown: Vec<(&str, &str)> = meeting
+        .speakers
+        .iter()
+        .map(|speaker| (speaker.key.as_str(), speaker.name.as_str()))
+        .collect();
+    assert_eq!(shown, [("me", "Me"), ("s1", "Marie")]);
+}
+
+#[test]
 fn the_summary_is_told_the_custom_words_of_settings() {
     let h = Harness {
         vocabulary: vec!["Murmur".into(), "Zoé".into()],
