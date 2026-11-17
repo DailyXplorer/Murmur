@@ -231,6 +231,24 @@ test("an error opens from the orb to its message", async ({ page }) => {
   expect(widths[widths.length - 1], "width ends fitted").toBeGreaterThan(200);
 });
 
+test("an error pill has the outline of every other pill, not a red one", async ({
+  page,
+}) => {
+  await page.setViewportSize(ERROR_WINDOW);
+  await openOverlay(page);
+  const outline = (selector: string) =>
+    page
+      .locator(selector)
+      .evaluate((element) => getComputedStyle(element).boxShadow);
+
+  await dispatch(page, "show-overlay", "transcribing");
+  const usual = await outline(".ov-capsule");
+
+  await dispatch(page, "show-overlay-error", "Couldn't paste.");
+  await expect(page.getByRole("alert")).toBeVisible();
+  expect(await outline(".ov-error")).toBe(usual);
+});
+
 for (const { locale, messages } of errorStringsByLocale) {
   test(`every ${locale} error message fits the error window unclipped`, async ({
     page,
