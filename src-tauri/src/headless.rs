@@ -1,5 +1,6 @@
 use super::*;
 use crate::audio_toolkit::constants::MAX_RECORDING_SECONDS;
+use crate::engine::Engine;
 use crate::meetings::import_audio::decode::{decode_to_wav, DecodeError};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::AtomicBool;
@@ -143,8 +144,20 @@ fn decode_through(
     Ok((samples, warning))
 }
 
+/// The engine that transcribed, as the output of `--transcribe-file` names
+/// it. The cloud keeps the name scripts already read. A file with no samples
+/// reaches no engine.
+fn backend_name(engine: Option<Engine>) -> &'static str {
+    match engine {
+        Some(Engine::Local) => "local-model",
+        Some(Engine::Cloud) => "chatgpt-session",
+        None => "none",
+    }
+}
+
 /// Headless one-shot transcription for `--transcribe-file`.
-/// Drives the same `TranscriptionManager::transcribe` path as the desktop app.
+/// Drives the same `TranscriptionManager::transcribe_samples` path as the desktop
+/// app, and names the engine that answered.
 /// Returns a process exit code (0 ok, 1 runtime failure, 2 bad input/usage).
 pub(crate) fn run_headless_transcription(app: &AppHandle, args: &CliArgs) -> i32 {
     use std::time::Instant;
@@ -161,15 +174,18 @@ pub(crate) fn run_headless_transcription(app: &AppHandle, args: &CliArgs) -> i32
         }
     };
     let audio_secs = samples.len() as f64 / 16_000.0;
+    let heard = !samples.is_empty();
     let tm = app.state::<Arc<TranscriptionManager>>();
     let started = Instant::now();
-    let text = match tm.transcribe_sync(samples) {
-        Ok(text) => text,
+    let transcript = match tm.transcribe_sync(samples) {
+        Ok(transcript) => transcript,
         Err(error) => {
             eprintln!("error: transcribe failed: {error}");
             return 1;
         }
     };
+    let backend = backend_name(heard.then_some(transcript.source.engine));
+    let text = transcript.text;
     let elapsed_ms = started.elapsed().as_millis() as u64;
     let rtf = if elapsed_ms > 0 {
         audio_secs / (elapsed_ms as f64 / 1000.0)
@@ -181,7 +197,7 @@ pub(crate) fn run_headless_transcription(app: &AppHandle, args: &CliArgs) -> i32
         println!(
             "{}",
             serde_json::json!({
-                "backend": "chatgpt-session",
+                "backend": backend,
                 "audio_secs": audio_secs,
                 "transcribe_ms": elapsed_ms,
                 "rtf": rtf,
@@ -190,7 +206,7 @@ pub(crate) fn run_headless_transcription(app: &AppHandle, args: &CliArgs) -> i32
         );
     } else {
         println!(
-            "backend=chatgpt-session audio={audio_secs:.2}s transcribe={elapsed_ms}ms rtf={rtf:.2}x"
+            "backend={backend} audio={audio_secs:.2}s transcribe={elapsed_ms}ms rtf={rtf:.2}x"
         );
         println!("text: {}", text);
     }
@@ -199,7 +215,8 @@ pub(crate) fn run_headless_transcription(app: &AppHandle, args: &CliArgs) -> i32
 
 #[cfg(test)]
 mod tests {
-    use super::{decode_through, file_samples, TempWav};
+    use super::{backend_name, decode_through, file_samples, TempWav};
+    use crate::engine::Engine;
     use std::path::{Path, PathBuf};
     use std::time::Duration;
 
@@ -227,6 +244,14 @@ mod tests {
 
     fn rms(samples: &[f32]) -> f32 {
         (samples.iter().map(|s| s * s).sum::<f32>() / samples.len() as f32).sqrt()
+    }
+
+    #[test]
+    fn the_output_names_the_engine_that_transcribed() {
+        assert_eq!(backend_name(Some(Engine::Local)), "local-model");
+        assert_eq!(backend_name(Some(Engine::Cloud)), "chatgpt-session");
+        // A file with no samples is settled before any engine.
+        assert_eq!(backend_name(None), "none");
     }
 
     #[test]
