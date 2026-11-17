@@ -8,11 +8,26 @@ export interface CheckStep {
 }
 
 /**
+ * Advisories `bun audit` is told to pass over, each with the reason it cannot
+ * be fixed yet. Remove an entry as soon as its package has a fixed release.
+ */
+export const ignoredAdvisories: { id: string; why: string }[] = [
+  {
+    id: "GHSA-fc5q-39xc-vjpf",
+    why: "picomatch <= 4.0.7 (ReDoS on a crafted glob): no fixed release exists and 4.0.7 is the latest. It is reached only through build tools (vite, typescript-eslint), which match our own patterns, and is not in the app bundle.",
+  },
+];
+
+/**
  * Commands the CI `code-quality` job runs, in that order.
  * `format:check` includes `cargo fmt --check`.
  */
 export const ciSteps: CheckStep[] = [
-  { name: "frontend audit", command: "bun", args: ["audit"] },
+  {
+    name: "frontend audit",
+    command: "bun",
+    args: ["audit", ...ignoredAdvisories.flatMap(({ id }) => ["--ignore", id])],
+  },
   {
     name: "translations",
     command: "bun",
