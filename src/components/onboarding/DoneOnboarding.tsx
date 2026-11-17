@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { commands, events } from "@/bindings";
 import { useCodexStatus } from "@/components/transcription/providerStatus";
 import { downloadPercent, useLocalModel } from "@/hooks/useLocalModel";
+import { useKeyNames } from "@/hooks/useKeyNames";
 import { useSettings } from "@/hooks/useSettings";
 import { formatKeyCombination } from "@/lib/utils/keyboard";
 import { Button } from "../ui/Button";
@@ -32,6 +33,7 @@ const DoneOnboarding: React.FC<DoneOnboardingProps> = ({
   const run = useModelAction("settings.transcription.localModel.error");
   const [leaving, setLeaving] = useState(false);
   const { getSetting } = useSettings();
+  const keyNames = useKeyNames();
   const [practiced, setPracticed] = useState<string | null>(null);
 
   useEffect(() => {
@@ -69,6 +71,8 @@ const DoneOnboarding: React.FC<DoneOnboardingProps> = ({
       account.kind === "configured");
   const shortcut = formatKeyCombination(
     getSetting("bindings")?.transcribe?.current_binding ?? "",
+    {},
+    keyNames,
   );
 
   const text = (() => {

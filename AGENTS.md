@@ -174,6 +174,8 @@ src/i18n/
     └── fr/, es/, de/, it/, pt/
 ```
 
+**Key names.** A shortcut shows its keys through `formatKeyCombination`. The keys named with a word rather than printed on the keyboard (space, enter, escape, tab, backspace, delete, the arrows) take their name from `keyNames.*` in each locale (`useKeyNames`): "Option + Espace" in French. Modifiers and letters keep what the keyboard prints, and Windows reads Option as Alt.
+
 For translation contribution guidelines, see [CONTRIBUTING_TRANSLATIONS.md](CONTRIBUTING_TRANSLATIONS.md).
 
 ## Code Style

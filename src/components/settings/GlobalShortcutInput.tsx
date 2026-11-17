@@ -6,6 +6,7 @@ import {
   normalizeKey,
   type KeyLabels,
 } from "../../lib/utils/keyboard";
+import { useKeyNames } from "../../hooks/useKeyNames";
 import { ResetButton } from "../ui/ResetButton";
 import {
   FIELD_SIZE_CLASSES,
@@ -54,6 +55,7 @@ export const GlobalShortcutInput: React.FC<GlobalShortcutInputProps> = ({
   disabled = false,
 }) => {
   const { t } = useTranslation();
+  const keyNames = useKeyNames();
   const { getSetting, updateBinding, resetBinding, isUpdating, isLoading } =
     useSettings();
   const [heldModifiers, setHeldModifiers] = useState<string[]>([]);
@@ -272,7 +274,7 @@ export const GlobalShortcutInput: React.FC<GlobalShortcutInputProps> = ({
     if (heldModifiers.length === 0)
       return t("settings.general.shortcut.pressKeys");
 
-    return formatKeyCombination(heldModifiers.join("+"), keyLabels);
+    return formatKeyCombination(heldModifiers.join("+"), keyLabels, keyNames);
   };
 
   const setShortcutRef = (id: string, ref: HTMLElement | null) => {
@@ -364,7 +366,11 @@ export const GlobalShortcutInput: React.FC<GlobalShortcutInputProps> = ({
               }}
             >
               {binding.current_binding
-                ? formatKeyCombination(binding.current_binding, keyLabels)
+                ? formatKeyCombination(
+                    binding.current_binding,
+                    keyLabels,
+                    keyNames,
+                  )
                 : t("settings.general.shortcut.notSet")}
             </button>
           )}
