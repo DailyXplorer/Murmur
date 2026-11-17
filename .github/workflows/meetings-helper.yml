@@ -97,8 +97,9 @@ jobs:
       # A manual run keeps the dialogue and the turns the helper found, so
       # they can be committed as the fixture and the golden file of the
       # parity test of the Windows speaker model
-      # (`src-tauri/src/meetings/diarize/parity.rs`; steps in the lane's
-      # OWNER_CHECKS.md). The dialogue is under 1.5 MB, 16 kHz mono.
+      # (`src-tauri/src/meetings/diarize/parity.rs`; steps in
+      # `docs/windows-meetings-owner-checks.md`). The dialogue is under 1.5 MB,
+      # 16 kHz mono.
       - name: Keep the dialogue and its turns
         if: github.event_name == 'workflow_dispatch'
         shell: bash

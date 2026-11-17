@@ -32,19 +32,13 @@ impl HistoryManager {
         let retention_period = crate::settings::get_recording_retention_period(&self.app_handle);
 
         match retention_period {
-            crate::settings::RecordingRetentionPeriod::Never => {
-                // Don't delete anything
-                Ok(())
-            }
+            crate::settings::RecordingRetentionPeriod::Never => Ok(()),
             crate::settings::RecordingRetentionPeriod::PreserveLimit => {
                 // Keeps the newest `history_limit` unsaved entries.
                 let limit = crate::settings::get_history_limit(&self.app_handle);
                 self.cleanup_by_count(limit)
             }
-            _ => {
-                // Use time-based logic
-                self.cleanup_by_time(retention_period)
-            }
+            _ => self.cleanup_by_time(retention_period),
         }
     }
 

@@ -1,6 +1,6 @@
 //! The on-device analysis of a meeting when it runs inside the app (Windows):
 //! the same result as `murmur-meetings-helper`, a `protocol` message per
-//! track, so `Analysis::absorb`, `align/`, `speakers.rs` and `bleed.rs` are
+//! track, so `Analysis::absorb`, `align/`, `speakers.rs` and `bleed/` are
 //! unchanged. The speech and speaker models sit behind two traits, so what
 //! decides the result (pieces, times, which track is told apart, how a
 //! failure ends) is tested without a model. `analysis_cpp` holds the models.

@@ -80,7 +80,6 @@
      block (matching other surfaces); the dark theme overrides it below. */
   --color-log-surface: color-mix(in srgb, var(--color-background), black 6%);
 
-  /* Apply colors */
   color: var(--color-text);
   background-color: var(--color-background);
 }

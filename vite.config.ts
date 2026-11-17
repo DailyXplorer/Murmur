@@ -5,11 +5,9 @@ import { resolve } from "path";
 
 const host = process.env.TAURI_DEV_HOST;
 
-// https://vitejs.dev/config/
 export default defineConfig(async ({ mode }) => ({
   plugins: [react(), tailwindcss()],
 
-  // Path aliases
   resolve: {
     alias: {
       "@": resolve(__dirname, "./src"),
@@ -17,7 +15,6 @@ export default defineConfig(async ({ mode }) => ({
     },
   },
 
-  // Multiple entry points for main app and overlay
   build: {
     // Vite 7+ targets Safari 16.4; minimum macOS 10.15 ships an older WebKit.
     target: ["es2020", "edge88", "firefox78", "chrome87", "safari14"],

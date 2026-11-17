@@ -38,7 +38,7 @@ bun run test:playwright   # UI changes. This is the Playwright CI job.
 
 From `src-tauri` on macOS, Rust behavior changes also need `cargo test --locked`. The macOS CI job runs that, plus Clippy with `-D warnings`.
 
-**Model Setup:** Transcription uses the Codex / ChatGPT session already on the machine (`~/.codex/auth.json`). No local model download is required.
+**Model Setup:** A new install dictates on the device (`Engine::Local`, Parakeet Ultra). The app downloads the model itself, from the onboarding or Transcription settings (`local_models/`). The cloud engine uses the Codex / ChatGPT session on the machine (`$CODEX_HOME/auth.json`, by default `~/.codex/auth.json`), which Murmur can also create (`codex_login.rs`).
 
 For macOS build setup, code signing, and notarization, see [BUILD.md](BUILD.md).
 
@@ -83,14 +83,13 @@ Murmur is a macOS and Windows (beta) desktop speech-to-text application built wi
 - `components/` - React UI components:
   - `settings/` - Settings UI
   - `onboarding/` - First-run experience
-  - `overlay/` - Recording overlay UI
   - `update-checker/` - App update notifications
   - `shared/`, `ui/`, `icons/`, `footer/` - Shared components
 - `hooks/useSettings.ts` - Settings state management hook
 - `stores/settingsStore.ts` - Zustand store for settings
 - `bindings.ts` - Auto-generated Tauri type bindings (via tauri-specta)
 - `overlay/` - Recording overlay window entry point
-- `lib/types.ts` - Shared TypeScript type definitions
+- `lib/types/` - Shared TypeScript type definitions
 
 ### Key Architecture Patterns
 
@@ -123,7 +122,7 @@ Murmur is a macOS and Windows (beta) desktop speech-to-text application built wi
 
 1. **Initialization:** App starts minimized to tray, loads settings, initializes managers
 2. **Recording:** Global shortcut triggers audio recording
-3. **Processing:** Audio sent to Codex cloud transcription
+3. **Processing:** Audio transcribed by the local model or by Codex (`engine/`)
 4. **Output:** Text pasted to active application via system clipboard
 
 ### Settings System
@@ -211,14 +210,16 @@ Murmur supports command-line parameters for integration with scripts and autosta
 
 **Implementation:** `cli.rs` (definitions), `main.rs` (parsing), `lib.rs` (applying), `signal_handle.rs` (shared logic)
 
-| Flag                     | Description                                                |
-| ------------------------ | ---------------------------------------------------------- |
-| `--toggle-transcription` | Toggle recording on/off on a running instance              |
-| `--cancel`               | Cancel the current operation on a running instance         |
-| `--start-hidden`         | Launch without showing the main window (tray icon visible) |
-| `--no-tray`              | Launch without system tray (closing window quits the app)  |
-| `--debug`                | Enable debug mode with verbose (Trace) logging             |
-| `mcp` (subcommand)       | Read-only MCP server over stdio for AI assistants          |
+| Flag                       | Description                                                |
+| -------------------------- | ---------------------------------------------------------- |
+| `--toggle-transcription`   | Toggle recording on/off on a running instance              |
+| `--cancel`                 | Cancel the current operation on a running instance         |
+| `--start-hidden`           | Launch without showing the main window (tray icon visible) |
+| `--no-tray`                | Launch without system tray (closing window quits the app)  |
+| `--debug`                  | Enable debug mode with verbose (Trace) logging             |
+| `--transcribe-file <FILE>` | Transcribe an audio file headlessly and exit               |
+| `--json`                   | Emit `--transcribe-file` results as JSON                   |
+| `mcp` (subcommand)         | Read-only MCP server over stdio for AI assistants          |
 
 **Key design decisions:**
 
@@ -245,12 +246,12 @@ Adding a tool: describe it in `tools::list` with `readOnlyHint`, read through `o
 
 ## Debug Mode
 
-Access debug features with `Cmd+Shift+D`.
+Access debug features with `Cmd+Shift+D` (`Ctrl+Shift+D` on Windows).
 
 ## Platform Notes
 
 - Accessibility permission is required for keyboard shortcuts and text insertion
-- Windows code stays behind the macOS and Windows cfg boundaries; run `bun run check:platforms`. Windows is a beta. Meetings are on there as on the Mac (`docs/windows-meetings.md` holds the parity table and what differs). The updater is on, with the feed described under "Windows (beta)".
+- Windows code stays behind the macOS and Windows cfg boundaries; run `bun run check:platforms`. Windows is a beta. Meetings are on there as on the Mac (`docs/windows-meetings.md` holds the parity table and what differs). The updater is on, with the feed described under "Windows updates".
 
 ### Platform rules
 
@@ -263,7 +264,7 @@ One check, `scripts/check-platforms.ts` (`bun run check:platforms`; `check:macos
 
 ### Windows (beta)
 
-Windows shares the tree and the version number with the Mac app, and its feed URL once the endpoint override under "Windows updates" goes. It stays labelled beta. What it has now: dictation with local or Codex transcription, AI cleanup, history, Insights, custom words, window names through UI Automation (`uia.rs`), the foreground-window paste target (`foreground.rs`, `paste_tx/windows.rs`, `input/win32.rs`), shortcuts including modifier-only chords (`shortcut/modifier_chord.rs`), monitor-aware overlay and settings window placement (`window_placement.rs`), and a per-user NSIS installer (`tauri.windows.conf.json`). Meetings are on there as on the Mac (`docs/windows-meetings.md`). Automatic updates are on (see "Windows updates"). The MCP server runs there with dictations only (see "Read-only MCP server").
+Windows shares the tree, the version number and the update feed URL with the Mac app (see "Windows updates"). It stays labelled beta. What it has now: dictation with local or Codex transcription, AI cleanup, history, Insights, custom words, window names through UI Automation (`uia.rs`), the foreground-window paste target (`foreground.rs`, `paste_tx/windows.rs`, `input/win32.rs`), shortcuts including modifier-only chords (`shortcut/modifier_chord.rs`), monitor-aware overlay and settings window placement (`window_placement.rs`), and a per-user NSIS installer (`tauri.windows.conf.json`). Meetings are on there as on the Mac (`docs/windows-meetings.md`). Automatic updates are on (see "Windows updates"). The MCP server runs there as on the Mac (see "Read-only MCP server").
 
 - **Text:** where the Mac text says "this Mac", a locale's `windows` subtree says "this PC"; `src/i18n/index.ts` merges it over the locale when `isWindows`.
 - **CI:** `.github/workflows/windows.yml` (workflow `windows`; jobs `changes`, `rust`, `clippy`, `cpu-model`, `meetings-audio`, `installer`, `smoke`, `windows-ok`) runs on every pull request, on pushes to `main`, nightly and by hand. A pull request runs only the jobs `changes` selects from its files (`.github/scripts/changed-paths.sh`; the regular expressions are in the workflow, and the Rust ones include what the crate reads outside `src-tauri`: the locale files, `src/bindings.ts`, `HistorySettings.tsx`); the installer and `smoke` only for a change to the release build or the app's start. Main, the nightly run and a manual run always run everything. `windows-ok` is the check that says whether it passed. It holds no release secret and builds the installer without updater artifacts. Lint, formatting and the frontend build are `code quality`'s, the Playwright suite is `Playwright`'s.
@@ -279,7 +280,7 @@ Windows shares the tree and the version number with the Mac app, and its feed UR
 - **Installers.** The installs in the field come from pre-releases `v1.9.0-beta.N` (`Murmur_1.9.0-beta.N_x64-setup.exe` and its `.sig`). `latest.json` points at the newest. The rolling release is titled "update feed" and holds nothing to download.
 - **Version scheme.** The updater compares semver, where `1.9.0-beta.8` is below `1.12.1`, so the announced version must equal the built one. `check:versions` takes the release notes of the base version for a pre-release.
 - **Signing.** The updater key pair is the macOS one: the `pubkey` is the shared one, and the repository secrets `TAURI_SIGNING_PRIVATE_KEY` and `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` reach only a release build. `createUpdaterArtifacts` stays `false` in the Windows overlay, so ordinary CI builds sign nothing; a release build turns it on with `--config src-tauri/updater-artifacts.conf.json`. There is no Authenticode certificate: SmartScreen still asks on a first install by hand.
-- **Publishing.** One workflow releases both platforms: `release.yml` (see "Release workflow" below). `.github/workflows/build-windows.yml` builds, smoke-tests and signs the installer and attaches it to the draft. Tooling and tests that stay: `.github/scripts/windows-updater-manifest.mjs`, `minisign.mjs`, `bun run test:windows-updater` (run by `bun run check`).
+- **Publishing.** One workflow releases both platforms: `release.yml` (see "Release workflow" below). `.github/workflows/build-windows.yml` builds, smoke-tests and signs the installer and attaches it to the draft.
 
 ### Release workflow
 

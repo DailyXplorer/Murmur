@@ -23,7 +23,7 @@ reviews:
   path_instructions:
     - path: "src-tauri/**"
       instructions: |
-        main is macOS-only. Do not suggest removing the compile_error guard in lib.rs or adding target_os branches; Windows work belongs on the beta branch.
+        main builds for macOS and Windows (beta). Do not suggest removing the compile_error guard in lib.rs. Windows code sits in a Windows file or behind cfg(target_os = "windows"), never behind cfg(not(target_os = "macos")).
         Flag behavior bugs, dropped errors, races, and permission mistakes. A new unwrap or expect on a fallible path in the changed lines is a bug. Existing unwraps outside the diff are out of scope.
         Logic changes need tests. Do not ask for a drive-by split of a large file.
     - path: "src/**"
