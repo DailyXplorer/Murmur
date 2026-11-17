@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
-import { ciSteps, clippyStep } from "./check.ts";
+import { ciSteps, clippyStep, ignoredAdvisories } from "./check.ts";
 
 assert.deepEqual(
   ciSteps.map((step) => [step.command, ...step.args].join(" ")),
   [
-    "bun audit",
+    "bun audit --ignore GHSA-fc5q-39xc-vjpf",
     "bun run check:translations",
     "bun run check:platforms",
     "bun run test:platforms",
@@ -26,6 +26,12 @@ assert.deepEqual(
     "bun run check:types",
   ],
 );
+
+// An ignored advisory says why it cannot be fixed yet.
+for (const { id, why } of ignoredAdvisories) {
+  assert.match(id, /^GHSA(-[0-9a-z]{4}){3}$/);
+  assert.ok(why.length > 40, `${id} needs its reason`);
+}
 
 const clippy = clippyStep();
 assert.equal(clippy.command, "cargo");
