@@ -17,6 +17,9 @@ const openTranscription = async (page: Page, query = "") => {
     .click();
 };
 
+const openByApp = (page: Page, button = "Customize…") =>
+  page.getByRole("button", { name: button, exact: true }).click();
+
 const kindLanguage = (page: Page, category: string) =>
   page.getByTestId(`language-${category}`).locator('[aria-haspopup="listbox"]');
 
@@ -36,8 +39,9 @@ test("each kind of app dictates in the general language until it gets its own", 
   page,
 }) => {
   await openTranscription(page);
+  await openByApp(page);
   await expect(
-    page.getByRole("heading", { name: "Language by app type" }),
+    page.getByRole("dialog", { name: "Style and language by app type" }),
   ).toBeVisible();
   for (const category of KINDS) {
     await expect(kindLanguage(page, category)).toHaveText("Same as general");
@@ -70,6 +74,7 @@ test("the list of a kind of app is searched like the general one", async ({
   page,
 }) => {
   await openTranscription(page);
+  await openByApp(page);
   await kindLanguage(page, "emails").click();
   await page.getByPlaceholder("Search languages...").fill("fren");
   await expect(page.getByRole("option")).toHaveText(["French"]);
@@ -84,6 +89,7 @@ test("a language by kind of app needs no AI cleanup, unlike a style", async ({
   page,
 }) => {
   await openTranscription(page, "cleanup=off");
+  await openByApp(page);
   await expect(
     page.getByTestId("style-emails").locator('[aria-haspopup="listbox"]'),
   ).toBeDisabled();
@@ -94,8 +100,11 @@ test("the French rows name the general setting and the languages", async ({
   page,
 }) => {
   await openTranscription(page, "lang=fr");
+  await openByApp(page, "Personnaliser…");
   await expect(
-    page.getByRole("heading", { name: "Langue par type d’application" }),
+    page.getByRole("dialog", {
+      name: "Style et langue par type d’application",
+    }),
   ).toBeVisible();
   await expect(kindLanguage(page, "coding")).toHaveText("Réglage général");
   await kindLanguage(page, "coding").click();
@@ -107,6 +116,7 @@ test("a slow save does not take the focus back from where the user went", async 
   page,
 }) => {
   await openTranscription(page, "languageSave=slow");
+  await openByApp(page);
   await kindLanguage(page, "emails").click();
   await page.getByRole("option", { name: "French", exact: true }).click();
 
