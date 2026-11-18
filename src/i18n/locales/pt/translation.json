@@ -565,6 +565,10 @@
         "title": "Buffer de gravação extra",
         "description": "Tempo mínimo (em milissegundos) para continuar gravando após soltar a tecla. O Murmur já mantém uma cauda curta e adaptativa: 200 ms, até 600 ms enquanto você ainda fala. 0 = apenas a cauda adaptativa."
       },
+      "cloudStream": {
+        "label": "Transmitir os ditados para o ChatGPT",
+        "description": "Com a transcrição do ChatGPT, envia o áudio enquanto você fala, para o texto voltar mais rápido. Desativado: a gravação é enviada depois que você para."
+      },
       "whatsNewPreview": {
         "title": "Pré-visualizar novidades",
         "description": "Abrir a nota de versão incorporada mais recente sem marcá-la como vista",

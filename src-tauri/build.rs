@@ -93,6 +93,7 @@ const APP_COMMANDS: &[&str] = &[
     "change_transcription_engine_setting",
     "switch_to_local_when_ready",
     "change_local_stt_card_dismissed_setting",
+    "change_cloud_stream_enabled_setting",
     "get_history_entries",
     "search_history",
     "get_insights",

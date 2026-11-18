@@ -27,6 +27,7 @@ import {
 } from "./settings";
 
 export const RESPONSES: Record<string, unknown> = {
+  change_cloud_stream_enabled_setting: null,
   change_mcp_enabled_setting: null,
   change_mcp_include_dictations_setting: null,
   get_mcp_setup: {

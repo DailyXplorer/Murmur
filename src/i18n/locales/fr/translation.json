@@ -565,6 +565,10 @@
         "title": "Tampon d'enregistrement supplémentaire",
         "description": "Durée minimale (en millisecondes) pendant laquelle l'enregistrement continue après le relâchement de la touche. Murmur garde déjà une courte fin adaptative : 200 ms, jusqu'à 600 ms tant que vous parlez encore. 0 = fin adaptative seulement."
       },
+      "cloudStream": {
+        "label": "Envoyer les dictées à ChatGPT en continu",
+        "description": "Avec la transcription ChatGPT, envoie l’audio pendant que vous parlez, pour que le texte revienne plus vite. Désactivé : l’enregistrement est envoyé une fois que vous avez fini."
+      },
       "whatsNewPreview": {
         "title": "Aperçu des nouveautés",
         "description": "Ouvrir la dernière note de version intégrée sans la marquer comme vue",

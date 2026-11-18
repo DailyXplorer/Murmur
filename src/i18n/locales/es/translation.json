@@ -565,6 +565,10 @@
         "title": "Búfer de grabación adicional",
         "description": "Tiempo mínimo (en milisegundos) que sigue grabando después de soltar la tecla. Murmur ya mantiene un final corto y adaptable: 200 ms, hasta 600 ms mientras sigues hablando. 0 = solo el final adaptable."
       },
+      "cloudStream": {
+        "label": "Transmitir los dictados a ChatGPT",
+        "description": "Con la transcripción de ChatGPT, envía el audio mientras hablas, para que el texto llegue antes. Desactivado: la grabación se sube cuando terminas."
+      },
       "whatsNewPreview": {
         "title": "Vista previa de novedades",
         "description": "Abrir la nota de la versión incluida más reciente sin marcarla como vista",

@@ -565,6 +565,10 @@
         "title": "Buffer di registrazione extra",
         "description": "Tempo minimo (in millisecondi) per cui continuare a registrare dopo aver rilasciato il tasto. Murmur mantiene già una coda breve e adattiva: 200 ms, fino a 600 ms mentre stai ancora parlando. 0 = solo la coda adattiva."
       },
+      "cloudStream": {
+        "label": "Trasmetti le dettature a ChatGPT",
+        "description": "Con la trascrizione di ChatGPT, invia l’audio mentre parli, così il testo arriva prima. Disattivato: la registrazione viene caricata quando hai finito."
+      },
       "whatsNewPreview": {
         "title": "Anteprima delle novità",
         "description": "Apri le note di rilascio incluse più recenti senza segnarle come viste",

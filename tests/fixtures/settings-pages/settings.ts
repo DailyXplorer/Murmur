@@ -111,6 +111,7 @@ export const SETTINGS: AppSettings = {
   },
   clamshell_microphone: null,
   clipboard_handling: "dont_modify",
+  cloud_stream_enabled: true,
   custom_words: ["Murmur", "Tauri", "Playwright"],
   debug_mode: params.get("debug") !== "0",
   dictation_style: dictationStyle,
