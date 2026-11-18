@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
   <key>NSMicrophoneUsageDescription</key>
-  <string>Request microphone access to transcribe speech with your selected cloud provider</string>
+  <string>Murmur uses the microphone to transcribe what you dictate and the meetings you record.</string>
   <key>NSAudioCaptureUsageDescription</key>
   <string>Murmur records audio from other apps during a meeting you start, so it can transcribe what remote participants say.</string>
 </dict>
