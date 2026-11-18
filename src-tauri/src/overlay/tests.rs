@@ -318,3 +318,66 @@ fn a_cancel_after_the_paste_keeps_the_microphone_warning() {
     assert!(hold_mic_lost_notice(&mut notice, &pasted));
     assert!(matches!(notice, Some(Notice::MicLost)));
 }
+
+fn settings_with(
+    live_text: bool,
+    style: OverlayStyle,
+    engine: crate::engine::Engine,
+) -> crate::settings::AppSettings {
+    crate::settings::AppSettings {
+        dictation_live_text: live_text,
+        overlay_style: style,
+        transcription_engine: engine,
+        ..crate::settings::get_default_settings()
+    }
+}
+
+#[test]
+fn the_dictation_window_is_wide_only_when_the_words_show_in_it() {
+    let orb = (66.0, 66.0);
+    assert_eq!(
+        dictation_window_size(&crate::settings::get_default_settings()),
+        orb
+    );
+    use crate::engine::Engine::{Cloud, Local};
+    let (off, minimal) = (OverlayStyle::None, OverlayStyle::Minimal);
+    // (the setting, the overlay style, the engine chosen, whether the
+    // words show, the window)
+    let rows = [
+        (false, minimal, Cloud, false, orb),
+        (false, minimal, Local, false, orb),
+        (false, off, Cloud, false, orb),
+        (false, off, Local, false, orb),
+        (true, off, Cloud, false, orb),
+        (true, off, Local, false, orb),
+        (true, minimal, Local, false, orb),
+        (true, minimal, Cloud, true, (472.0, 66.0)),
+    ];
+    for (live_text, style, engine, words, window) in rows {
+        let settings = settings_with(live_text, style, engine);
+        let case = format!("{live_text} {style:?} {engine:?}");
+        assert_eq!(shown(&settings), words, "{case}");
+        assert_eq!(dictation_window_size(&settings), window, "{case}");
+    }
+}
+
+#[test]
+fn the_text_of_a_dictation_reaches_its_own_overlay_and_no_other() {
+    // Its recording takes the overlay, and its stream opens.
+    let mut recording = recording_shown("recording", DictationEpoch(4), DictationEpoch(1));
+    let opened = recording;
+    assert!(reaches(opened, recording, true));
+
+    // Its transcribing state moves the overlay's epoch on. The final text
+    // comes then, and still shows.
+    recording = recording_shown("transcribing", DictationEpoch(5), recording);
+    assert!(reaches(opened, recording, true));
+
+    assert!(!reaches(opened, recording, false), "the overlay hid");
+
+    // Another dictation records, then transcribes.
+    recording = recording_shown("recording", DictationEpoch(6), recording);
+    assert!(!reaches(opened, recording, true));
+    recording = recording_shown("transcribing", DictationEpoch(7), recording);
+    assert!(!reaches(opened, recording, true));
+}

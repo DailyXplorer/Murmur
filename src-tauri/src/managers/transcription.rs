@@ -340,7 +340,8 @@ impl TranscriptionManager {
     /// At the start of a recording: opens the parked stream to ChatGPT when
     /// this dictation is to go there, in the general dictation language. From
     /// then on the audio leaves this Mac while the user speaks. Otherwise the
-    /// audio that waited for the stream is dropped.
+    /// audio that waited for the stream is dropped. The overlay hears the
+    /// stream's text when it is to show it (`dictation_live_text`).
     pub fn open_cloud_stream(&self) {
         let settings = get_settings(&self.app_handle);
         let conditions = self.conditions(&settings);
@@ -356,7 +357,7 @@ impl TranscriptionManager {
             ),
             signed_in: conditions.signed_in,
             language: &settings.selected_language,
-            listener: None,
+            listener: crate::overlay::live_text_listener(&self.app_handle, &settings),
         });
     }
 
