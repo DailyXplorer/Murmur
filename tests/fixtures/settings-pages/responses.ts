@@ -36,6 +36,7 @@ export const RESPONSES: Record<string, unknown> = {
   },
   change_meeting_audio_retention_setting: null,
   change_meeting_call_prompt_setting: null,
+  change_meeting_on_device_setting: null,
   change_meeting_capture_mode_setting: null,
   get_meetings_storage: {
     audio_bytes: meetingsStorageBytes,

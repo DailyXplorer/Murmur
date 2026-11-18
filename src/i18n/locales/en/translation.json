@@ -413,6 +413,11 @@
         "description": "Shows the meeting's text while you record. It is made on this Mac by the local model, never in the cloud.",
         "descriptionWindows": "Shows the meeting's text while you record. It is made on this PC by the local model, never in the cloud."
       },
+      "meetingOnDevice": {
+        "label": "On-device meeting transcript",
+        "description": "The local model writes the meeting's transcript, so its audio stays on this Mac. Only the text goes to ChatGPT, for the title and the summary. ChatGPT still transcribes when the local model is not ready, or when your language is not one of the 25 it covers.",
+        "descriptionWindows": "The local model writes the meeting's transcript, so its audio stays on this PC. Only the text goes to ChatGPT, for the title and the summary. ChatGPT still transcribes when the local model is not ready, or when your language is not one of the 25 it covers."
+      },
       "meetingsAudio": {
         "title": "Delete meeting audio",
         "description": "Deletes the audio of processed meetings after the chosen time, to save space. Transcripts and summaries are kept.",

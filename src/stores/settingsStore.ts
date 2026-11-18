@@ -319,6 +319,8 @@ const settingUpdaters: {
     commands.changeMcpIncludeDictationsSetting(value as boolean),
   meeting_live_transcript: (value) =>
     commands.changeMeetingLiveTranscriptSetting(value as boolean),
+  meeting_on_device: (value) =>
+    commands.changeMeetingOnDeviceSetting(value as boolean),
   transcription_engine: (value) =>
     commands.changeTranscriptionEngineSetting(value as Engine),
   local_stt_card_dismissed: (value) =>

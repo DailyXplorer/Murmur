@@ -413,6 +413,11 @@
         "description": "Zeigt den Text des Meetings während der Aufnahme. Er entsteht auf diesem Mac mit dem lokalen Modell, nie in der Cloud.",
         "descriptionWindows": "Zeigt den Text des Meetings während der Aufnahme. Er entsteht auf diesem PC mit dem lokalen Modell, nie in der Cloud."
       },
+      "meetingOnDevice": {
+        "label": "Transkript von Meetings auf dem Gerät",
+        "description": "Das lokale Modell schreibt das Transkript des Meetings, das Audio bleibt also auf diesem Mac. Nur der Text geht an ChatGPT, für Titel und Zusammenfassung. ChatGPT transkribiert weiterhin, wenn das lokale Modell nicht bereit ist oder deine Sprache nicht zu den 25 gehört, die es abdeckt.",
+        "descriptionWindows": "Das lokale Modell schreibt das Transkript des Meetings, das Audio bleibt also auf diesem PC. Nur der Text geht an ChatGPT, für Titel und Zusammenfassung. ChatGPT transkribiert weiterhin, wenn das lokale Modell nicht bereit ist oder deine Sprache nicht zu den 25 gehört, die es abdeckt."
+      },
       "meetingsAudio": {
         "title": "Meeting-Audio löschen",
         "description": "Löscht das Audio verarbeiteter Meetings nach der gewählten Zeit, um Speicherplatz zu sparen. Transkripte und Zusammenfassungen bleiben erhalten.",

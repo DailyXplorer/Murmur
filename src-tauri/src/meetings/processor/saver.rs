@@ -94,6 +94,10 @@ impl RunObserver for Saver {
                 self.answered.store(true, Ordering::SeqCst);
                 self.store.chunk_done(self.id, job.track, job.idx, text)
             }
+            Outcome::DoneOnDevice(text) => {
+                self.done.fetch_add(1, Ordering::SeqCst);
+                self.store.chunk_done(self.id, job.track, job.idx, text)
+            }
             Outcome::DoneLocally { text, codex } => {
                 self.done.fetch_add(1, Ordering::SeqCst);
                 self.codex_out(*codex);

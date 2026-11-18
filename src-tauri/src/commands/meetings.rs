@@ -438,6 +438,15 @@ pub fn change_meeting_live_transcript_setting(app: AppHandle, enabled: bool) -> 
     Ok(())
 }
 
+/// Applies from the next meeting processed: one being transcribed goes on
+/// as it started.
+#[tauri::command]
+#[specta::specta]
+pub fn change_meeting_on_device_setting(app: AppHandle, enabled: bool) -> Result<(), String> {
+    update_settings(&app, |settings| settings.meeting_on_device = enabled);
+    Ok(())
+}
+
 /// The live transcript of meeting `id`, or the draft a crash left of it.
 /// `None` once the final transcript replaced it.
 #[tauri::command]

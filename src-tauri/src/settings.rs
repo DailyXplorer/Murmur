@@ -173,6 +173,10 @@ pub struct AppSettings {
     /// local model is ready.
     #[serde(default = "default_meeting_live_transcript")]
     pub meeting_live_transcript: bool,
+    /// Transcribes meetings on this Mac when the local model is ready, so
+    /// their audio is not uploaded. Off: Codex transcribes them.
+    #[serde(default)]
+    pub meeting_on_device: bool,
     /// Which engine transcribes dictations.
     #[serde(default)]
     pub transcription_engine: Engine,

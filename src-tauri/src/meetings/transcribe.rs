@@ -162,6 +162,9 @@ pub enum Outcome {
         text: String,
         codex: FailureKind,
     },
+    /// This Mac transcribed the piece because the meeting stays on it: Codex
+    /// was not asked.
+    DoneOnDevice(String),
     Failed(FailureKind),
 }
 
@@ -211,6 +214,9 @@ pub struct Runner {
     pub transcriber: Arc<dyn Transcriber>,
     /// Takes the pieces Codex refuses for good; `None` without a ready model.
     pub local: Option<Arc<dyn Transcriber>>,
+    /// The meeting stays on this Mac: `local` transcribes every piece and
+    /// no audio goes to Codex. Without `local`, Codex transcribes as usual.
+    pub on_device: bool,
     pub source: Arc<dyn ChunkSource>,
     pub observer: Arc<dyn RunObserver>,
     pub policy: RetryPolicy,
@@ -311,6 +317,31 @@ impl Shared {
         }
     }
 
+    /// The model that transcribes every piece of a meeting that stays on
+    /// this Mac.
+    fn on_device(&self) -> Option<&Arc<dyn Transcriber>> {
+        self.runner.local.as_ref().filter(|_| self.runner.on_device)
+    }
+
+    /// A piece of a meeting that stays on this Mac. A failure is final: the
+    /// audio does not go to Codex instead.
+    async fn kept_on_device(&self, local: &Arc<dyn Transcriber>, samples: Vec<f32>) -> Attempt {
+        match local
+            .transcribe(samples, None, self.operation.clone())
+            .await
+        {
+            Ok(text) => Attempt::Outcome(Outcome::DoneOnDevice(text.trim().to_string())),
+            Err(_) if self.operation.is_cancelled() => Attempt::Stopped,
+            Err(error) => {
+                log::warn!(
+                    "Local transcription of a meeting piece failed: {}",
+                    error.detail
+                );
+                Attempt::Outcome(Outcome::Failed(FailureKind::LocalFailed))
+            }
+        }
+    }
+
     async fn sleep(&self, delay: Duration) {
         tokio::select! {
             _ = self.operation.cancelled() => {}
@@ -334,6 +365,12 @@ impl Shared {
             };
             let samples =
                 normalize_quiet_speech(&samples, GainProfile::new(false)).unwrap_or(samples);
+            if let Some(local) = self.on_device() {
+                if self.operation.is_cancelled() {
+                    return Attempt::Stopped;
+                }
+                return self.kept_on_device(local, samples).await;
+            }
             let policy = &self.runner.policy;
             let mut transient = 0;
             let mut rate_limits = 0u32;
@@ -440,7 +477,7 @@ fn joined(first: Outcome, second: Outcome) -> Outcome {
     let mut texts = Vec::with_capacity(2);
     for half in [first, second] {
         match half {
-            Outcome::Done(text) => texts.push(text),
+            Outcome::Done(text) | Outcome::DoneOnDevice(text) => texts.push(text),
             Outcome::DoneLocally { text, codex } => {
                 local.get_or_insert(codex);
                 texts.push(text);

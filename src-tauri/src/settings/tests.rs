@@ -574,6 +574,17 @@ fn call_rules_saved_by_1_10_are_removed_from_the_file_at_launch() {
 }
 
 #[test]
+fn settings_saved_before_meetings_could_stay_on_device_send_them_to_codex() {
+    let mut stored = default_settings_json();
+    stored.as_object_mut().unwrap().remove("meeting_on_device");
+
+    assert!(!parse_stored_settings(&stored).0.meeting_on_device);
+    assert!(!get_default_settings().meeting_on_device);
+    stored["meeting_on_device"] = serde_json::json!(true);
+    assert!(parse_stored_settings(&stored).0.meeting_on_device);
+}
+
+#[test]
 fn settings_saved_before_live_transcripts_show_them_and_leave_the_paste_unbound() {
     let mut stored = default_settings_json();
     stored

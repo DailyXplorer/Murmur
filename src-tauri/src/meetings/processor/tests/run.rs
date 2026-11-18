@@ -296,3 +296,59 @@ fn the_timing_log_gives_each_stage_and_the_speed() {
     );
     assert!(timings_line(0, &[], Duration::ZERO).ends_with("total 0.0 s"));
 }
+
+#[test]
+fn a_meeting_kept_on_this_mac_asks_codex_for_the_summary_only() {
+    let local = codex(|seconds| Ok(format!("Sur ce Mac, {seconds} secondes.")));
+    let h = Harness {
+        local: Some(Arc::clone(&local) as Arc<dyn Transcriber>),
+        on_device: true,
+        ..harness()
+    };
+    let id = spoken_meeting(&h);
+    let cloud = codex(|_| Ok("Dans le cloud.".to_string()));
+    let summarizer = FakeSummarizer::answering(vec![]);
+
+    let verdict = h.process_all(
+        id,
+        Arc::clone(&cloud),
+        Arc::new(FakeAnalyzer::without_models()),
+        Arc::clone(&summarizer),
+    );
+
+    assert!(
+        cloud.calls.lock().unwrap().is_empty(),
+        "audio went to Codex"
+    );
+    let meeting = h.store.get(id).unwrap().unwrap();
+    assert_eq!(meeting.status, MeetingStatus::Ready);
+    assert!(meeting
+        .turns
+        .iter()
+        .all(|turn| turn.text.contains("Sur ce Mac")));
+    assert_eq!(
+        meeting.local_fallback_ms, 0,
+        "nothing fell back: it was asked for"
+    );
+    assert_eq!(summarizer.calls(), 1);
+    assert_eq!(meeting.summary_status, SummaryStatus::Ready);
+    assert_eq!(verdict, CodexVerdict::Answered);
+}
+
+#[test]
+fn a_language_the_local_model_does_not_cover_still_goes_to_codex() {
+    let local = codex(|_| Ok("Sur ce Mac.".to_string()));
+    let h = Harness {
+        local: Some(Arc::clone(&local) as Arc<dyn Transcriber>),
+        on_device: true,
+        language: Some("ja"),
+        ..harness()
+    };
+    let id = spoken_meeting(&h);
+    let cloud = codex(|_| Ok("Dans le cloud.".to_string()));
+
+    h.process(id, Arc::clone(&cloud));
+
+    assert!(local.calls.lock().unwrap().is_empty());
+    assert!(!cloud.calls.lock().unwrap().is_empty());
+}

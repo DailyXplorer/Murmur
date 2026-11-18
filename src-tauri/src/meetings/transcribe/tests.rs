@@ -258,6 +258,21 @@ fn run_with_local(
     operation: ProcessingOperation,
     local: Option<Arc<dyn Transcriber>>,
 ) -> Run {
+    run_as(server, jobs, operation, local, false)
+}
+
+/// A run of a meeting that stays on this Mac.
+fn run_on_device(server: &FakeServer, jobs: Vec<Job>, local: Option<Arc<dyn Transcriber>>) -> Run {
+    run_as(server, jobs, operation(), local, true)
+}
+
+fn run_as(
+    server: &FakeServer,
+    jobs: Vec<Job>,
+    operation: ProcessingOperation,
+    local: Option<Arc<dyn Transcriber>>,
+    on_device: bool,
+) -> Run {
     let dir = tempfile::tempdir().unwrap();
     auth_file(dir.path(), "token-0");
     let recorder = Arc::new(Recorder::default());
@@ -267,6 +282,7 @@ fn run_with_local(
             auth_path: Some(dir.path().join("auth.json")),
         }),
         local,
+        on_device,
         source: Arc::new(Silence),
         observer: Arc::clone(&recorder) as Arc<dyn RunObserver>,
         policy: quick_policy(),
@@ -463,6 +479,7 @@ fn run_through<C: Transcriber + 'static>(
     let runner = Runner {
         transcriber: Arc::clone(codex) as Arc<dyn Transcriber>,
         local,
+        on_device: false,
         source: Arc::new(Silence),
         observer: Arc::clone(&recorder) as Arc<dyn RunObserver>,
         policy: quick_policy(),
@@ -665,6 +682,53 @@ fn a_refused_piece_goes_to_this_mac_and_a_server_failure_does_not() {
 }
 
 #[test]
+fn a_meeting_kept_on_this_mac_sends_nothing_to_codex() {
+    let server = serve(Box::new(|_, _| ok("De Codex.")));
+    let local = FakeLocal::answering();
+
+    let run = run_on_device(
+        &server,
+        jobs(3, 1_000),
+        Some(Arc::clone(&local) as Arc<dyn Transcriber>),
+    );
+
+    assert_eq!(run.end, RunEnd::Finished);
+    assert!(server.requests.lock().unwrap().is_empty());
+    assert_eq!(
+        outcomes(&run),
+        [0, 1, 2].map(|idx| (idx, Outcome::DoneOnDevice("local 16000".into())))
+    );
+    assert_eq!(local.calls.load(Ordering::SeqCst), 3);
+}
+
+#[test]
+fn a_piece_that_fails_on_this_mac_is_not_sent_to_codex() {
+    let server = serve(Box::new(|_, _| ok("De Codex.")));
+
+    let run = run_on_device(
+        &server,
+        jobs(2, 1_000),
+        Some(FakeLocal::failing() as Arc<dyn Transcriber>),
+    );
+
+    assert_eq!(run.end, RunEnd::Finished);
+    assert!(server.requests.lock().unwrap().is_empty());
+    assert_eq!(
+        outcomes(&run),
+        [0, 1].map(|idx| (idx, Outcome::Failed(FailureKind::LocalFailed)))
+    );
+}
+
+#[test]
+fn without_a_ready_model_a_meeting_kept_on_this_mac_goes_to_codex() {
+    let server = serve(Box::new(|_, _| ok("De Codex.")));
+
+    let run = run_on_device(&server, jobs(1, 1_000), None);
+
+    assert_eq!(outcomes(&run), [(0, Outcome::Done("De Codex.".into()))]);
+}
+
+#[test]
 fn a_lost_session_with_a_ready_model_still_finishes_the_meeting() {
     let server = serve(Box::new(|_, _| (401, r#"{"detail":"expired"}"#.into())));
     let run = run_with_local(
@@ -847,6 +911,7 @@ fn a_lost_session_stops_every_piece_not_yet_sent() {
             auth_path: Some(dir.path().join("auth.json")),
         }),
         local: None,
+        on_device: false,
         source: Arc::new(Silence),
         observer: Arc::clone(&recorder) as Arc<dyn RunObserver>,
         policy: quick_policy(),
@@ -883,6 +948,7 @@ fn a_refreshed_session_is_used_after_one_unauthorized_answer() {
             auth_path: Some(dir.path().join("auth.json")),
         }),
         local: None,
+        on_device: false,
         source: Arc::new(Silence),
         observer: Arc::clone(&recorder) as Arc<dyn RunObserver>,
         policy: quick_policy(),

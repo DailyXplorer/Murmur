@@ -129,6 +129,7 @@ export const SETTINGS: AppSettings = {
   mcp_enabled: params.get("mcp") === "1",
   mcp_include_dictations: params.get("mcpDictations") === "1",
   meeting_live_transcript: true,
+  meeting_on_device: false,
   meetings_enabled: meetingsEnabled,
   mute_while_recording: false,
   onboarding_completed: !showOnboarding,
