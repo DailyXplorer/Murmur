@@ -18,8 +18,6 @@ use serde::{Deserialize, Serialize};
 use specta::Type;
 use std::time::{Duration, Instant};
 
-/// Short: a dictation that waits ends with the raw text anyway.
-pub(crate) const CONNECT_TIMEOUT: Duration = Duration::from_secs(3);
 const BASE_DEADLINE: Duration = Duration::from_millis(2_500);
 const MAX_DEADLINE: Duration = Duration::from_secs(6);
 /// Output streams at a few hundred characters a second, so a long dictation
@@ -193,7 +191,6 @@ async fn ask_for_cleanup(
         max_output_chars: reply::max_output_chars(raw.chars().count()),
         effort: "low",
         verbosity: "low",
-        connect_timeout: CONNECT_TIMEOUT,
     };
     responses::complete(url, session, &request, operation).await
 }

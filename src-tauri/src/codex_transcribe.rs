@@ -317,7 +317,7 @@ async fn transcribe_with_session_at(
     operation: &ProcessingOperation,
 ) -> Result<String, RequestError> {
     let failed = |kind, detail: String| RequestError::Failed(TranscriptionError::new(kind, detail));
-    let client = crate::http::client(CONNECT_TIMEOUT).map_err(|error| {
+    let client = crate::http::client().map_err(|error| {
         failed(
             FailureKind::Other,
             format!("failed to build transcription HTTP client: {error}"),
@@ -357,7 +357,7 @@ async fn transcribe_with_session_at(
         response = request.send() => response.map_err(|error| {
             // Any transport failure may mean a dead pooled connection or a
             // changed network or proxy: the next request starts fresh.
-            crate::http::forget_all();
+            crate::http::forget();
             failed(
                 FailureKind::from_transport(&error),
                 format!("Codex transcription request failed: {error}"),

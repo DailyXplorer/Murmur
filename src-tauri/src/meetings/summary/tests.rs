@@ -2,12 +2,6 @@ use super::*;
 use crate::OperationId;
 use std::sync::Mutex;
 
-#[test]
-fn a_summary_connects_on_any_link_a_transcription_connects_on() {
-    let request = summary_request("model", "instructions", "transcript");
-    assert!(request.connect_timeout >= crate::codex_transcribe::CONNECT_TIMEOUT);
-}
-
 fn speaker(key: &str, name: &str) -> MeetingSpeaker {
     MeetingSpeaker {
         key: key.into(),
