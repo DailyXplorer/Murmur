@@ -210,6 +210,8 @@ The only text that may stay inline is a live status that is not an explanation, 
 
 **Insights share = one square light card, no options.** The Share button at the bottom of Insights opens one dialog with one 1080 x 1080 card (`src/components/settings/insights/share/`), light and pink whatever the app theme or accent, and two actions: Save PNG and Copy image. No format, theme or include toggles. The card holds numbers and the heatmap levels only (`ShareStats` is its whole input): never transcript text, app names or vocabulary. It shows the figures the page shows, with the page's formats. The webview draws the PNG (`html-to-image`); `copy_insights_card` and `save_insights_card` (`insights/share.rs`) copy and save it, with the platform's own save dialog. The footer prints the public site, `murmur-desktop.vercel.app`. A change to the card keeps the design's look (`tests/insights-share.spec.ts` renders it with sample and huge numbers in the six locales).
 
+**Star on GitHub = the last About row and a sidebar button.** About ends with "Like Murmur?" and its "Give a star" button, and the sidebar has a star button at its bottom on every page. Both open the project page (`openProjectPage`, `src/lib/projectPage.ts`), where the user clicks Star: GitHub has no link that stars a repository. The sidebar button is not a section (not in `SECTIONS_CONFIG`, never current), so a test that walks the sections reads the first `nav > div`. Its label has about 91 px: `tests/star-on-github.spec.ts` fails a locale whose `sidebar.star` leaves under 2 px.
+
 ## CLI Parameters
 
 Murmur supports command-line parameters for integration with scripts and autostart configurations.
