@@ -415,8 +415,8 @@
       },
       "meetingOnDevice": {
         "label": "Transkript von Meetings auf dem Gerät",
-        "description": "Das lokale Modell schreibt das Transkript des Meetings, das Audio bleibt also auf diesem Mac. Nur der Text geht an ChatGPT, für Titel und Zusammenfassung. ChatGPT transkribiert weiterhin, wenn das lokale Modell nicht heruntergeladen ist oder deine Sprache nicht zu den 25 gehört, die es abdeckt.",
-        "descriptionWindows": "Das lokale Modell schreibt das Transkript des Meetings, das Audio bleibt also auf diesem PC. Nur der Text geht an ChatGPT, für Titel und Zusammenfassung. ChatGPT transkribiert weiterhin, wenn das lokale Modell nicht heruntergeladen ist oder deine Sprache nicht zu den 25 gehört, die es abdeckt."
+        "description": "Das lokale Modell schreibt das Transkript des Meetings, das Audio bleibt also auf diesem Mac. Nur der Text geht an ChatGPT, für Titel und Zusammenfassung. ChatGPT transkribiert weiterhin, wenn das lokale Modell nicht bereit ist oder deine Sprache nicht zu den 25 gehört, die es abdeckt.",
+        "descriptionWindows": "Das lokale Modell schreibt das Transkript des Meetings, das Audio bleibt also auf diesem PC. Nur der Text geht an ChatGPT, für Titel und Zusammenfassung. ChatGPT transkribiert weiterhin, wenn das lokale Modell nicht bereit ist oder deine Sprache nicht zu den 25 gehört, die es abdeckt."
       },
       "meetingsAudio": {
         "title": "Meeting-Audio löschen",

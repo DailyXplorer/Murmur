@@ -415,8 +415,8 @@
       },
       "meetingOnDevice": {
         "label": "Transcrição das reuniões no dispositivo",
-        "description": "O modelo local escreve a transcrição da reunião, então o áudio dela fica neste Mac. Só o texto vai para o ChatGPT, para o título e o resumo. O ChatGPT ainda transcreve se o modelo local não estiver baixado ou se o seu idioma não for um dos 25 que ele cobre.",
-        "descriptionWindows": "O modelo local escreve a transcrição da reunião, então o áudio dela fica neste PC. Só o texto vai para o ChatGPT, para o título e o resumo. O ChatGPT ainda transcreve se o modelo local não estiver baixado ou se o seu idioma não for um dos 25 que ele cobre."
+        "description": "O modelo local escreve a transcrição da reunião, então o áudio dela fica neste Mac. Só o texto vai para o ChatGPT, para o título e o resumo. O ChatGPT ainda transcreve se o modelo local não estiver pronto ou se o seu idioma não for um dos 25 que ele cobre.",
+        "descriptionWindows": "O modelo local escreve a transcrição da reunião, então o áudio dela fica neste PC. Só o texto vai para o ChatGPT, para o título e o resumo. O ChatGPT ainda transcreve se o modelo local não estiver pronto ou se o seu idioma não for um dos 25 que ele cobre."
       },
       "meetingsAudio": {
         "title": "Apagar o áudio das reuniões",

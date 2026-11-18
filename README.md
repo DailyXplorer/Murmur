@@ -482,8 +482,8 @@ a cleanup request. Password fields and password managers are never read.
 Meetings stay on the Mac, apart from two requests: the audio pieces sent to
 Codex for transcription, and the transcript sent to Codex for the summary.
 With **On-device meeting transcript** on in Settings > Advanced (off by
-default), the local model transcribes the meeting when it is downloaded and
-your language is one it covers, and only the transcript leaves the Mac.
+default), the local model transcribes the meeting when it is ready and your
+language is one it covers, and only the transcript leaves the Mac.
 Speaker detection runs on the Mac. Its models are downloaded from Hugging
 Face once. An AI assistant you connect through `murmur mcp` reads meetings on
 the Mac, but what it reads is then sent to its own servers.
