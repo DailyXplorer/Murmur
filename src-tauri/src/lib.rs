@@ -15,6 +15,7 @@ pub mod cli;
 mod clipboard;
 mod codex_auth;
 mod codex_login;
+mod codex_stream;
 mod codex_transcribe;
 mod commands;
 #[cfg(target_os = "windows")]
