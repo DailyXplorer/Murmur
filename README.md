@@ -278,7 +278,10 @@ warning 5 minutes before.
   they aren't there yet. Without them, or on
   macOS 14, where FluidAudio's speaker model crashes, each track keeps one
   speaker.
-- Once the transcript is complete, Codex writes a title and a summary. The
+- Once the transcript is complete, Codex writes a title and a summary, and
+  a speaker whose name was said in the meeting ("this is Marie", or someone
+  calls them by it and they answer) is shown under it. The others stay
+  "Speaker 2" until you rename them, and a name you gave is never replaced. The
   two tracks are then kept as one compressed `audio.m4a` (about 30 MB per
   hour), which you can delete while keeping the text. Deleting a meeting, or
   its audio, moves it to the macOS Trash (the Recycle Bin on Windows) with

@@ -603,21 +603,31 @@
       "missing": "Nicht angemeldet",
       "groups": {
         "processing": "Textverarbeitung",
-        "styleByApp": "Stil nach App-Typ",
-        "languageByApp": "Sprache nach App-Typ",
+        "byApp": "Nach App-Typ",
         "output": "Ausgabe",
         "engine": "So transkribiert Murmur"
       },
       "styleByApp": {
-        "description": "Der Stil von Diktaten in dieser Art von App. „Wie allgemein“ folgt dem Diktierstil, und „Ohne Bereinigung“ fügt den Text so ein, wie er transkribiert wurde.",
         "options": {
           "general": "Wie allgemein",
           "off": "Ohne Bereinigung"
         }
       },
       "languageByApp": {
-        "description": "Die Sprache von Diktaten in dieser Art von App. „Wie allgemein“ folgt der unter „Allgemein“ gewählten Sprache.",
         "error": "Die Sprache konnte nicht geändert werden."
+      },
+      "byApp": {
+        "title": "Stil und Sprache",
+        "description": "Jede Art von App kann einen eigenen Diktierstil und eine eigene Sprache haben: förmlich in E-Mails, eine andere Sprache im Code-Editor. „Wie allgemein“ folgt Ihren allgemeinen Einstellungen.",
+        "customize": "Anpassen…",
+        "customized_one": "{{count}} App-Typ angepasst",
+        "customized_other": "{{count}} App-Typen angepasst",
+        "dialogTitle": "Stil und Sprache nach App-Typ",
+        "columns": {
+          "kind": "App-Typ",
+          "style": "Stil",
+          "language": "Sprache"
+        }
       },
       "sessionExpired": "Sitzung abgelaufen, melde dich erneut an",
       "aiCleanup": {
@@ -894,7 +904,7 @@
     },
     "renameDialog": {
       "title": "Sprecher umbenennen",
-      "description": "Ein neuer Name erscheint überall in diesem Meeting.",
+      "description": "Ein neuer Name erscheint überall in diesem Meeting. Murmur benennt einen Sprecher selbst, wenn das Gespräch sagt, wer er ist.",
       "nameLabel": "Name für {{name}}",
       "save": "Sichern",
       "error": "Der Sprecher konnte nicht umbenannt werden."

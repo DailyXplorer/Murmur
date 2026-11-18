@@ -37,5 +37,10 @@ installer has no Windows certificate, so SmartScreen asks once. PCs on Beta 7
 or 8 update by themselves. Nothing changes for Mac users.
 ```
 
+The Windows app shows the same notes after an update, without this closing
+section (`platformNotes.ts`): it tells a Mac reader where to download an
+installer that the PC just ran. What is new for a PC goes in the sections
+above it, never only in this one.
+
 A release built with `windows` off (a Mac-only fix) says so in one line. Test
 releases (`x.y.z-test.N`) use the notes of `x.y.z`.

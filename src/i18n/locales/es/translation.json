@@ -603,21 +603,31 @@
       "missing": "Sin iniciar sesión",
       "groups": {
         "processing": "Procesamiento de texto",
-        "styleByApp": "Estilo por tipo de app",
-        "languageByApp": "Idioma por tipo de app",
+        "byApp": "Por tipo de app",
         "output": "Salida",
         "engine": "Cómo transcribe Murmur"
       },
       "styleByApp": {
-        "description": "El estilo de los dictados en este tipo de app. «Como el general» sigue el estilo de dictado, y «Sin limpieza» pega el texto tal como se transcribe.",
         "options": {
           "general": "Como el general",
           "off": "Sin limpieza"
         }
       },
       "languageByApp": {
-        "description": "El idioma de los dictados en este tipo de app. «Como el general» sigue el idioma elegido en General.",
         "error": "No se pudo cambiar el idioma."
+      },
+      "byApp": {
+        "title": "Estilo e idioma",
+        "description": "Cada tipo de app puede tener su propio estilo de dictado y su propio idioma: formal en los correos, otro idioma en un editor de código. «Como el general» sigue tus ajustes generales.",
+        "customize": "Personalizar…",
+        "customized_one": "{{count}} tipo de app personalizado",
+        "customized_other": "{{count}} tipos de app personalizados",
+        "dialogTitle": "Estilo e idioma por tipo de app",
+        "columns": {
+          "kind": "Tipo de app",
+          "style": "Estilo",
+          "language": "Idioma"
+        }
       },
       "sessionExpired": "Sesión caducada, vuelve a iniciar sesión",
       "aiCleanup": {
@@ -894,7 +904,7 @@
     },
     "renameDialog": {
       "title": "Renombrar participantes",
-      "description": "El nuevo nombre aparece en toda la reunión.",
+      "description": "El nuevo nombre aparece en toda la reunión. Murmur nombra por sí mismo a un participante cuando la conversación dice quién es.",
       "nameLabel": "Nombre para {{name}}",
       "save": "Guardar",
       "error": "No se pudo renombrar al participante."

@@ -151,7 +151,7 @@ fn play_audio_file(
             match found_device {
                 Some(device) => OutputStreamBuilder::from_device(device)?,
                 None => {
-                    warn!("Device '{}' not found, using default device", device_name);
+                    warn!("The chosen output device was not found, using the default device");
                     OutputStreamBuilder::from_default_device()?
                 }
             }

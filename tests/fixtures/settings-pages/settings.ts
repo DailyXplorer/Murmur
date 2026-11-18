@@ -20,6 +20,9 @@ export const theme = (params.get("theme") ?? "light") as AppSettings["theme"];
 /** `platform=windows` runs the Windows build, with its Ctrl+Win default. */
 export const windows = params.get("platform") === "windows";
 export const transcribeBinding = windows ? "ctrl+super" : "option+space";
+/** `seenNotes=1.15.0`: the app was updated since the release notes of that
+ * version were read, and shows what is new. */
+const seenNotes = params.get("seenNotes");
 /**
  * `keyboard=azerty` reads a French AZERTY layout as Windows reports it, and
  * saves recorded shortcuts; `keyboard=qwerty` a US one. A test can switch
@@ -141,7 +144,7 @@ export const SETTINGS: AppSettings = {
   selected_microphone: "Default",
   selected_output_device: "Default",
   show_tray_icon: true,
-  show_whats_new_on_update: false,
+  show_whats_new_on_update: seenNotes !== null,
   sound_theme: "marimba",
   start_hidden: false,
   theme,
@@ -149,7 +152,7 @@ export const SETTINGS: AppSettings = {
   transcription_engine: engine,
   update_checks_enabled: true,
   update_checks_turned_on_once: windows,
-  whats_new_last_seen_version: "1.3.7",
+  whats_new_last_seen_version: seenNotes ?? "1.3.7",
   whisper_mode: false,
   window_names_enabled: true,
   word_correction_threshold: 0.18,

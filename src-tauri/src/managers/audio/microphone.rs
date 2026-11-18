@@ -213,7 +213,7 @@ impl AudioRecordingManager {
         // fails at open, where the caller invalidates and retries fresh.
         if let Some((cached_name, device)) = self.cached_device.lock().unwrap().as_ref() {
             if *cached_name == device_name {
-                debug!("device resolve: cache hit for '{}'", device_name);
+                debug!("device resolve: cache hit");
                 return MicrophoneResolution {
                     device: Some(device.clone()),
                     unavailable_selected_microphone: None,

@@ -291,26 +291,18 @@ impl TranscriptionManager {
     /// At the start of a recording: opens the connection to ChatGPT when this
     /// dictation will use it (the cloud engine, or Codex cleanup), so the
     /// handshake overlaps the speaking time. Sends no audio and no text.
-    pub fn warm_cloud_connections(&self) {
+    pub fn warm_cloud_connection(&self) {
         let settings = get_settings(&self.app_handle);
         let route = engine::route(settings.transcription_engine, self.conditions(&settings));
-        if matches!(
+        let transcribes = matches!(
             route,
             Route::Run(EngineUsed {
                 engine: Engine::Cloud,
                 ..
             })
-        ) {
-            crate::http::warm_up(
-                crate::codex_transcribe::CONNECT_TIMEOUT,
-                crate::codex_transcribe::TRANSCRIBE_URL,
-            );
-        }
-        if settings.ai_cleanup_enabled && crate::cleanup::available() {
-            crate::http::warm_up(
-                crate::cleanup::CONNECT_TIMEOUT,
-                crate::cleanup::responses::RESPONSES_URL,
-            );
+        );
+        if transcribes || (settings.ai_cleanup_enabled && crate::cleanup::available()) {
+            crate::http::warm_up(crate::codex_transcribe::TRANSCRIBE_URL);
         }
     }
 

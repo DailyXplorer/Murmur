@@ -1,3 +1,6 @@
+import { isWindows } from "../../lib/platform";
+import { withoutWindowsSection } from "./platformNotes";
+
 export interface ReleaseNote {
   version: string;
   markdown: string;
@@ -42,7 +45,7 @@ for (const [path, markdown] of Object.entries(releaseNoteModules)) {
 
   releaseNotesByVersion.set(version, {
     version,
-    markdown,
+    markdown: isWindows ? withoutWindowsSection(markdown) : markdown,
   });
 }
 

@@ -521,3 +521,12 @@ fn auth_parse_error_names_the_resolved_path() {
         FailureKind::SignedOut
     );
 }
+
+#[test]
+fn only_a_debug_build_follows_the_refresh_override() {
+    let fake = "http://127.0.0.1:9/oauth/token".to_string();
+
+    assert_eq!(endpoint(Some(fake.clone()), true), fake);
+    assert_eq!(endpoint(Some(fake), false), REFRESH_TOKEN_URL);
+    assert_eq!(endpoint(None, true), REFRESH_TOKEN_URL);
+}

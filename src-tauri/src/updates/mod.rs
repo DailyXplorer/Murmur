@@ -31,8 +31,9 @@ pub struct UpdateStatus {
     pub available: Option<String>,
 }
 
-/// Starts the automatic checks: at launch, every four hours, and after the
-/// Mac wakes, while update checks are on.
+/// Starts the automatic checks: at launch, then every four hours of
+/// wall-clock time after a check that succeeded, sooner after one that
+/// failed (`schedule.rs`), while update checks are on.
 pub fn init(app: &AppHandle) {
     let handle = app.clone();
     app.manage(Checks::new(move |available| publish(&handle, available)));

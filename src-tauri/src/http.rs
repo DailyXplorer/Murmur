@@ -1,81 +1,137 @@
-//! One HTTP client per connect timeout, shared by every request to the
-//! ChatGPT backend, so a dictation reuses the connection (and its DNS, TCP and
-//! TLS setup) an earlier request or a key-press warm-up left open.
+//! One HTTP client shared by every request to the ChatGPT backend, so a
+//! dictation reuses the connection (and its DNS, TCP and TLS setup) an
+//! earlier request or a key-press warm-up left open. The cleanup request
+//! goes out on the connection the transcription just used.
 //!
-//! Per-request deadlines stay on the request (`RequestBuilder::timeout`);
-//! only the connect timeout is a client property, hence one client per value
-//! (two in practice: cleanup's short one and the transcription one).
+//! Per-request deadlines stay with the caller (`RequestBuilder::timeout`, or
+//! a deadline around the whole request); only the connect timeout is a client
+//! property.
 
 use log::debug;
-use std::sync::{Mutex, PoisonError};
-use std::time::Duration;
+use std::sync::{Mutex, MutexGuard, PoisonError};
+use std::time::{Duration, Instant};
+
+use crate::codex_transcribe::CONNECT_TIMEOUT;
 
 /// Idle connections stay pooled this long, so a pause between dictations does
 /// not cost a new handshake.
 const POOL_IDLE_TIMEOUT: Duration = Duration::from_secs(90);
 /// The warm-up only needs the handshake; a slow answer is not worth waiting for.
 const WARM_UP_TIMEOUT: Duration = Duration::from_secs(5);
+/// After a request, its connection is pooled for `POOL_IDLE_TIMEOUT`. A
+/// warm-up this soon after one would find it open, and it stays open for a
+/// dictation of a minute.
+const WARM_FOR: Duration = Duration::from_secs(30);
 
-static CLIENTS: Mutex<Vec<(Duration, reqwest::Client)>> = Mutex::new(Vec::new());
-
-fn clients() -> std::sync::MutexGuard<'static, Vec<(Duration, reqwest::Client)>> {
-    CLIENTS.lock().unwrap_or_else(PoisonError::into_inner)
+struct State {
+    client: Option<reqwest::Client>,
+    /// When the client was last handed out for a request.
+    last_request: Option<Instant>,
 }
 
-fn build(connect_timeout: Duration) -> reqwest::Result<reqwest::Client> {
+struct Pool {
+    state: Mutex<State>,
+}
+
+static POOL: Pool = Pool::new();
+
+impl Pool {
+    const fn new() -> Self {
+        Self {
+            state: Mutex::new(State {
+                client: None,
+                last_request: None,
+            }),
+        }
+    }
+
+    fn state(&self) -> MutexGuard<'_, State> {
+        self.state.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    fn client(&self) -> reqwest::Result<reqwest::Client> {
+        let mut state = self.state();
+        let client = match &state.client {
+            Some(client) => client.clone(),
+            None => {
+                let client = build()?;
+                state.client = Some(client.clone());
+                client
+            }
+        };
+        state.last_request = Some(Instant::now());
+        Ok(client)
+    }
+
+    fn forget(&self) {
+        let mut state = self.state();
+        state.client = None;
+        state.last_request = None;
+    }
+
+    /// False when no warm-up was sent.
+    fn warm_up(&self, url: &str) -> bool {
+        let Some(origin) = origin_of(url) else {
+            return false;
+        };
+        if is_warm(self.state().last_request, Instant::now()) {
+            debug!("Connection warm-up to {origin} skipped: a request just used the connection");
+            return false;
+        }
+        let Ok(client) = self.client() else {
+            return false;
+        };
+        tauri::async_runtime::spawn(async move {
+            let started = Instant::now();
+            match client.head(&origin).timeout(WARM_UP_TIMEOUT).send().await {
+                Ok(response) => debug!(
+                    "Connection warm-up to {origin} answered {} in {:?}",
+                    response.status(),
+                    started.elapsed()
+                ),
+                Err(error) => debug!("Connection warm-up to {origin} failed: {error}"),
+            }
+        });
+        true
+    }
+}
+
+fn build() -> reqwest::Result<reqwest::Client> {
     reqwest::Client::builder()
         .user_agent(crate::codex_transcribe::user_agent())
-        .connect_timeout(connect_timeout)
+        .connect_timeout(CONNECT_TIMEOUT)
         .pool_idle_timeout(POOL_IDLE_TIMEOUT)
         .build()
 }
 
-/// The shared client for requests that must connect within `connect_timeout`.
-/// Proxy settings are read when it is built, as for any `reqwest` client; a
-/// failed request discards it (`forget`) so the next request reads them again.
-pub fn client(connect_timeout: Duration) -> reqwest::Result<reqwest::Client> {
-    let mut clients = clients();
-    if let Some((_, client)) = clients
-        .iter()
-        .find(|(timeout, _)| *timeout == connect_timeout)
-    {
-        return Ok(client.clone());
-    }
-    let client = build(connect_timeout)?;
-    clients.push((connect_timeout, client.clone()));
-    Ok(client)
+/// Whether the connection of a request sent at `last_request` is still open
+/// at `now`, with time left for the dictation that starts.
+fn is_warm(last_request: Option<Instant>, now: Instant) -> bool {
+    last_request.is_some_and(|at| now.saturating_duration_since(at) < WARM_FOR)
 }
 
-/// Drops every shared client after a transport failure: pooled connections may
-/// be dead after a sleep or a network change, and the proxy settings may have
-/// changed, for all of them, not only the one whose request failed.
-pub fn forget_all() {
-    clients().clear();
+/// The shared client. Proxy settings are read when it is built, as for any
+/// `reqwest` client; a failed request discards it (`forget`) so the next
+/// request reads them again.
+pub fn client() -> reqwest::Result<reqwest::Client> {
+    POOL.client()
 }
 
-/// Opens (or refreshes) a connection to `url`'s host in the background so the
-/// request that follows finds it ready. Fire and forget: it never blocks the
-/// caller, sends no credentials and no user data (a bare `HEAD` of the site
-/// root, with the app's user agent), and ignores every outcome, including an
-/// error status, because the handshake is all it is for.
-pub fn warm_up(connect_timeout: Duration, url: &str) {
-    let Some(origin) = origin_of(url) else {
-        return;
-    };
-    let Ok(client) = client(connect_timeout) else {
-        return;
-    };
-    tauri::async_runtime::spawn(async move {
-        let started = std::time::Instant::now();
-        match client.head(&origin).timeout(WARM_UP_TIMEOUT).send().await {
-            Ok(response) => debug!(
-                "Connection warm-up to {origin} answered {} in {:?}",
-                response.status(),
-                started.elapsed()
-            ),
-            Err(error) => debug!("Connection warm-up to {origin} failed: {error}"),
-        }
-    });
+/// Drops the shared client after a transport failure: its pooled connection
+/// may be dead after a sleep or a network change, and the proxy settings may
+/// have changed.
+pub fn forget() {
+    POOL.forget();
+}
+
+/// Opens a connection to `url`'s host in the background so the request that
+/// follows finds it ready. Fire and forget: it never blocks the caller, sends
+/// no credentials and no user data (a bare `HEAD` of the site root, with the
+/// app's user agent), and ignores every outcome, including an error status,
+/// because the handshake is all it is for. Nothing is sent when a request
+/// used the connection in the last `WARM_FOR`.
+pub fn warm_up(url: &str) {
+    POOL.warm_up(url);
 }
 
 /// `scheme://host[:port]/` of `url`.
@@ -91,10 +147,6 @@ fn origin_of(url: &str) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    fn forget(connect_timeout: Duration) {
-        clients().retain(|(timeout, _)| *timeout != connect_timeout);
-    }
     use std::io::{Read, Write};
     use std::net::TcpListener;
     use std::sync::mpsc;
@@ -113,19 +165,25 @@ mod tests {
         assert_eq!(origin_of("https:///path"), None);
     }
 
+    /// One warm-up serves both: `warm_cloud_connection` sends a single one.
     #[test]
-    fn one_client_per_connect_timeout() {
-        let a = Duration::from_millis(7_001);
-        let b = Duration::from_millis(7_002);
-        assert_eq!(clients().iter().filter(|(t, _)| *t == a).count(), 0);
-        client(a).unwrap();
-        client(a).unwrap();
-        client(b).unwrap();
-        assert_eq!(clients().iter().filter(|(t, _)| *t == a).count(), 1);
-        forget(a);
-        assert_eq!(clients().iter().filter(|(t, _)| *t == a).count(), 0);
-        assert_eq!(clients().iter().filter(|(t, _)| *t == b).count(), 1);
-        forget(b);
+    fn transcription_and_cleanup_are_on_the_same_host() {
+        assert_eq!(
+            origin_of(crate::codex_transcribe::TRANSCRIBE_URL),
+            origin_of(crate::cleanup::responses::RESPONSES_URL)
+        );
+    }
+
+    #[test]
+    fn a_connection_is_warm_for_thirty_seconds_after_a_request() {
+        let sent = Instant::now();
+        assert!(!is_warm(None, sent));
+        assert!(is_warm(Some(sent), sent));
+        assert!(is_warm(
+            Some(sent),
+            sent + WARM_FOR - Duration::from_millis(1)
+        ));
+        assert!(!is_warm(Some(sent), sent + WARM_FOR));
     }
 
     /// Accepts connections forever on a thread, counting them, and answers
@@ -160,12 +218,24 @@ mod tests {
         (endpoint, heads_rx, accepted_rx)
     }
 
+    fn post(client: &reqwest::Client, endpoint: &str) -> reqwest::StatusCode {
+        tauri::async_runtime::block_on(async {
+            client
+                .post(endpoint)
+                .body("x")
+                .send()
+                .await
+                .unwrap()
+                .status()
+        })
+    }
+
     #[test]
     fn warm_up_sends_a_bare_head_and_the_next_request_reuses_the_connection() {
         let (endpoint, heads, accepted) = keep_alive_server();
-        let timeout = Duration::from_millis(7_003);
+        let pool = Pool::new();
 
-        warm_up(timeout, &format!("{endpoint}backend-api/transcribe"));
+        assert!(pool.warm_up(&format!("{endpoint}backend-api/transcribe")));
         let head = heads.recv_timeout(Duration::from_secs(5)).unwrap();
         assert!(head.starts_with("head / http/1.1"), "{head}");
         assert!(!head.contains("authorization"), "{head}");
@@ -174,23 +244,49 @@ mod tests {
 
         // Let the warm-up response return its connection to the pool.
         std::thread::sleep(Duration::from_millis(200));
-        let client = client(timeout).unwrap();
-        let status = tauri::async_runtime::block_on(async {
-            client
-                .post(&endpoint)
-                .body("x")
-                .send()
-                .await
-                .unwrap()
-                .status()
-        });
-        assert!(status.is_success());
+        assert!(post(&pool.client().unwrap(), &endpoint).is_success());
 
         accepted.recv_timeout(Duration::from_secs(1)).unwrap();
         assert!(
             accepted.recv_timeout(Duration::from_millis(300)).is_err(),
             "the request opened a second connection instead of reusing the warm one"
         );
-        forget(timeout);
+    }
+
+    #[test]
+    fn two_requests_in_a_row_share_one_connection() {
+        let (endpoint, _heads, accepted) = keep_alive_server();
+        let pool = Pool::new();
+
+        assert!(post(&pool.client().unwrap(), &endpoint).is_success());
+        assert!(post(&pool.client().unwrap(), &endpoint).is_success());
+
+        accepted.recv_timeout(Duration::from_secs(1)).unwrap();
+        assert!(
+            accepted.recv_timeout(Duration::from_millis(300)).is_err(),
+            "the second request opened a connection of its own"
+        );
+    }
+
+    #[test]
+    fn no_warm_up_goes_out_right_after_a_request() {
+        let (endpoint, _heads, _accepted) = keep_alive_server();
+        let pool = Pool::new();
+
+        pool.client().unwrap();
+
+        assert!(!pool.warm_up(&endpoint));
+    }
+
+    #[test]
+    fn a_forgotten_client_is_warmed_up_again() {
+        let (endpoint, heads, _accepted) = keep_alive_server();
+        let pool = Pool::new();
+        pool.client().unwrap();
+
+        pool.forget();
+
+        assert!(pool.warm_up(&endpoint));
+        heads.recv_timeout(Duration::from_secs(5)).unwrap();
     }
 }
