@@ -66,7 +66,7 @@
       "why": "entitlements are part of the signature: a change alters what macOS grants and can reset permissions on update"
     },
     "src-tauri/Info.plist": {
-      "sha256": "110b3cf36e30d455da0c1b9bf7ad8e4986fe34237c4f9b3abe71967da64e9de6",
+      "sha256": "5454494e89cf06ffe23261a5aa6a3c3d1f6d29141cfcfcf56cb8bbf1fef13ff4",
       "why": "usage descriptions and bundle keys that the permission prompts and Launch Services read"
     }
   },
