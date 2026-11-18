@@ -66,20 +66,18 @@ pub struct Request<'a> {
     pub effort: &'a str,
     /// `low`, `medium` or `high`: how much the model writes.
     pub verbosity: &'a str,
-    /// How long to wait for the TCP and TLS handshakes.
-    pub connect_timeout: Duration,
 }
 
 /// Posts one request and returns the streamed output text. The caller owns
-/// the overall deadline; this only bounds connecting, by the request's
-/// `connect_timeout`.
+/// the overall deadline; this only bounds connecting, by the shared client's
+/// connect timeout.
 pub async fn complete(
     url: &str,
     session: &Session,
     request: &Request<'_>,
     operation: &ProcessingOperation,
 ) -> Result<String, CompletionError> {
-    let client = crate::http::client(request.connect_timeout)
+    let client = crate::http::client()
         .map_err(|error| CompletionError::failed(FailureKind::Other, error.to_string()))?;
 
     let body = json!({
@@ -112,7 +110,7 @@ pub async fn complete(
         response = builder.send() => response.map_err(|error| {
             // Any transport failure may mean a dead pooled connection or a
             // changed network or proxy: the next request starts fresh.
-            crate::http::forget_all();
+            crate::http::forget();
             CompletionError::failed(
                 FailureKind::from_transport(&error),
                 format!("cleanup request failed: {error}"),
@@ -306,8 +304,7 @@ async fn live_models(url: &str, session: &Session, cached: Option<&str>) -> Resu
         .and_then(|json| serde_json::from_str::<serde_json::Value>(json).ok())
         .and_then(|json| json["client_version"].as_str().map(str::to_string))
         .unwrap_or_else(|| CLIENT_VERSION.to_string());
-    let client = crate::http::client(crate::codex_transcribe::CONNECT_TIMEOUT)
-        .map_err(|error| error.to_string())?;
+    let client = crate::http::client().map_err(|error| error.to_string())?;
     let mut builder = client
         .get(url)
         .timeout(Duration::from_secs(10))

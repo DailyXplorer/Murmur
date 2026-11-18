@@ -418,7 +418,7 @@ impl ShortcutAction for TranscribeAction {
                 // The connection warm-up first: it is quick, and the local
                 // warm-up can block on a model load.
                 std::thread::spawn(move || {
-                    tm.warm_cloud_connections();
+                    tm.warm_cloud_connection();
                     tm.warm_if_local();
                 });
                 let generation = readiness.generation();

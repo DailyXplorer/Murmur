@@ -506,9 +506,6 @@ fn summary_request<'a>(model: &'a str, instructions: &'a str, input: &'a str) ->
         max_output_chars: MAX_OUTPUT_CHARS,
         effort: "medium",
         verbosity: "medium",
-        // As long as a transcription piece: the summary has no fallback, and
-        // retrying on the same slow link would only time out again.
-        connect_timeout: crate::codex_transcribe::CONNECT_TIMEOUT,
     }
 }
 
