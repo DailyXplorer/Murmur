@@ -877,3 +877,17 @@ fn settings_saved_before_dictations_could_stream_stream_them() {
     stored["cloud_stream_enabled"] = serde_json::json!(false);
     assert!(!parse_stored_settings(&stored).0.cloud_stream_enabled);
 }
+
+#[test]
+fn the_text_of_a_dictation_shows_only_once_it_is_turned_on() {
+    let mut stored = default_settings_json();
+    stored
+        .as_object_mut()
+        .unwrap()
+        .remove("dictation_live_text");
+
+    assert!(!parse_stored_settings(&stored).0.dictation_live_text);
+    assert!(!get_default_settings().dictation_live_text);
+    stored["dictation_live_text"] = serde_json::json!(true);
+    assert!(parse_stored_settings(&stored).0.dictation_live_text);
+}

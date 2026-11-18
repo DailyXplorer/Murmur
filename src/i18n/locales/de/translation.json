@@ -347,6 +347,11 @@
             "bottom": "Unten",
             "top": "Oben"
           }
+        },
+        "liveText": {
+          "title": "Text beim Diktieren anzeigen",
+          "description": "Zeigt die Wörter neben dem Aufnahmekreis, sobald ChatGPT sie hört. Jeder, der deinen Bildschirm sieht, kann sie lesen.",
+          "needsChatGpt": "Funktioniert nur mit der ChatGPT-Transkription."
         }
       },
       "pasteMethod": {

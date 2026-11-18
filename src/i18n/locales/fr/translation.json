@@ -347,6 +347,11 @@
             "bottom": "Bas",
             "top": "Haut"
           }
+        },
+        "liveText": {
+          "title": "Afficher le texte pendant la dictée",
+          "description": "Affiche les mots à côté du cercle d’enregistrement à mesure que ChatGPT les entend. Toute personne qui voit votre écran peut les lire.",
+          "needsChatGpt": "Fonctionne uniquement avec la transcription ChatGPT."
         }
       },
       "pasteMethod": {

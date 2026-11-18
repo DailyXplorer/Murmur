@@ -347,6 +347,11 @@
             "bottom": "Bottom",
             "top": "Top"
           }
+        },
+        "liveText": {
+          "title": "Show text while dictating",
+          "description": "Shows the words next to the recording orb as ChatGPT hears them. Anyone who can see your screen can read them.",
+          "needsChatGpt": "Works with ChatGPT transcription only."
         }
       },
       "pasteMethod": {

@@ -206,6 +206,10 @@ pub struct AppSettings {
     /// speaks. Off: the recording is uploaded after the stop.
     #[serde(default = "default_cloud_stream_enabled")]
     pub cloud_stream_enabled: bool,
+    /// With ChatGPT transcription, the recording overlay shows the words as
+    /// the server hears them.
+    #[serde(default)]
+    pub dictation_live_text: bool,
 }
 
 impl AppSettings {
