@@ -254,7 +254,7 @@ fn codex_quota_spent_at(at: SystemTime) -> DictationQuota {
 
 fn upload_format() -> UploadFormat {
     UploadFormat {
-        flac_refused: AtomicBool::new(false),
+        flac_refused_at: Mutex::new(None),
     }
 }
 
@@ -694,6 +694,31 @@ fn audio_refused_in_both_forms_fails_and_flac_stays_the_first_choice() {
     let next = dictate_as(&endpoint, &auth_path, &quota, &upload_format);
     assert_eq!(next.unwrap(), "Hello");
     assert!(has(&bodies.recv().unwrap(), b"filename=\"codex.flac\""));
+}
+
+#[test]
+fn flac_is_tried_again_an_hour_after_a_refusal() {
+    let refused = SystemTime::UNIX_EPOCH + Duration::from_secs(1_800_000_000);
+    let upload_format = upload_format();
+    assert_eq!(upload_format.preferred(refused), AudioFormat::Flac);
+
+    assert!(upload_format.flac_refused(refused));
+    assert!(
+        !upload_format.flac_refused(refused + Duration::from_secs(1)),
+        "parallel uploads report the refusal once"
+    );
+
+    let almost = FLAC_RETRY_AFTER - Duration::from_secs(1);
+    assert_eq!(upload_format.preferred(refused + almost), AudioFormat::Wav);
+    assert_eq!(
+        upload_format.preferred(refused + FLAC_RETRY_AFTER),
+        AudioFormat::Flac
+    );
+    assert_eq!(
+        upload_format.preferred(refused - Duration::from_secs(1)),
+        AudioFormat::Flac,
+        "a clock set back ends the window"
+    );
 }
 
 /// Sends the 16 kHz mono WAV of speech that `MURMUR_LIVE_CLIP` names with

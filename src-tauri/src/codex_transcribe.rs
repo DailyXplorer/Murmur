@@ -22,7 +22,7 @@ use log::{info, warn};
 use serde::Deserialize;
 use std::io::Cursor;
 use std::path::Path;
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Mutex, PoisonError};
 use std::time::{Duration, SystemTime};
 
@@ -128,12 +128,17 @@ impl DictationQuota {
     }
 }
 
-/// Wall-clock time, so the window also runs out while the Mac sleeps. A
-/// clock set back before the window opened ends it.
 fn codex_window_open(spent_at: Option<SystemTime>, now: SystemTime) -> bool {
-    spent_at.is_some_and(|spent_at| {
-        now.duration_since(spent_at)
-            .is_ok_and(|elapsed| elapsed < CODEX_QUOTA_BACKOFF)
+    within(spent_at, now, CODEX_QUOTA_BACKOFF)
+}
+
+/// Whether `now` is less than `window` after `since`. Wall-clock time, so
+/// the window also runs out while the Mac sleeps. A clock set back before
+/// the window opened ends it.
+fn within(since: Option<SystemTime>, now: SystemTime, window: Duration) -> bool {
+    since.is_some_and(|since| {
+        now.duration_since(since)
+            .is_ok_and(|elapsed| elapsed < window)
     })
 }
 
@@ -179,19 +184,24 @@ impl AudioFormat {
     }
 }
 
-/// Whether the endpoint still takes FLAC. Shared by every request in the
-/// process, dictations and parallel meeting uploads.
+/// A refusal may have been of something else than the format, such as a
+/// proxy's challenge page, so FLAC is tried again after this long. If the
+/// endpoint did drop FLAC, that costs one refused upload an hour.
+const FLAC_RETRY_AFTER: Duration = Duration::from_secs(60 * 60);
+
+/// When the endpoint refused FLAC and took the same audio as WAV. Shared by
+/// every request in the process, dictations and parallel meeting uploads.
 struct UploadFormat {
-    flac_refused: AtomicBool,
+    flac_refused_at: Mutex<Option<SystemTime>>,
 }
 
 static UPLOAD_FORMAT: UploadFormat = UploadFormat {
-    flac_refused: AtomicBool::new(false),
+    flac_refused_at: Mutex::new(None),
 };
 
 impl UploadFormat {
-    fn preferred(&self) -> AudioFormat {
-        if self.flac_refused.load(Ordering::SeqCst) {
+    fn preferred(&self, now: SystemTime) -> AudioFormat {
+        if within(*self.refused_at(), now, FLAC_RETRY_AFTER) {
             AudioFormat::Wav
         } else {
             AudioFormat::Flac
@@ -199,9 +209,20 @@ impl UploadFormat {
     }
 
     /// The endpoint refused a FLAC upload and took the same audio as WAV.
-    /// True the first time, so parallel uploads report it once.
-    fn flac_refused(&self) -> bool {
-        !self.flac_refused.swap(true, Ordering::SeqCst)
+    /// True when no window was running, so parallel uploads report it once.
+    fn flac_refused(&self, now: SystemTime) -> bool {
+        let mut refused_at = self.refused_at();
+        if within(*refused_at, now, FLAC_RETRY_AFTER) {
+            return false;
+        }
+        *refused_at = Some(now);
+        true
+    }
+
+    fn refused_at(&self) -> std::sync::MutexGuard<'_, Option<SystemTime>> {
+        self.flac_refused_at
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
     }
 }
 
@@ -298,7 +319,7 @@ async fn transcribe_with(
         return Err(anyhow!("Codex transcription cancelled"));
     }
 
-    let mut format = upload_format.preferred();
+    let mut format = upload_format.preferred(SystemTime::now());
     let mut audio = format.encode(samples)?;
     let upload = Upload::begin();
     let uploads_at_once = uploads_at_once.max(upload.sharing);
@@ -333,9 +354,10 @@ async fn transcribe_with(
         let result = transcribe_with_session_at(url, &session, &request, operation).await;
         let error = match result {
             Ok(text) => {
-                if resent_as_wav && upload_format.flac_refused() {
+                if resent_as_wav && upload_format.flac_refused(SystemTime::now()) {
                     warn!(
-                        "Codex refused FLAC and took WAV; uploads go as WAV until Murmur restarts"
+                        "Codex refused FLAC and took WAV; uploads go as WAV for the next {} min",
+                        FLAC_RETRY_AFTER.as_secs() / 60
                     );
                 }
                 return Ok(text);
