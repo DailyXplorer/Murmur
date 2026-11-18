@@ -3280,6 +3280,7 @@ dependencies = [
  "tempfile",
  "tokio",
  "transcribe-cpp",
+ "tungstenite",
  "unicode-normalization",
  "unicode-segmentation",
  "url",

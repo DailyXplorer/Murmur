@@ -1,100 +1,127 @@
-//! ChatGPT's live dictation stream. So far: its messages, the text a
-//! session builds from them, when that text is used, what a setback
-//! teaches the next dictations, and the proof that the WebSocket client
-//! opens it.
+//! Live dictation through ChatGPT's dictation WebSocket: while the user
+//! speaks, the audio the recorder captures goes to the server, and when the
+//! recording stops the text comes from that stream, well before an upload of
+//! the whole clip would answer. The upload (`codex_transcribe`) stays the
+//! answer to everything that goes wrong here.
+//!
+//! The endpoint is undocumented. `protocol` holds its messages as they were
+//! observed, `transcript` builds the text as the official client does,
+//! `session` owns the socket, `decision` says when the stream's text is
+//! used, and `health` keeps the dictations after a setback off the stream.
 
 mod decision;
+mod feed;
 mod health;
+mod live;
 mod protocol;
+mod session;
 mod transcript;
 
 #[cfg(test)]
-mod proof {
-    use crate::codex_auth;
-    use futures_util::{SinkExt, StreamExt};
-    use reqwest_websocket::{Message, Upgrade};
-    use std::time::{Duration, Instant};
+pub(crate) mod fake_server;
+#[cfg(test)]
+mod tests;
 
-    /// Opens the real stream with the stored session, never refreshing it,
-    /// and closes the session without sending any audio, so nothing is
-    /// transcribed.
-    #[test]
-    #[ignore = "talks to chatgpt.com: cargo test --lib live_handshake_proof -- --ignored --nocapture"]
-    fn live_handshake_proof() {
-        let auth_path = codex_auth::auth_path().unwrap();
-        let session = codex_auth::stored_session(&auth_path).unwrap();
-        tauri::async_runtime::block_on(async {
-            let opened = Instant::now();
-            // An upgrade needs HTTP/1.1.
-            let client = reqwest::Client::builder()
-                .http1_only()
-                .user_agent(crate::codex_transcribe::user_agent())
-                .connect_timeout(crate::codex_transcribe::CONNECT_TIMEOUT)
-                .build()
-                .unwrap();
-            let mut request = client
-                .get("wss://chatgpt.com/backend-api/dictation/stream")
-                .header("Authorization", format!("Bearer {}", session.access_token));
-            if let Some(account_id) = session.account_id.as_deref() {
-                request = request.header("ChatGPT-Account-Id", account_id);
-            }
-            let response = request
-                .upgrade()
-                .protocols(["chatgpt-dictation"])
-                .send()
-                .await
-                .unwrap();
-            println!(
-                "status {} after {} ms",
-                response.status(),
-                opened.elapsed().as_millis()
-            );
-            let mut socket = response.into_websocket().await.unwrap();
+use std::sync::{Mutex, PoisonError};
+use std::time::SystemTime;
 
-            let start = serde_json::json!({
-                "type": "session.start",
-                "dictation_session_id": "6f1f6f0e-6f6b-4d5e-9c59-0d0f6a3b1c11",
-                "attempt_id": "0c8f7f39-0a53-4b61-8a4f-52b0c0f6f2a7",
-                "config": {
-                    "input_audio_format": "pcm16",
-                    "sample_rate_hz": 16000,
-                    "num_channels": 1,
-                    "max_buffer_size_bytes": 4194304,
-                    "max_utterance_duration_ms": 30000,
-                    "session_ttl_ms": 1800000,
-                    "provider_mode": "streaming_sse",
-                    "transcript_delivery_mode": "final_only",
-                    "vad": {
-                        "type": "server_vad",
-                        "threshold": 0.5,
-                        "prefix_padding_ms": 300,
-                        "silence_duration_ms": 500,
-                    },
-                },
-            });
-            socket.send(Message::Text(start.to_string())).await.unwrap();
+use decision::NotOpened;
+use health::{Health, Setback};
+use session::{Credentials, Params};
 
-            let mut started = false;
-            let mut closed = false;
-            while let Ok(Some(Ok(Message::Text(frame)))) =
-                tokio::time::timeout(Duration::from_secs(10), socket.next()).await
-            {
-                let event: serde_json::Value = serde_json::from_str(&frame).unwrap();
-                let kind = event["type"].as_str().unwrap_or_default();
-                let status = event["session"]["status"].as_str().unwrap_or_default();
-                println!("{kind} {status} after {} ms", opened.elapsed().as_millis());
-                if kind == "session.started" {
-                    started = true;
-                    let close = r#"{"type":"session.close"}"#.to_string();
-                    socket.send(Message::Text(close)).await.unwrap();
-                }
-                if kind == "session.updated" && status == "closed" {
-                    closed = true;
-                    break;
-                }
-            }
-            assert!(started, "session.started arrived");
-            assert!(closed, "the session closed");
-        });
+pub(crate) use live::{pair, LiveDictation, Stop};
+
+const STREAM_URL: &str = "wss://chatgpt.com/backend-api/dictation/stream";
+
+static HEALTH: Health = Health::new();
+
+static PARKED: Parked = Parked::new();
+
+/// What a dictation that starts allows.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct Wanted<'a> {
+    /// The `cloud_stream_enabled` setting.
+    pub(crate) enabled: bool,
+    /// ChatGPT is to transcribe this dictation.
+    pub(crate) cloud: bool,
+    pub(crate) signed_in: bool,
+    /// The dictation language setting, "auto" included.
+    pub(crate) language: &'a str,
+}
+
+/// The language a stream is started in, or why this dictation has none.
+fn plan(wanted: &Wanted<'_>, setback: Option<Setback>) -> Result<Option<String>, NotOpened> {
+    if !wanted.enabled {
+        return Err(NotOpened::SettingOff);
     }
+    if !wanted.cloud {
+        return Err(NotOpened::OtherEngine);
+    }
+    if !wanted.signed_in {
+        return Err(NotOpened::SignedOut);
+    }
+    if let Some(setback) = setback {
+        return Err(NotOpened::Health(setback));
+    }
+    Ok(crate::codex_transcribe::request_language(wanted.language).map(str::to_string))
+}
+
+/// The stream of the dictation being recorded, between its start and its
+/// stop. One dictation records at a time.
+struct Parked {
+    live: Mutex<Option<LiveDictation>>,
+}
+
+impl Parked {
+    const fn new() -> Self {
+        Self {
+            live: Mutex::new(None),
+        }
+    }
+
+    /// A stream still here from an earlier dictation is closed.
+    fn park(&self, live: LiveDictation) {
+        *self.slot() = Some(live);
+    }
+
+    fn take(&self) -> Option<LiveDictation> {
+        self.slot().take()
+    }
+
+    fn settle(&self, plan: Result<Params, NotOpened>) {
+        if let Some(live) = self.slot().as_mut() {
+            live.settle(plan);
+        }
+    }
+
+    fn slot(&self) -> std::sync::MutexGuard<'_, Option<LiveDictation>> {
+        self.live.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+}
+
+/// Keeps the stream of the recording that just started until its stop.
+pub(crate) fn park(live: LiveDictation) {
+    PARKED.park(live);
+}
+
+/// Opens the parked stream when this dictation allows one, and otherwise
+/// drops the audio that waited for it. Does no I/O itself: the session runs
+/// as a task.
+pub(crate) fn open_parked(wanted: &Wanted<'_>) {
+    let plan = plan(wanted, HEALTH.setback(SystemTime::now())).map(|language| Params {
+        url: STREAM_URL.to_string(),
+        credentials: Credentials::AuthFile(None),
+        language,
+    });
+    PARKED.settle(plan);
+}
+
+/// The stream of the recording that just stopped.
+pub(crate) fn take() -> Option<LiveDictation> {
+    PARKED.take()
+}
+
+/// A cancel: the parked stream's socket is closed at once.
+pub(crate) fn abort_parked() {
+    drop(PARKED.take());
 }
