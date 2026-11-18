@@ -7,6 +7,7 @@ import { SettingContainer } from "../../ui/SettingContainer";
 import { Button } from "../../ui/Button";
 import { SettingsPage } from "../../ui/SettingsPage";
 import { ModelLicencesDialog } from "../../meetings/ModelLicencesDialog";
+import { openProjectPage } from "@/lib/projectPage";
 
 export const AboutSettings: React.FC = () => {
   const { t } = useTranslation();
@@ -32,14 +33,6 @@ export const AboutSettings: React.FC = () => {
       await openUrl("https://buymeacoffee.com/dailyxplorer");
     } catch (error) {
       console.error("Failed to open donate link:", error);
-    }
-  };
-
-  const handleSourceClick = async () => {
-    try {
-      await openUrl("https://github.com/DailyXplorer/Murmur");
-    } catch (error) {
-      console.error("Failed to open source link:", error);
     }
   };
 
@@ -70,7 +63,7 @@ export const AboutSettings: React.FC = () => {
           description={t("settings.about.sourceCode.description")}
           grouped={true}
         >
-          <Button onClick={handleSourceClick}>
+          <Button onClick={openProjectPage}>
             {t("settings.about.sourceCode.button")}
           </Button>
         </SettingContainer>
@@ -82,6 +75,16 @@ export const AboutSettings: React.FC = () => {
         >
           <Button onClick={() => setLicences(true)}>
             {t("settings.about.modelLicences.button")}
+          </Button>
+        </SettingContainer>
+
+        <SettingContainer
+          title={t("settings.about.star.title")}
+          description={t("settings.about.star.description")}
+          grouped={true}
+        >
+          <Button onClick={openProjectPage}>
+            {t("settings.about.star.button")}
           </Button>
         </SettingContainer>
       </SettingsGroup>

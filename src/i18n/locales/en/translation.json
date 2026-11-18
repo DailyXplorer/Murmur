@@ -87,7 +87,8 @@
     "about": "About",
     "transcription": "Transcription",
     "insights": "Insights",
-    "meetings": "Meetings"
+    "meetings": "Meetings",
+    "star": "Give a star"
   },
   "insights": {
     "error": "Insights could not be loaded.",
@@ -599,6 +600,11 @@
       "modelLicences": {
         "description": "Licences of the on-device speech models",
         "button": "View licences"
+      },
+      "star": {
+        "title": "Like Murmur?",
+        "description": "A star on GitHub helps other people find Murmur. This opens the project page, where you click Star.",
+        "button": "Give a star"
       }
     },
     "transcription": {

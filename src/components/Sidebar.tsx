@@ -7,10 +7,12 @@ import { FlaskIcon } from "@phosphor-icons/react/dist/csr/Flask";
 import { GearSixIcon } from "@phosphor-icons/react/dist/csr/GearSix";
 import { InfoIcon } from "@phosphor-icons/react/dist/csr/Info";
 import { MicrophoneIcon } from "@phosphor-icons/react/dist/csr/Microphone";
+import { StarIcon } from "@phosphor-icons/react/dist/csr/Star";
 import { UsersThreeIcon } from "@phosphor-icons/react/dist/csr/UsersThree";
 import type { Icon } from "@phosphor-icons/react/dist/lib/types";
 import type { AppSettings } from "@/bindings";
 import { isWindows } from "@/lib/platform";
+import { openProjectPage } from "@/lib/projectPage";
 import MurmurTextLogo from "./icons/MurmurTextLogo";
 import { useSettings } from "../hooks/useSettings";
 import {
@@ -109,6 +111,11 @@ const SECTION_ORDER: readonly SidebarSection[] = [
   "about",
 ];
 
+const BUTTON_CLASSES =
+  "flex min-h-control w-full cursor-pointer appearance-none items-center gap-2 rounded-lg border-0 p-2 text-start transition-[color,background-color,opacity,transform] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-text focus-visible:ring-offset-2 focus-visible:ring-offset-background active:scale-[0.96]";
+const INACTIVE_CLASSES =
+  "bg-transparent opacity-85 hover:bg-mid-gray/20 hover:opacity-100";
+
 interface SidebarProps {
   activeSection: SidebarSection;
   onSectionChange: (section: SidebarSection) => void;
@@ -151,10 +158,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
               key={sectionId}
               type="button"
               aria-current={isActive ? "page" : undefined}
-              className={`flex min-h-control w-full cursor-pointer appearance-none items-center gap-2 rounded-lg border-0 p-2 text-start transition-[color,background-color,opacity,transform] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-text focus-visible:ring-offset-2 focus-visible:ring-offset-background active:scale-[0.96] ${
+              className={`${BUTTON_CLASSES} ${
                 isActive
                   ? "bg-background-ui text-on-accent hover:bg-background-ui-hover active:bg-background-ui-active"
-                  : "bg-transparent opacity-85 hover:bg-mid-gray/20 hover:opacity-100"
+                  : INACTIVE_CLASSES
               }`}
               onClick={() => onSectionChange(sectionId)}
             >
@@ -168,6 +175,23 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </button>
           );
         })}
+      </div>
+      <div
+        className={`mt-auto w-full pb-2 pt-1 ${isWindows ? "shrink-0" : ""}`}
+      >
+        <button
+          type="button"
+          className={`${BUTTON_CLASSES} ${INACTIVE_CLASSES}`}
+          onClick={openProjectPage}
+        >
+          <StarIcon size={20} className="shrink-0" aria-hidden="true" />
+          <span
+            className="min-w-0 truncate text-sm font-medium"
+            title={t("sidebar.star")}
+          >
+            {t("sidebar.star")}
+          </span>
+        </button>
       </div>
     </nav>
   );
