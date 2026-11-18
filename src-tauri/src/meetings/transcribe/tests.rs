@@ -11,7 +11,8 @@ use std::sync::{mpsc, Condvar};
 #[derive(Debug, Clone)]
 struct Request {
     token: String,
-    body_bytes: usize,
+    /// The uploaded audio as 16-bit PCM, whatever its encoding.
+    pcm_bytes: usize,
 }
 
 type Reply = Box<dyn Fn(usize, &Request) -> (u16, String) + Send + Sync>;
@@ -88,8 +89,8 @@ fn handle(
             token = value.to_string();
         }
     }
+    let mut body = Vec::new();
     if chunked {
-        length = 0;
         loop {
             let mut size = String::new();
             if reader.read_line(&mut size).unwrap_or(0) == 0 {
@@ -98,18 +99,19 @@ fn handle(
             let size = usize::from_str_radix(size.trim(), 16).unwrap_or(0);
             let mut data = vec![0; size + 2];
             let _ = reader.read_exact(&mut data);
-            length += size;
+            body.extend_from_slice(&data[..size]);
             if size == 0 {
                 break;
             }
         }
     } else {
-        let mut body = vec![0; length];
+        body.resize(length, 0);
         let _ = reader.read_exact(&mut body);
     }
+    let pcm = crate::codex_transcribe::uploaded::pcm_of_request(&body);
     let request = Request {
         token,
-        body_bytes: length,
+        pcm_bytes: pcm.map_or(0, |samples| 2 * samples.len()),
     };
     let number = {
         let mut seen = seen.lock().unwrap();
@@ -618,7 +620,7 @@ fn pieces_cut_after_the_connection_opened_go_to_a_ready_model() {
 fn a_refused_piece_goes_to_this_mac_and_a_server_failure_does_not() {
     let server = serve(Box::new(|_, request| {
         // The first piece is twice as long as the second.
-        if request.body_bytes > 40_000 {
+        if request.pcm_bytes > 40_000 {
             (400, "bad request".into())
         } else {
             (502, "bad gateway".into())
@@ -700,7 +702,7 @@ fn a_failing_local_model_leaves_the_codex_failure() {
 fn server_errors_are_retried_then_the_piece_fails_and_the_others_go_on() {
     let server = serve(Box::new(|_, request| {
         // The first piece is twice as long as the second.
-        if request.body_bytes > 40_000 {
+        if request.pcm_bytes > 40_000 {
             (502, "bad gateway".into())
         } else {
             ok("Suite.")
@@ -734,7 +736,7 @@ fn server_errors_are_retried_then_the_piece_fails_and_the_others_go_on() {
         .lock()
         .unwrap()
         .iter()
-        .filter(|request| request.body_bytes > 40_000)
+        .filter(|request| request.pcm_bytes > 40_000)
         .count();
     assert_eq!(failing, 4 * 3);
 }
@@ -742,8 +744,8 @@ fn server_errors_are_retried_then_the_piece_fails_and_the_others_go_on() {
 #[test]
 fn a_piece_refused_as_too_large_is_halved_and_rejoined() {
     let server = serve(Box::new(|number, request| {
-        // 150 s of 16 kHz WAV is 4.8 MB; its halves pass.
-        if request.body_bytes > 3_000_000 {
+        // 150 s of 16 kHz audio is 4.8 MB of samples; its halves pass.
+        if request.pcm_bytes > 3_000_000 {
             (413, "too large".into())
         } else {
             ok(&format!("moitié {number}"))
@@ -762,13 +764,14 @@ fn a_piece_refused_as_too_large_is_halved_and_rejoined() {
     );
 }
 
-/// A 150 s piece refused as too large, whose request `refused` (1 for
-/// the first half, 2 for the second) Codex then rejects.
-fn halved_with_one_half_rejected(refused: usize) -> (Run, usize) {
+/// A 150 s piece refused as too large, one half of which Codex then
+/// rejects in whichever form it comes: the first, of 90 s, or the second,
+/// of 60 s.
+fn halved_with_one_half_rejected(first: bool) -> (Run, usize) {
     let server = serve(Box::new(move |number, request| {
-        if request.body_bytes > 3_000_000 {
+        if request.pcm_bytes > 3_000_000 {
             (413, "too large".into())
-        } else if number == refused {
+        } else if (request.pcm_bytes > 2_400_000) == first {
             (400, "bad request".into())
         } else {
             ok(&format!("moitié {number}"))
@@ -792,23 +795,24 @@ fn halved_with_one_half_rejected(refused: usize) -> (Run, usize) {
 
 #[test]
 fn a_halved_piece_whose_first_half_goes_to_this_mac_keeps_the_second_half() {
-    let (run, requests) = halved_with_one_half_rejected(1);
+    let (run, requests) = halved_with_one_half_rejected(true);
     assert_eq!(
         outcomes(&run),
         [(
             0,
             Outcome::DoneLocally {
-                text: "local 1439680 moitié 2".into(),
+                text: "local 1439680 moitié 3".into(),
                 codex: FailureKind::Rejected
             }
         )]
     );
-    assert_eq!(requests, 3);
+    // The piece, its first half as FLAC then as WAV, and its second half.
+    assert_eq!(requests, 4);
 }
 
 #[test]
 fn a_halved_piece_whose_second_half_goes_to_this_mac_keeps_the_first_half() {
-    let (run, _) = halved_with_one_half_rejected(2);
+    let (run, _) = halved_with_one_half_rejected(false);
     assert_eq!(
         outcomes(&run),
         [(

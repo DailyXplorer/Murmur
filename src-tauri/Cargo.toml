@@ -44,6 +44,8 @@ anyhow = "1.0.95"
 base64 = "0.23"
 rubato = "0.16.2"
 hound = "3.5.1"
+# The audio uploaded to Codex goes as FLAC: lossless, about 45 % of the WAV.
+flacenc = { version = "0.5.1", default-features = false }
 # "Import audio" decodes WAV, AIFF, CAF, FLAC, MP3 and M4A (AAC or ALAC) on
 # both platforms; Windows also reads a meeting's compressed audio back (AAC in
 # MP4) with it. rodio already compiles the AAC and MP4 features for playback.

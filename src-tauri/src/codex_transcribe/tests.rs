@@ -88,6 +88,17 @@ fn soft_limit_is_reached_after_about_thirteen_minutes() {
     assert!(upload_size_for_samples(14 * samples_per_minute) > UPLOAD_SOFT_LIMIT_BYTES);
 }
 
+/// `audio` as a Codex request with no language.
+fn upload(audio: &[u8]) -> UploadRequest<'_> {
+    UploadRequest {
+        identity: RequestIdentity::Codex,
+        format: AudioFormat::Wav,
+        audio,
+        language: None,
+        timeout: request_timeout(audio.len(), 1),
+    }
+}
+
 fn reply_once(status_line: &'static str) -> String {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let endpoint = format!("http://{}", listener.local_addr().unwrap());
@@ -116,10 +127,7 @@ fn failure_kind_for(status_line: &'static str) -> FailureKind {
     match tauri::async_runtime::block_on(transcribe_with_session_at(
         &endpoint,
         &session,
-        RequestIdentity::Codex,
-        b"wav",
-        None,
-        request_timeout(3, 1),
+        &upload(b"wav"),
         &operation,
     )) {
         Err(RequestError::Failed(error)) => error.kind,
@@ -157,17 +165,31 @@ const CHATGPT_QUOTA_SPENT: (&str, &str) = (
 );
 const TRANSCRIBED: (&str, &str) = ("200 OK", r#"{"text":"Hello"}"#);
 
+type Replies = &'static [(&'static str, &'static str)];
+
 /// Answers one connection per reply, in order, and sends back each
 /// request's head, lowercased.
-fn serve(replies: &'static [(&'static str, &'static str)]) -> (String, mpsc::Receiver<String>) {
+fn serve(replies: Replies) -> (String, mpsc::Receiver<String>) {
+    serve_and_send(replies, |(head, _)| head)
+}
+
+/// `serve`, sending back each request's body instead.
+fn serve_bodies(replies: Replies) -> (String, mpsc::Receiver<Vec<u8>>) {
+    serve_and_send(replies, |(_, body)| body)
+}
+
+fn serve_and_send<T: Send + 'static>(
+    replies: Replies,
+    part: fn((String, Vec<u8>)) -> T,
+) -> (String, mpsc::Receiver<T>) {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let endpoint = format!("http://{}", listener.local_addr().unwrap());
-    let (heads_tx, heads_rx) = mpsc::channel();
+    let (requests_tx, requests_rx) = mpsc::channel();
     thread::spawn(move || {
         use std::io::Write;
         for (status_line, body) in replies {
             let (mut peer, _) = listener.accept().unwrap();
-            heads_tx.send(read_request_head(&mut peer)).unwrap();
+            requests_tx.send(part(read_request(&mut peer))).unwrap();
             let _ = write!(
                 peer,
                 "HTTP/1.1 {status_line}\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}",
@@ -175,10 +197,11 @@ fn serve(replies: &'static [(&'static str, &'static str)]) -> (String, mpsc::Rec
             );
         }
     });
-    (endpoint, heads_rx)
+    (endpoint, requests_rx)
 }
 
-fn read_request_head(peer: &mut std::net::TcpStream) -> String {
+/// A request's head, lowercased, and its body.
+fn read_request(peer: &mut std::net::TcpStream) -> (String, Vec<u8>) {
     let mut request = Vec::new();
     let mut buffer = [0_u8; 4096];
     loop {
@@ -196,7 +219,7 @@ fn read_request_head(peer: &mut std::net::TcpStream) -> String {
             .and_then(|length| length.trim().parse::<usize>().ok())
             .unwrap_or(0);
         if read == 0 || request.len() >= end + 4 + body_length {
-            return head.to_string();
+            return (head.to_string(), request[end + 4..].to_vec());
         }
     }
 }
@@ -229,16 +252,34 @@ fn codex_quota_spent_at(at: SystemTime) -> DictationQuota {
     quota
 }
 
+fn upload_format() -> UploadFormat {
+    UploadFormat {
+        flac_refused: AtomicBool::new(false),
+    }
+}
+
 fn dictate(endpoint: &str, auth_path: &Path, quota: &DictationQuota) -> Result<String> {
+    dictate_as(endpoint, auth_path, quota, &upload_format())
+}
+
+fn dictate_as(
+    endpoint: &str,
+    auth_path: &Path,
+    quota: &DictationQuota,
+    upload_format: &UploadFormat,
+) -> Result<String> {
     let operation = ProcessingOperation::new(OperationId(9));
-    tauri::async_runtime::block_on(transcribe_with_quota(
+    tauri::async_runtime::block_on(transcribe_with(
         endpoint,
         Some(auth_path),
         &[0.1; 160],
         None,
         1,
         &operation,
-        quota,
+        Learned {
+            quota,
+            upload_format,
+        },
     ))
 }
 
@@ -420,10 +461,7 @@ fn unreachable_service_is_a_network_failure() {
     match tauri::async_runtime::block_on(transcribe_with_session_at(
         &endpoint,
         &session,
-        RequestIdentity::Codex,
-        b"wav",
-        None,
-        request_timeout(3, 1),
+        &upload(b"wav"),
         &operation,
     )) {
         Err(RequestError::Failed(error)) => assert_eq!(error.kind, FailureKind::Network),
@@ -474,10 +512,7 @@ fn cancellation_closes_a_stalled_codex_http_peer() {
         transcribe_with_session_at(
             &endpoint,
             &session,
-            RequestIdentity::Codex,
-            b"test wav",
-            None,
-            request_timeout(8, 1),
+            &upload(b"test wav"),
             &request_operation,
         )
         .await
@@ -556,4 +591,147 @@ fn live_codex_session_transcribes() {
         "Codex transcription failed: {:?}",
         result.err()
     );
+}
+
+fn has(body: &[u8], part: &[u8]) -> bool {
+    body.windows(part.len()).any(|window| window == part)
+}
+
+/// A tone that swells past full scale, so some samples clip.
+fn swelling_tone(samples: usize) -> Vec<f32> {
+    (0..samples)
+        .map(|i| {
+            let t = i as f32 / SAMPLE_RATE as f32;
+            (2.0 * std::f32::consts::PI * 220.0 * t).sin() * (0.1 + 1.2 * t)
+        })
+        .collect()
+}
+
+#[test]
+fn flac_holds_the_samples_wav_holds_in_fewer_bytes() {
+    let samples = swelling_tone(SAMPLE_RATE as usize);
+
+    let flac = pcm_f32_to_flac_bytes(&samples).unwrap();
+    let wav = pcm_f32_to_wav_bytes(&samples).unwrap();
+
+    assert_eq!(uploaded::pcm(&flac), uploaded::pcm(&wav));
+    assert!(
+        flac.len() < wav.len(),
+        "{} against {}",
+        flac.len(),
+        wav.len()
+    );
+}
+
+#[test]
+fn flac_loses_no_sample_at_the_edge_of_a_block() {
+    let block = flacenc::config::Encoder::default().block_size;
+    for length in [1, block - 1, block, block + 1] {
+        let samples = swelling_tone(length);
+        let flac = pcm_f32_to_flac_bytes(&samples).unwrap();
+        let wav = pcm_f32_to_wav_bytes(&samples).unwrap();
+        assert_eq!(
+            uploaded::pcm(&flac),
+            uploaded::pcm(&wav),
+            "{length} samples"
+        );
+    }
+}
+
+const REFUSED: (&str, &str) = ("400 Bad Request", r#"{"detail":"Unsupported file"}"#);
+
+#[test]
+fn a_dictation_is_uploaded_as_flac() {
+    let directory = tempfile::tempdir().unwrap();
+    let auth_path = signed_in(directory.path());
+    let (endpoint, bodies) = serve_bodies(&[TRANSCRIBED]);
+
+    assert_eq!(dictate(&endpoint, &auth_path, &quota()).unwrap(), "Hello");
+
+    let body = bodies.recv().unwrap();
+    assert!(has(&body, b"filename=\"codex.flac\""));
+    assert!(has(&body, b"audio/flac"));
+    assert!(has(&body, b"fLaC"));
+}
+
+#[test]
+fn refused_flac_goes_again_as_wav_and_later_uploads_start_as_wav() {
+    let directory = tempfile::tempdir().unwrap();
+    let auth_path = signed_in(directory.path());
+    let (endpoint, bodies) = serve_bodies(&[REFUSED, TRANSCRIBED, TRANSCRIBED]);
+    let (quota, upload_format) = (quota(), upload_format());
+
+    let first = dictate_as(&endpoint, &auth_path, &quota, &upload_format);
+    assert_eq!(first.unwrap(), "Hello");
+    let refused = bodies.recv().unwrap();
+    assert!(has(&refused, b"filename=\"codex.flac\""));
+    let resent = bodies.recv().unwrap();
+    assert!(has(&resent, b"filename=\"codex.wav\""));
+    assert!(has(&resent, b"audio/wav"));
+    assert!(has(&resent, b"RIFF"));
+
+    let second = dictate_as(&endpoint, &auth_path, &quota, &upload_format);
+    assert_eq!(second.unwrap(), "Hello");
+    let next = bodies.recv().unwrap();
+    assert!(
+        has(&next, b"filename=\"codex.wav\""),
+        "FLAC is not tried again"
+    );
+}
+
+#[test]
+fn audio_refused_in_both_forms_fails_and_flac_stays_the_first_choice() {
+    let directory = tempfile::tempdir().unwrap();
+    let auth_path = signed_in(directory.path());
+    let (endpoint, bodies) = serve_bodies(&[REFUSED, REFUSED, TRANSCRIBED]);
+    let (quota, upload_format) = (quota(), upload_format());
+
+    let error = dictate_as(&endpoint, &auth_path, &quota, &upload_format).unwrap_err();
+    assert_eq!(TranscriptionError::kind_of(&error), FailureKind::Rejected);
+    assert!(has(&bodies.recv().unwrap(), b"filename=\"codex.flac\""));
+    assert!(has(&bodies.recv().unwrap(), b"filename=\"codex.wav\""));
+
+    let next = dictate_as(&endpoint, &auth_path, &quota, &upload_format);
+    assert_eq!(next.unwrap(), "Hello");
+    assert!(has(&bodies.recv().unwrap(), b"filename=\"codex.flac\""));
+}
+
+/// Sends the 16 kHz mono WAV of speech that `MURMUR_LIVE_CLIP` names with
+/// the stored session, never refreshing it, as FLAC and as WAV, and prints
+/// both transcripts for a person to compare.
+#[test]
+#[ignore]
+fn live_codex_session_takes_flac() {
+    let clip = std::env::var("MURMUR_LIVE_CLIP").expect("MURMUR_LIVE_CLIP names a WAV file");
+    let samples: Vec<f32> = hound::WavReader::open(clip)
+        .unwrap()
+        .samples::<i16>()
+        .map(|sample| f32::from(sample.unwrap()) / f32::from(i16::MAX))
+        .collect();
+    let auth_path = codex_auth::auth_path().unwrap();
+    let session = codex_auth::stored_session(&auth_path).unwrap();
+    let operation = ProcessingOperation::new(OperationId(2));
+
+    for format in [AudioFormat::Flac, AudioFormat::Wav] {
+        let audio = format.encode(&samples).unwrap();
+        let request = UploadRequest {
+            format,
+            ..upload(&audio)
+        };
+        let started = std::time::Instant::now();
+        let text = tauri::async_runtime::block_on(transcribe_with_session_at(
+            TRANSCRIBE_URL,
+            &session,
+            &request,
+            &operation,
+        ));
+        let Ok(text) = text else {
+            panic!("Codex refused the clip as {format:?}");
+        };
+        println!(
+            "{format:?}, {} bytes, {:?}: {text}",
+            audio.len(),
+            started.elapsed()
+        );
+    }
 }

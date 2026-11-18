@@ -89,9 +89,10 @@ pub(super) fn answer(stream: TcpStream, answers: &Answers) {
     let Some(body) = read_body(&mut reader) else {
         return;
     };
-    let wav = uploaded_wav(&body).expect("a transcription request uploads a WAV");
+    let samples = crate::codex_transcribe::uploaded::pcm_of_request(&body)
+        .expect("a transcription request uploads FLAC or WAV");
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
-    wav.hash(&mut hasher);
+    samples.hash(&mut hasher);
     let piece = hasher.finish();
     let number = {
         let mut requests = answers.requests.lock().unwrap();
@@ -107,22 +108,13 @@ pub(super) fn answer(stream: TcpStream, answers: &Answers) {
             .unwrap(),
     );
     std::thread::sleep(answers.delay);
-    let text = serde_json::json!({ "text": piece_text(piece, wav.len()) }).to_string();
+    let text = serde_json::json!({ "text": piece_text(piece, 2 * samples.len()) }).to_string();
     let mut stream = stream;
     let _ = write!(
         stream,
         "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{text}",
         text.len()
     );
-}
-
-/// The WAV a transcription request uploads, which identifies the piece. The
-/// rest of the body differs at each request: reqwest draws a new multipart
-/// boundary for each form.
-fn uploaded_wav(body: &[u8]) -> Option<&[u8]> {
-    let start = body.windows(4).position(|window| window == b"RIFF")?;
-    let size: [u8; 4] = body.get(start + 4..start + 8)?.try_into().ok()?;
-    body.get(start..start + 8 + u32::from_le_bytes(size) as usize)
 }
 
 /// About as many words as a track of half a dialogue holds in a piece of
