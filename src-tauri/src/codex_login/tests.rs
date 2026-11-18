@@ -51,7 +51,8 @@ fn read_http_request(stream: &mut std::net::TcpStream) -> String {
 }
 
 /// A fake issuer: answers each request with the next reply, in order, and
-/// hands back the raw requests.
+/// hands back the raw requests. A request is handed back before its answer
+/// goes out, so a client that has its answers has left no request unseen.
 fn fake_issuer(replies: Vec<(u16, String)>) -> (String, mpsc::Receiver<String>) {
     let listener = StdListener::bind("127.0.0.1:0").unwrap();
     let issuer = format!("http://{}", listener.local_addr().unwrap());
@@ -66,8 +67,8 @@ fn fake_issuer(replies: Vec<(u16, String)>) -> (String, mpsc::Receiver<String>) 
                 "HTTP/1.1 {status} X\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}",
                 body.len()
             );
-            stream.write_all(response.as_bytes()).unwrap();
             let _ = requests_tx.send(request);
+            stream.write_all(response.as_bytes()).unwrap();
         }
     });
     (issuer, requests_rx)
@@ -273,6 +274,7 @@ async fn signs_in_like_codex_and_saves_the_shared_session() {
     let directory = tempfile::tempdir().unwrap();
     let (issuer, requests) = fake_issuer(vec![
         tokens_reply(),
+        // Never asked for: an API-key exchange would save this key.
         (200, json!({"access_token": "sk-key"}).to_string()),
     ]);
     let config = config(&issuer, directory.path());
@@ -349,26 +351,10 @@ async fn signs_in_like_codex_and_saves_the_shared_session() {
         param(&authorize, "code_challenge").unwrap()
     );
 
-    let key_request = requests.recv_timeout(Duration::from_secs(5)).unwrap();
-    assert!(key_request.starts_with("POST /oauth/token HTTP/1.1\r\n"));
     assert_eq!(
-        form_of(&key_request),
-        BTreeMap::from(
-            [
-                ("client_id", CLIENT_ID.to_string()),
-                (
-                    "grant_type",
-                    "urn:ietf:params:oauth:grant-type:token-exchange".to_string()
-                ),
-                ("requested_token", "openai-api-key".to_string()),
-                ("subject_token", id_token()),
-                (
-                    "subject_token_type",
-                    "urn:ietf:params:oauth:token-type:id_token".to_string()
-                ),
-            ]
-            .map(|(key, value)| (key.to_string(), value))
-        )
+        requests.try_recv(),
+        Err(mpsc::TryRecvError::Empty),
+        "the code exchange is the only request the issuer gets"
     );
 
     let saved: Value =
@@ -389,7 +375,7 @@ async fn signs_in_like_codex_and_saves_the_shared_session() {
     assert_eq!(
         saved,
         json!({
-            "OPENAI_API_KEY": "sk-key",
+            "OPENAI_API_KEY": null,
             "auth_mode": "chatgpt",
             "tokens": {
                 "id_token": id_token(),
@@ -423,7 +409,7 @@ async fn signs_in_like_codex_and_saves_the_shared_session() {
 #[tokio::test]
 async fn a_wrong_state_is_refused_and_the_sign_in_goes_on() {
     let directory = tempfile::tempdir().unwrap();
-    let (issuer, _requests) = fake_issuer(vec![tokens_reply(), (500, "{}".to_string())]);
+    let (issuer, _requests) = fake_issuer(vec![tokens_reply()]);
     let config = config(&issuer, directory.path());
     let path = config.auth_path.clone();
 
@@ -502,9 +488,9 @@ async fn a_failed_code_exchange_writes_nothing() {
 }
 
 #[tokio::test]
-async fn a_failed_api_key_exchange_still_saves_the_session() {
+async fn a_sign_in_without_a_codex_folder_creates_it_for_the_user_only() {
     let directory = tempfile::tempdir().unwrap();
-    let (issuer, _requests) = fake_issuer(vec![tokens_reply(), (500, "{}".to_string())]);
+    let (issuer, _requests) = fake_issuer(vec![tokens_reply()]);
     let config = config(&issuer, directory.path());
 
     let (result, _) = sign_in_with(&config, |authorize| finish_in_browser(&authorize)).await;
@@ -530,7 +516,7 @@ async fn a_failed_api_key_exchange_still_saves_the_session() {
 async fn a_sign_in_without_a_session_id_token_claim_saves_a_null_account() {
     let directory = tempfile::tempdir().unwrap();
     let reply = json!({"id_token": jwt(json!({})), "access_token": "at", "refresh_token": "rt"});
-    let (issuer, _requests) = fake_issuer(vec![(200, reply.to_string()), (500, "{}".to_string())]);
+    let (issuer, _requests) = fake_issuer(vec![(200, reply.to_string())]);
     let config = config(&issuer, directory.path());
     fs::create_dir_all(config.auth_path.parent().unwrap()).unwrap();
     fs::write(&config.auth_path, "[1, 2]").unwrap();
@@ -610,7 +596,7 @@ async fn busy_ports_are_left_alone() {
         );
     }
 
-    let (issuer, _requests) = fake_issuer(vec![tokens_reply(), (500, "{}".to_string())]);
+    let (issuer, _requests) = fake_issuer(vec![tokens_reply()]);
     config.issuer = issuer;
     config.ports = vec![ports[0], 0];
     let (result, (authorize, _)) = sign_in_with(&config, |authorize| {
