@@ -2,7 +2,7 @@ use super::*;
 use crate::OperationId;
 use std::sync::Mutex;
 
-fn speaker(key: &str, name: &str) -> MeetingSpeaker {
+pub(super) fn speaker(key: &str, name: &str) -> MeetingSpeaker {
     MeetingSpeaker {
         key: key.into(),
         name: name.into(),
@@ -11,7 +11,7 @@ fn speaker(key: &str, name: &str) -> MeetingSpeaker {
     }
 }
 
-fn turn(key: &str, start_ms: i64, text: &str) -> MeetingTurn {
+pub(super) fn turn(key: &str, start_ms: i64, text: &str) -> MeetingTurn {
     MeetingTurn {
         speaker_key: key.into(),
         start_ms,
@@ -65,11 +65,12 @@ fn instructions_ask_for_the_shape_and_markers() {
 fn the_title_line_and_the_body_are_read_apart() {
     let output = "# Point budget et planning\n\nRéunion de suivi entre [[me]] et [[s1]].\n\n**Budget**\n- Validé par [[s1]]\n";
     assert_eq!(
-        parse(output, &[]),
+        parse(output, &[], Vec::new()),
         Ok(Summary {
             title: Some("Point budget et planning".into()),
             body: "Réunion de suivi entre [[me]] et [[s1]].\n\n**Budget**\n- Validé par [[s1]]"
                 .into(),
+            named: vec![],
         })
     );
 }
@@ -79,10 +80,11 @@ fn code_fences_are_removed_and_a_missing_title_stays_missing() {
     let output =
         "```markdown\nWeekly sync between [[me]] and [[s2]].\n\n**Hiring**\n- Two offers out\n```";
     assert_eq!(
-        parse(output, &[]),
+        parse(output, &[], Vec::new()),
         Ok(Summary {
             title: None,
             body: "Weekly sync between [[me]] and [[s2]].\n\n**Hiring**\n- Two offers out".into(),
+            named: vec![],
         })
     );
 }
@@ -91,23 +93,31 @@ fn code_fences_are_removed_and_a_missing_title_stays_missing() {
 fn lists_are_kept_to_two_levels() {
     let output = "# T\n**Plan**\n* one\n    - two\n      + three\n- four";
     assert_eq!(
-        parse(output, &[]).unwrap().body,
+        parse(output, &[], Vec::new()).unwrap().body,
         "**Plan**\n- one\n  - two\n  - three\n- four"
     );
 }
 
 #[test]
 fn a_reply_without_a_body_is_empty() {
-    assert_eq!(parse("# Only a title\n\n", &[]), Err(SummaryError::Empty));
-    assert_eq!(parse("  \n", &[]), Err(SummaryError::Empty));
-    assert_eq!(parse("```\n```", &[]), Err(SummaryError::Empty));
+    assert_eq!(
+        parse("# Only a title\n\n", &[], Vec::new()),
+        Err(SummaryError::Empty)
+    );
+    assert_eq!(parse("  \n", &[], Vec::new()), Err(SummaryError::Empty));
+    assert_eq!(parse("```\n```", &[], Vec::new()), Err(SummaryError::Empty));
 }
 
 #[test]
 fn a_long_title_is_cut() {
     let output = format!("# {}\nBody.", "a".repeat(200));
     assert_eq!(
-        parse(&output, &[]).unwrap().title.unwrap().chars().count(),
+        parse(&output, &[], Vec::new())
+            .unwrap()
+            .title
+            .unwrap()
+            .chars()
+            .count(),
         MAX_TITLE_CHARS
     );
 }
@@ -126,13 +136,13 @@ fn markers_become_names_and_unknown_ones_their_key() {
 }
 
 /// Answers each request in turn and keeps what it was sent.
-struct Script {
+pub(super) struct Script {
     answers: Mutex<Vec<Result<String, CompletionError>>>,
-    requests: Mutex<Vec<(String, String)>>,
+    pub(super) requests: Mutex<Vec<(String, String)>>,
 }
 
 impl Script {
-    fn new(answers: Vec<Result<String, CompletionError>>) -> Self {
+    pub(super) fn new(answers: Vec<Result<String, CompletionError>>) -> Self {
         Self {
             answers: Mutex::new(answers),
             requests: Mutex::default(),
@@ -155,7 +165,7 @@ impl Summarizer for Script {
 
 /// Retries at once, three times for a transient failure and three times
 /// for a rate limit.
-fn quick_policy() -> RetryPolicy {
+pub(super) fn quick_policy() -> RetryPolicy {
     RetryPolicy {
         rate_limit_first: Duration::from_millis(1),
         rate_limit_cap: Duration::from_millis(1),
@@ -210,7 +220,8 @@ fn brief_rate_limits_and_dropped_streams_are_retried() {
         run_with(&script, &quick_policy(), MAX_SUMMARY_CHARS),
         SummaryEnd::Written(Summary {
             title: Some("Budget".into()),
-            body: "Contexte.".into()
+            body: "Contexte.".into(),
+            named: vec![],
         })
     );
     assert_eq!(script.requests.lock().unwrap().len(), 6);
@@ -357,7 +368,8 @@ fn a_meeting_that_fits_is_summarised_in_one_request() {
         run(&script, MAX_SUMMARY_CHARS),
         SummaryEnd::Written(Summary {
             title: Some("Budget".into()),
-            body: "Contexte.".into()
+            body: "Contexte.".into(),
+            named: vec![],
         })
     );
     assert_eq!(script.requests.lock().unwrap().len(), 1);
@@ -373,7 +385,8 @@ fn a_marker_in_the_title_becomes_the_speaker_s_name() {
         run(&script, MAX_SUMMARY_CHARS),
         SummaryEnd::Written(Summary {
             title: Some("Entretien avec Camille".into()),
-            body: "Point entre [[me]] et [[s1]].".into()
+            body: "Point entre [[me]] et [[s1]].".into(),
+            named: vec![],
         })
     );
     // Named before the title is cut, so a marker at the limit is not split.
@@ -397,7 +410,8 @@ fn a_long_meeting_is_summarised_by_section_then_merged() {
         run(&script, 100),
         SummaryEnd::Written(Summary {
             title: Some("Budget et relances".into()),
-            body: "Tout.".into()
+            body: "Tout.".into(),
+            named: vec![],
         })
     );
     let requests = script.requests.lock().unwrap();
@@ -557,7 +571,8 @@ fn codex_is_asked_with_the_standard_model_and_a_retry_succeeds() {
         run(&codex, MAX_SUMMARY_CHARS),
         SummaryEnd::Written(Summary {
             title: Some("Budget".into()),
-            body: "Réunion entre [[me]] et [[s1]].".into()
+            body: "Réunion entre [[me]] et [[s1]].".into(),
+            named: vec![],
         })
     );
     let request: serde_json::Value = serde_json::from_str(&bodies.lock().unwrap()[3]).unwrap();

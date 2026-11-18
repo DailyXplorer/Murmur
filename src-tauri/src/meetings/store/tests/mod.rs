@@ -140,7 +140,7 @@ fn meeting(
         .unwrap();
     store.finish_processing(id, None).unwrap();
     if let Some((title, body)) = summary {
-        assert!(store.save_summary(id, Some(title), body).unwrap());
+        assert!(store.save_summary(id, Some(title), body, &[]).unwrap());
     }
     id
 }

@@ -8,6 +8,8 @@ use crate::insights::stats::count_words;
 
 /// The speaker key of a notice for audio that could not be transcribed.
 pub const PLACEHOLDER: &str = "_system";
+/// The key of the user's own track.
+pub const ME: &str = "me";
 /// A long sentence that another track speaks into is split at a comma.
 const LONG_UNIT_MS: u64 = 20_000;
 /// A pause this long starts a new bubble for the same speaker.
@@ -232,7 +234,7 @@ mod tests {
         Unit {
             track,
             speaker: match track {
-                Track::Mic => "me",
+                Track::Mic => ME,
                 Track::System => "s1",
             }
             .to_string(),

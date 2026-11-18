@@ -610,12 +610,9 @@ function App() {
   } else {
     content = (
       <div className="h-screen flex flex-col select-none cursor-default">
-        {/* The Windows beta's notes live on its GitHub pre-release. */}
-        {!isWindows && (
-          <ErrorBoundary context="What's New">
-            <WhatsNewGate />
-          </ErrorBoundary>
-        )}
+        <ErrorBoundary context="What's New">
+          <WhatsNewGate />
+        </ErrorBoundary>
         <div className="flex-1 flex overflow-hidden">
           <Sidebar
             activeSection={currentSection}

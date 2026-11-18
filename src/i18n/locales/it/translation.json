@@ -603,21 +603,31 @@
       "missing": "Non hai effettuato l'accesso",
       "groups": {
         "processing": "Elaborazione del testo",
-        "styleByApp": "Stile per tipo di app",
-        "languageByApp": "Lingua per tipo di app",
+        "byApp": "Per tipo di app",
         "output": "Output",
         "engine": "Come trascrive Murmur"
       },
       "styleByApp": {
-        "description": "Lo stile dei dettati in questo tipo di app. «Come generale» segue lo stile di dettatura, e «Senza pulizia» incolla il testo così come viene trascritto.",
         "options": {
           "general": "Come generale",
           "off": "Senza pulizia"
         }
       },
       "languageByApp": {
-        "description": "La lingua dei dettati in questo tipo di app. «Come generale» segue la lingua scelta in Generale.",
         "error": "Impossibile cambiare la lingua."
+      },
+      "byApp": {
+        "title": "Stile e lingua",
+        "description": "Ogni tipo di app può avere il proprio stile di dettatura e la propria lingua: formale nelle e-mail, un’altra lingua in un editor di codice. «Come generale» segue le impostazioni generali.",
+        "customize": "Personalizza…",
+        "customized_one": "{{count}} tipo di app personalizzato",
+        "customized_other": "{{count}} tipi di app personalizzati",
+        "dialogTitle": "Stile e lingua per tipo di app",
+        "columns": {
+          "kind": "Tipo di app",
+          "style": "Stile",
+          "language": "Lingua"
+        }
       },
       "sessionExpired": "Sessione scaduta, accedi di nuovo",
       "aiCleanup": {
@@ -894,7 +904,7 @@
     },
     "renameDialog": {
       "title": "Rinomina partecipanti",
-      "description": "Il nuovo nome compare ovunque in questa riunione.",
+      "description": "Il nuovo nome compare ovunque in questa riunione. Murmur dà da solo un nome a un partecipante quando la conversazione dice chi è.",
       "nameLabel": "Nome per {{name}}",
       "save": "Salva",
       "error": "Impossibile rinominare il partecipante."
