@@ -70,12 +70,13 @@ again from Murmur.
 
 ### Private interfaces
 
-Murmur uses an internal service rather than a public, documented API: the
-ChatGPT transcription endpoint that the Codex apps use. It promises no
-stability, so a Codex or ChatGPT update can break transcription without notice
-until Murmur is updated. Murmur identifies itself to the transcription endpoint the
-way the Codex desktop app does. Use of these services stays subject to the
-provider's terms for your account.
+Murmur uses internal services rather than a public, documented API: the
+ChatGPT transcription endpoint that the Codex apps use, and the live dictation
+stream of the ChatGPT app. They promise no stability, so a Codex or ChatGPT
+update can break transcription without notice until Murmur is updated. Murmur
+identifies itself to the transcription endpoint the way the Codex desktop app
+does, and names no client to the dictation stream. Use of these services stays
+subject to the provider's terms for your account.
 
 ## Install
 
@@ -226,6 +227,11 @@ usage limit is reached, Murmur resends the recording at once against
 ChatGPT's own dictation limit, and uses that limit for the next hour. A
 finished transcription is always kept
 in History, even when pasting or saving the recording fails.
+
+With cloud transcription, Murmur sends the audio to ChatGPT while you speak
+and takes the text from that stream when you stop. When the stream cannot be
+used, for instance because it did not open or fell behind, Murmur uploads the
+recording after you stop, as described above.
 
 Recordings longer than about 13 minutes exceed 25 MB of audio. The Codex
 transcription endpoint publishes no size limit, and the public OpenAI
@@ -468,7 +474,9 @@ overlay.
 In local mode your audio stays on this Mac. If ChatGPT is connected, the text
 (not the audio) is sent for AI cleanup, and audio goes to the cloud only when
 the local model can't help; History marks those. In cloud mode, audio sent for
-transcription leaves the computer and is handled by ChatGPT. Do not describe
+transcription leaves the computer and is handled by ChatGPT. It is sent while
+you speak, not after you stop: when you cancel a dictation, what you said
+until then has already been sent. Do not describe
 Murmur as offline while AI cleanup or the cloud fallback can run.
 
 While AI cleanup is on, the transcript is sent to ChatGPT for cleanup, except
