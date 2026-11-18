@@ -32,7 +32,8 @@ pub struct UpdateStatus {
 }
 
 /// Starts the automatic checks: at launch, then every four hours of
-/// wall-clock time, while update checks are on.
+/// wall-clock time after a check that succeeded, sooner after one that
+/// failed (`schedule.rs`), while update checks are on.
 pub fn init(app: &AppHandle) {
     let handle = app.clone();
     app.manage(Checks::new(move |available| publish(&handle, available)));
