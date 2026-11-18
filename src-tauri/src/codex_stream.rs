@@ -1,5 +1,9 @@
-//! ChatGPT's live dictation stream. So far, only the proof that the
-//! WebSocket client opens it.
+//! ChatGPT's live dictation stream. So far: its messages, the text a
+//! session builds from them, and the proof that the WebSocket client opens
+//! it.
+
+mod protocol;
+mod transcript;
 
 #[cfg(test)]
 mod proof {
