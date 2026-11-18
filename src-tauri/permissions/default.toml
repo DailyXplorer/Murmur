@@ -97,6 +97,7 @@ permissions = [
   "allow-change-transcription-engine-setting",
   "allow-switch-to-local-when-ready",
   "allow-change-local-stt-card-dismissed-setting",
+  "allow-change-cloud-stream-enabled-setting",
   "allow-get-history-entries",
   "allow-search-history",
   "allow-get-insights",

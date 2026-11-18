@@ -863,3 +863,17 @@ fn salvage_preserves_original_bytes_once() {
     read_from(&file::SettingsFile::open(path.clone()));
     assert_eq!(copies(), 1);
 }
+
+#[test]
+fn settings_saved_before_dictations_could_stream_stream_them() {
+    let mut stored = default_settings_json();
+    stored
+        .as_object_mut()
+        .unwrap()
+        .remove("cloud_stream_enabled");
+
+    assert!(parse_stored_settings(&stored).0.cloud_stream_enabled);
+    assert!(get_default_settings().cloud_stream_enabled);
+    stored["cloud_stream_enabled"] = serde_json::json!(false);
+    assert!(!parse_stored_settings(&stored).0.cloud_stream_enabled);
+}

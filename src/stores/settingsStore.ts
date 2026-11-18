@@ -302,6 +302,8 @@ const settingUpdaters: {
   whisper_mode: (value) => commands.changeWhisperModeSetting(value as boolean),
   cleanup_short_dictations: (value) =>
     commands.changeCleanupShortDictationsSetting(value as boolean),
+  cloud_stream_enabled: (value) =>
+    commands.changeCloudStreamEnabledSetting(value as boolean),
   show_tray_icon: (value) =>
     commands.changeShowTrayIconSetting(value as boolean),
   extra_recording_buffer_ms: (value) =>

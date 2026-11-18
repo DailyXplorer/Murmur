@@ -565,6 +565,10 @@
         "title": "Zusätzlicher Aufnahmepuffer",
         "description": "Mindestzeit (in Millisekunden), die nach dem Loslassen der Taste weiter aufgenommen wird. Murmur nimmt bereits ein kurzes, adaptives Nachlaufstück auf: 200 ms, bis zu 600 ms, solange du noch sprichst. 0 = nur das adaptive Nachlaufstück."
       },
+      "cloudStream": {
+        "label": "Diktate an ChatGPT streamen",
+        "description": "Bei der Transkription mit ChatGPT wird das Audio schon gesendet, während du sprichst, damit der Text schneller zurückkommt. Aus: Die Aufnahme wird hochgeladen, wenn du fertig bist."
+      },
       "whatsNewPreview": {
         "title": "Vorschau der Neuerungen",
         "description": "Die neuesten gebündelten Versionshinweise öffnen, ohne sie als gesehen zu markieren",

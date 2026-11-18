@@ -163,9 +163,9 @@ const CHATGPT_QUOTA_SPENT: (&str, &str) = (
     "429 Too Many Requests",
     r#"{"detail":"Dictation usage limit reached"}"#,
 );
-const TRANSCRIBED: (&str, &str) = ("200 OK", r#"{"text":"Hello"}"#);
+pub(crate) const TRANSCRIBED: (&str, &str) = ("200 OK", r#"{"text":"Hello"}"#);
 
-type Replies = &'static [(&'static str, &'static str)];
+pub(crate) type Replies = &'static [(&'static str, &'static str)];
 
 /// Answers one connection per reply, in order, and sends back each
 /// request's head, lowercased.
@@ -174,7 +174,7 @@ fn serve(replies: Replies) -> (String, mpsc::Receiver<String>) {
 }
 
 /// `serve`, sending back each request's body instead.
-fn serve_bodies(replies: Replies) -> (String, mpsc::Receiver<Vec<u8>>) {
+pub(crate) fn serve_bodies(replies: Replies) -> (String, mpsc::Receiver<Vec<u8>>) {
     serve_and_send(replies, |(_, body)| body)
 }
 
@@ -224,7 +224,7 @@ fn read_request(peer: &mut std::net::TcpStream) -> (String, Vec<u8>) {
     }
 }
 
-fn signed_in(directory: &Path) -> std::path::PathBuf {
+pub(crate) fn signed_in(directory: &Path) -> std::path::PathBuf {
     use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
     let token = format!(
         "header.{}.signature",

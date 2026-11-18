@@ -1,6 +1,7 @@
 use crate::audio_toolkit::gain::{normalize_quiet_speech, GainProfile};
 use crate::audio_toolkit::text_passes::{self, PassLanguage};
 use crate::audio_toolkit::{apply_custom_words_counted, normalize_transcription_output};
+use crate::codex_stream::{self, LiveDictation, Stop, Wanted};
 use crate::codex_transcribe;
 use crate::engine::local::boost::boost_terms;
 use crate::engine::local::LocalEngine;
@@ -11,6 +12,7 @@ use crate::{OperationId, ProcessingOperation};
 use anyhow::Result;
 use log::{debug, error, info};
 use std::collections::HashMap;
+use std::future::Future;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, Manager};
@@ -25,9 +27,35 @@ pub struct Transcript {
     pub pass_language: Option<PassLanguage>,
 }
 
+/// The stream of the recording being transcribed.
+struct Streamed {
+    live: LiveDictation,
+    /// The engine gets the audio at a raised level, which the stream did not
+    /// hear.
+    audio_raised: bool,
+}
+
+/// ChatGPT's text for a dictation: its stream's when that can be used, else
+/// the upload's. The stream is asked once and closed either way.
+async fn stream_or_upload<Fut>(
+    streamed: Option<(LiveDictation, Stop<'_>)>,
+    operation: &ProcessingOperation,
+    upload: impl FnOnce() -> Fut,
+) -> Result<String>
+where
+    Fut: Future<Output = Result<String>>,
+{
+    if let Some((live, stop)) = streamed {
+        if let Some(text) = live.text(&stop, operation).await {
+            return Ok(text);
+        }
+    }
+    upload().await
+}
+
 /// Transcribes `audio` with `engine`. `language` is the dictation setting.
 /// Only the local engine listens for `terms`: the Codex endpoint takes none.
-/// "auto" names no language to either engine.
+/// "auto" names no language to either engine. Only Codex asks `streamed`.
 async fn run(
     engine: Engine,
     local: Option<&LocalEngine>,
@@ -35,18 +63,28 @@ async fn run(
     language: &str,
     terms: &[String],
     operation: &ProcessingOperation,
+    streamed: Option<Streamed>,
 ) -> Result<String> {
     let language = (language != "auto").then_some(language);
     match engine {
         Engine::Cloud => {
-            debug!(
-                "Sending {} samples to Codex transcription (language={:?})",
-                audio.len(),
-                language
-            );
-            codex_transcribe::transcribe(audio, language, operation)
-                .await
-                .inspect_err(|err| error!("Codex transcription failed: {err}"))
+            let streamed = streamed.map(|Streamed { live, audio_raised }| {
+                let stop = Stop {
+                    audio_raised,
+                    language: language.and_then(codex_transcribe::request_language),
+                };
+                (live, stop)
+            });
+            stream_or_upload(streamed, operation, || async {
+                debug!(
+                    "Sending {} samples to Codex transcription (language={:?})",
+                    audio.len(),
+                    language
+                );
+                codex_transcribe::transcribe(audio, language, operation).await
+            })
+            .await
+            .inspect_err(|err| error!("Codex transcription failed: {err}"))
         }
         Engine::Local => {
             let local = local.ok_or_else(|| anyhow::anyhow!("No local engine in this build"))?;
@@ -167,18 +205,22 @@ impl TranscriptionManager {
         audio: Arc<Vec<f32>>,
         operation: ProcessingOperation,
     ) -> Result<Transcript> {
-        self.transcribe_samples_in(audio, operation, None).await
+        self.transcribe_samples_in(audio, operation, None, None)
+            .await
     }
 
     /// Like `transcribe_samples`, in `language` for this call only when one
     /// is given ("auto" included): the language setting is neither read nor
     /// changed for it, so the engine route, the text passes and the language
-    /// the text is judged in all follow `language`.
+    /// the text is judged in all follow `language`. `live` is the stream of
+    /// the recording that gave `audio`: ChatGPT's text comes from it when it
+    /// can, and it is closed whatever happens.
     pub(crate) async fn transcribe_samples_in(
         &self,
         audio: Arc<Vec<f32>>,
         operation: ProcessingOperation,
         language: Option<&str>,
+        live: Option<LiveDictation>,
     ) -> Result<Transcript> {
         let _active_operation = self.requests.register(&operation)?;
         #[cfg(debug_assertions)]
@@ -196,7 +238,12 @@ impl TranscriptionManager {
         let conditions = self.conditions(&settings);
         // The saved WAV keeps the original level; only the engine's input is
         // raised.
-        let audio = match normalize_quiet_speech(&audio, GainProfile::new(settings.whisper_mode)) {
+        let louder = normalize_quiet_speech(&audio, GainProfile::new(settings.whisper_mode));
+        let mut streamed = live.map(|live| Streamed {
+            live,
+            audio_raised: louder.is_some(),
+        });
+        let audio = match louder {
             Some(louder) => {
                 debug!("Raised the level of quiet speech before transcription");
                 Arc::new(louder)
@@ -212,6 +259,7 @@ impl TranscriptionManager {
             conditions,
             || operation.is_cancelled(),
             |engine| {
+                let streamed = streamed.take().filter(|_| engine == Engine::Cloud);
                 run(
                     engine,
                     local,
@@ -219,6 +267,7 @@ impl TranscriptionManager {
                     conditions.language,
                     &terms,
                     &operation,
+                    streamed,
                 )
             },
         )
@@ -288,6 +337,28 @@ impl TranscriptionManager {
         }
     }
 
+    /// At the start of a recording: opens the parked stream to ChatGPT when
+    /// this dictation is to go there, in the general dictation language. From
+    /// then on the audio leaves this Mac while the user speaks. Otherwise the
+    /// audio that waited for the stream is dropped.
+    pub fn open_cloud_stream(&self) {
+        let settings = get_settings(&self.app_handle);
+        let conditions = self.conditions(&settings);
+        let route = engine::route(settings.transcription_engine, conditions);
+        codex_stream::open_parked(&Wanted {
+            enabled: settings.cloud_stream_enabled,
+            cloud: matches!(
+                route,
+                Route::Run(EngineUsed {
+                    engine: Engine::Cloud,
+                    ..
+                })
+            ),
+            signed_in: conditions.signed_in,
+            language: &settings.selected_language,
+        });
+    }
+
     /// At the start of a recording: opens the connection to ChatGPT when this
     /// dictation will use it (the cloud engine, or Codex cleanup), so the
     /// handshake overlaps the speaking time. Sends no audio and no text.
@@ -320,9 +391,14 @@ impl TranscriptionManager {
 
 #[cfg(test)]
 mod tests {
-    use super::{settle_without_engine, with_language, ActiveRequests};
+    use super::{settle_without_engine, stream_or_upload, with_language, ActiveRequests};
+    use crate::codex_stream::fake_server::{closed, serve, started, transcript_failed, Script};
+    use crate::codex_stream::{self, LiveDictation, Stop};
+    use crate::codex_transcribe::tests::{serve_bodies, signed_in, TRANSCRIBED};
+    use crate::codex_transcribe::{self, to_pcm16, uploaded};
     use crate::settings::get_default_settings;
     use crate::{OperationId, ProcessingOperation};
+    use std::time::Duration;
 
     fn operation() -> ProcessingOperation {
         ProcessingOperation::new(OperationId(1))
@@ -397,5 +473,144 @@ mod tests {
 
         requests.shutdown();
         assert!(!finished.is_cancelled());
+    }
+
+    const AS_STARTED: Stop<'static> = Stop {
+        audio_raised: false,
+        language: None,
+    };
+
+    /// Half a second of a recording.
+    fn recording() -> Vec<f32> {
+        (0..8_000).map(|i| (i % 800) as f32 / 1_600.0).collect()
+    }
+
+    /// The dictation of `recording` as a server playing `script` streamed
+    /// it, once its recording stopped.
+    fn streamed(script: Script) -> LiveDictation {
+        let (mut tap, live) = serve(script).dictation(None);
+        for frame in recording().chunks(480) {
+            tap(frame);
+        }
+        live
+    }
+
+    /// ChatGPT's text for `recording`, and the uploads it took.
+    fn transcribed(
+        streamed: Option<(LiveDictation, Stop<'_>)>,
+        operation: &ProcessingOperation,
+    ) -> (anyhow::Result<String>, Vec<Vec<u8>>) {
+        let directory = tempfile::tempdir().unwrap();
+        let auth_path = signed_in(directory.path());
+        let (upload_url, uploads) = serve_bodies(&[TRANSCRIBED]);
+        let samples = recording();
+        let text = tauri::async_runtime::block_on(stream_or_upload(streamed, operation, || {
+            codex_transcribe::transcribe_at(
+                &upload_url,
+                Some(&auth_path),
+                &samples,
+                None,
+                1,
+                operation,
+            )
+        }));
+        let mut requests = Vec::new();
+        while let Ok(body) = uploads.recv_timeout(Duration::from_millis(300)) {
+            requests.push(body);
+        }
+        (text, requests)
+    }
+
+    #[test]
+    fn a_dictation_whose_stream_gave_the_text_is_not_uploaded() {
+        let live = streamed(Script::transcribing("Bonjour à tous"));
+
+        let (text, uploads) = transcribed(Some((live, AS_STARTED)), &operation());
+
+        assert_eq!(text.unwrap(), "Bonjour à tous.");
+        assert!(uploads.is_empty(), "the clip was uploaded as well");
+    }
+
+    #[test]
+    fn a_dictation_whose_stream_is_not_used_is_uploaded_once_with_its_audio() {
+        let well = || Script::transcribing("Bonjour à tous");
+        let raised = Stop {
+            audio_raised: true,
+            language: None,
+        };
+        let in_english = Stop {
+            audio_raised: false,
+            language: Some("en"),
+        };
+        let rows = [
+            ("no stream", None),
+            (
+                "a stream nothing opened",
+                Some((codex_stream::pair().1, AS_STARTED)),
+            ),
+            (
+                "audio raised for the engine",
+                Some((streamed(well()), raised)),
+            ),
+            ("another language", Some((streamed(well()), in_english))),
+            (
+                "a refused handshake",
+                Some((
+                    streamed(Script {
+                        refuse: Some(403),
+                        ..Script::default()
+                    }),
+                    AS_STARTED,
+                )),
+            ),
+            (
+                "a transcript that failed",
+                Some((
+                    streamed(Script {
+                        on_close: vec![transcript_failed()],
+                        ..well()
+                    }),
+                    AS_STARTED,
+                )),
+            ),
+            (
+                "a session without text",
+                Some((
+                    streamed(Script {
+                        on_start: vec![started()],
+                        on_close: vec![closed()],
+                        ..Script::default()
+                    }),
+                    AS_STARTED,
+                )),
+            ),
+        ];
+        let audio: Vec<i16> = recording().iter().map(|sample| to_pcm16(*sample)).collect();
+        for (case, streamed) in rows {
+            let (text, uploads) = transcribed(streamed, &operation());
+
+            assert_eq!(text.unwrap(), "Hello", "{case}");
+            assert_eq!(uploads.len(), 1, "{case}");
+            let heard = uploaded::pcm_of_request(&uploads[0]).expect("an audio file");
+            let differs = heard.iter().zip(&audio).position(|(a, b)| a != b);
+            assert!(
+                heard == audio,
+                "{case}: {} samples against {}, first difference at {differs:?}",
+                heard.len(),
+                audio.len()
+            );
+        }
+    }
+
+    #[test]
+    fn a_cancelled_dictation_is_neither_asked_of_its_stream_nor_uploaded() {
+        let live = streamed(Script::transcribing("Bonjour à tous"));
+        let cancelled = operation();
+        cancelled.cancel();
+
+        let (text, uploads) = transcribed(Some((live, AS_STARTED)), &cancelled);
+
+        assert!(text.unwrap_err().to_string().contains("cancelled"));
+        assert!(uploads.is_empty());
     }
 }

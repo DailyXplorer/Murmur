@@ -55,6 +55,14 @@ pub fn change_local_stt_card_dismissed_setting(
     Ok(())
 }
 
+/// Applies from the next dictation: the one recording keeps how it started.
+#[tauri::command]
+#[specta::specta]
+pub fn change_cloud_stream_enabled_setting(app: AppHandle, enabled: bool) -> Result<(), String> {
+    update_settings(&app, |settings| settings.cloud_stream_enabled = enabled);
+    Ok(())
+}
+
 #[tauri::command]
 #[specta::specta]
 /// Returns whether the local Codex authentication cache contains a ChatGPT

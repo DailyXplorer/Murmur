@@ -11,7 +11,10 @@ pub(crate) fn pcm_of_request(body: &[u8]) -> Option<Vec<i16>> {
     while let Some(start) = find(rest, boundary) {
         rest = &rest[start + boundary.len()..];
         let part = &rest[..find(rest, boundary).unwrap_or(rest.len())];
-        let content = find(part, b"\r\n\r\n").map(|headers| &part[headers + 4..]);
+        // The line break before the next boundary belongs to the boundary.
+        let content = find(part, b"\r\n\r\n")
+            .map(|headers| &part[headers + 4..])
+            .map(|content| content.strip_suffix(b"\r\n").unwrap_or(content));
         if let Some(samples) = content.and_then(pcm) {
             return Some(samples);
         }

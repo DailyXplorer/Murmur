@@ -571,6 +571,10 @@
       "recordingBuffer": {
         "title": "Extra recording buffer",
         "description": "Minimum time (in milliseconds) to keep recording after you release the key. Murmur already keeps a short, adaptive tail: 200 ms, up to 600 ms while you are still speaking. 0 = adaptive tail only."
+      },
+      "cloudStream": {
+        "label": "Stream dictations to ChatGPT",
+        "description": "With ChatGPT transcription, sends the audio while you speak, so the text comes back sooner. Off: the recording is uploaded after you stop."
       }
     },
     "about": {

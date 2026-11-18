@@ -202,6 +202,10 @@ pub struct AppSettings {
     /// they are pasted right away.
     #[serde(default)]
     pub cleanup_short_dictations: bool,
+    /// With ChatGPT transcription, sends the audio to ChatGPT while the user
+    /// speaks. Off: the recording is uploaded after the stop.
+    #[serde(default = "default_cloud_stream_enabled")]
+    pub cloud_stream_enabled: bool,
 }
 
 impl AppSettings {
@@ -227,6 +231,10 @@ fn default_meeting_call_prompt() -> bool {
 }
 
 fn default_meeting_live_transcript() -> bool {
+    true
+}
+
+fn default_cloud_stream_enabled() -> bool {
     true
 }
 

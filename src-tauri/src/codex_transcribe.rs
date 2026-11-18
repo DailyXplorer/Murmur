@@ -135,7 +135,7 @@ fn codex_window_open(spent_at: Option<SystemTime>, now: SystemTime) -> bool {
 /// Whether `now` is less than `window` after `since`. Wall-clock time, so
 /// the window also runs out while the Mac sleeps. A clock set back before
 /// the window opened ends it.
-fn within(since: Option<SystemTime>, now: SystemTime, window: Duration) -> bool {
+pub(crate) fn within(since: Option<SystemTime>, now: SystemTime, window: Duration) -> bool {
     since.is_some_and(|since| {
         now.duration_since(since)
             .is_ok_and(|elapsed| elapsed < window)
@@ -469,8 +469,8 @@ async fn transcribe_with_session_at(
         })?;
     let mut form = reqwest::multipart::Form::new().part("file", part);
 
-    if let Some(language) = language.filter(|code| !code.is_empty() && *code != "auto") {
-        form = form.text("language", api_language(language).to_string());
+    if let Some(language) = language.and_then(request_language) {
+        form = form.text("language", language.to_string());
     }
 
     let mut request = client
@@ -558,6 +558,12 @@ fn parse_transcript(body: &str) -> Result<String> {
     Ok(trimmed.to_string())
 }
 
+/// The language a request names for the dictation language `setting`: none
+/// for "auto", which leaves the detection to the server.
+pub(crate) fn request_language(setting: &str) -> Option<&str> {
+    (!setting.is_empty() && setting != "auto").then(|| api_language(setting))
+}
+
 fn api_language(language: &str) -> &str {
     match language {
         "zh-Hans" | "zh-Hant" => "zh",
@@ -574,7 +580,7 @@ pub(crate) fn user_agent() -> String {
     format!("Murmur/{} (Mac OS; {arch})", env!("CARGO_PKG_VERSION"))
 }
 
-fn to_pcm16(sample: f32) -> i16 {
+pub(crate) fn to_pcm16(sample: f32) -> i16 {
     (sample.clamp(-1.0, 1.0) * i16::MAX as f32) as i16
 }
 
@@ -663,6 +669,6 @@ fn pcm_f32_to_wav_bytes(samples: &[f32]) -> Result<Vec<u8>> {
 }
 
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;
 #[cfg(test)]
 pub(crate) mod uploaded;

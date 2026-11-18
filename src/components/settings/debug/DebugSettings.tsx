@@ -4,6 +4,7 @@ import { WordCorrectionThreshold } from "./WordCorrectionThreshold";
 import { LogLevelSelector } from "./LogLevelSelector";
 import { LiveLogViewer } from "./LiveLogViewer";
 import { RecordingBuffer } from "./RecordingBuffer";
+import { CloudStream } from "./CloudStream";
 import { SettingsGroup } from "../../ui/SettingsGroup";
 import { SettingsPage } from "../../ui/SettingsPage";
 import { AlwaysOnMicrophone } from "../AlwaysOnMicrophone";
@@ -27,6 +28,7 @@ export const DebugSettings: React.FC = () => {
         <WordCorrectionThreshold grouped={true} />
         <RecordingBuffer grouped={true} />
         <AlwaysOnMicrophone grouped={true} />
+        <CloudStream grouped={true} />
         {!isWindows && <ClamshellMicrophoneSelector grouped={true} />}
         <LiveLogViewer grouped={true} />
       </SettingsGroup>

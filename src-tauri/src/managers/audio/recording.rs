@@ -1,7 +1,7 @@
 use crate::audio_feedback;
 use crate::audio_toolkit::audio::ReleaseTailRequest;
 use crate::audio_toolkit::release_tail::{self, TailConfig};
-use crate::audio_toolkit::Capture;
+use crate::audio_toolkit::{Capture, FrameTap};
 use crate::settings::{get_settings, update_settings};
 use log::{debug, error};
 use std::sync::atomic::Ordering;
@@ -10,7 +10,12 @@ use std::sync::Arc;
 use super::*;
 
 impl AudioRecordingManager {
-    pub fn try_start_recording(&self, binding_id: &str) -> Result<RecordingReadiness, String> {
+    /// `tap` hears the recording's frames from the first one.
+    pub fn try_start_recording(
+        &self,
+        binding_id: &str,
+        tap: Option<FrameTap>,
+    ) -> Result<RecordingReadiness, String> {
         let mut state = self.state.lock().unwrap();
 
         if let RecordingState::Idle = *state {
@@ -29,7 +34,7 @@ impl AudioRecordingManager {
             }
 
             if let Some(rec) = self.recorder.lock().unwrap().as_ref() {
-                match rec.start() {
+                match rec.start(tap) {
                     Ok(receiver) => {
                         let generation = self.capture_generation.fetch_add(1, Ordering::AcqRel) + 1;
                         *self.is_recording.lock().unwrap() = true;

@@ -214,7 +214,12 @@ pub async fn retry_history_entry_transcription(
             // user-requested retry.
             let operation = ProcessingOperation::new(OperationId(0));
             let transcript = transcription_manager
-                .transcribe_samples_in(Arc::new(samples), operation.clone(), language.as_deref())
+                .transcribe_samples_in(
+                    Arc::new(samples),
+                    operation.clone(),
+                    language.as_deref(),
+                    None,
+                )
                 .await
                 .map_err(|e| e.to_string())?;
             let (transcription, source) = (transcript.text, transcript.source);
