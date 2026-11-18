@@ -325,6 +325,7 @@ pub(super) fn process(data: &Path, codex: Option<(String, PathBuf)>, models: Opt
                 auth_path: auth_path.clone(),
             }),
             local: None,
+            on_device: false,
             analyzer: Arc::clone(&analyzer),
             summarizer: Arc::new(CannedSummary),
             policy: RetryPolicy::default(),

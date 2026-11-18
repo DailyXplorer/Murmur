@@ -465,6 +465,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             overlay::fit_call_prompt,
             overlay::get_call_prompt,
             commands::meetings::change_meeting_live_transcript_setting,
+            commands::meetings::change_meeting_on_device_setting,
             commands::meetings::get_live_transcript,
         ])
         .events(collect_events![

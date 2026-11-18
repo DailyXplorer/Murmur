@@ -119,6 +119,7 @@ pub(super) fn spawn_processing(
                     .map(|engine| {
                         Arc::new(LocalTranscriber(Arc::new(engine))) as Arc<dyn Transcriber>
                     }),
+                on_device: settings.meeting_on_device,
                 analyzer: analysis::platform_analyzer(Arc::clone(&models)),
                 summarizer: Arc::new(CodexSummarizer {
                     url: crate::cleanup::responses::RESPONSES_URL.to_string(),

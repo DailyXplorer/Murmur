@@ -664,6 +664,7 @@ fn echoes_without_the_models() {
             root: root.clone(),
             transcriber: Arc::clone(&codex) as Arc<dyn Transcriber>,
             local: None,
+            on_device: false,
             analyzer: Arc::new(NoModels),
             summarizer: Arc::new(CannedSummary),
             policy: RetryPolicy::default(),

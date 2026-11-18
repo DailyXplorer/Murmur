@@ -1253,6 +1253,18 @@ async changeMeetingLiveTranscriptSetting(enabled: boolean) : Promise<Result<null
 }
 },
 /**
+ * Applies from the next meeting processed: one being transcribed goes on
+ * as it started.
+ */
+async changeMeetingOnDeviceSetting(enabled: boolean) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("change_meeting_on_device_setting", { enabled }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
+/**
  * The live transcript of meeting `id`, or the draft a crash left of it.
  * `None` once the final transcript replaced it.
  */
@@ -1396,6 +1408,11 @@ meeting_call_prompt?: boolean;
  * local model is ready.
  */
 meeting_live_transcript?: boolean; 
+/**
+ * Transcribes meetings on this Mac when the local model is ready, so
+ * their audio is not uploaded. Off: Codex transcribes them.
+ */
+meeting_on_device?: boolean; 
 /**
  * Which engine transcribes dictations.
  */

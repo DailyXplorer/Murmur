@@ -66,6 +66,7 @@ fn every_terminal_processing_error_announces_a_failure_once() {
         root: h.root.clone(),
         transcriber: codex(|_| Ok(String::new())),
         local: None,
+        on_device: false,
         analyzer: Arc::new(FakeAnalyzer::without_models()),
         summarizer: FakeSummarizer::answering(vec![]),
         policy: RetryPolicy::default(),

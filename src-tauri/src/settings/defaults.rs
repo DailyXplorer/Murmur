@@ -114,6 +114,7 @@ pub fn get_default_settings() -> AppSettings {
         meeting_audio_retention: MeetingAudioRetention::default(),
         meeting_call_prompt: default_meeting_call_prompt(),
         meeting_live_transcript: default_meeting_live_transcript(),
+        meeting_on_device: false,
         transcription_engine: Engine::default(),
         local_stt_card_dismissed: false,
         local_model_download_wanted: false,

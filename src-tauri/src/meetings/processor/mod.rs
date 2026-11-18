@@ -73,6 +73,9 @@ pub struct Processor {
     pub transcriber: Arc<dyn Transcriber>,
     /// Takes the pieces Codex refuses for good; `None` without a ready model.
     pub local: Option<Arc<dyn Transcriber>>,
+    /// The setting that keeps meetings on this Mac: `local` transcribes
+    /// them when it can, and their audio is not uploaded.
+    pub on_device: bool,
     pub analyzer: Arc<dyn Analyzer>,
     pub summarizer: Arc<dyn Summarizer>,
     pub policy: RetryPolicy,
@@ -352,6 +355,7 @@ impl Processor {
                     .as_deref()
                     .is_none_or(crate::engine::parakeet_languages::supports)
             }),
+            on_device: self.on_device,
             source: Arc::clone(&source) as Arc<dyn ChunkSource>,
             observer: Arc::clone(&saver) as Arc<dyn RunObserver>,
             policy: self.policy.clone(),

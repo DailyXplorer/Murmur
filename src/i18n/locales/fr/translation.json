@@ -413,6 +413,11 @@
         "description": "Affiche le texte de la réunion pendant l’enregistrement. Il est produit sur ce Mac par le modèle local, jamais dans le cloud.",
         "descriptionWindows": "Affiche le texte de la réunion pendant l’enregistrement. Il est produit sur ce PC par le modèle local, jamais dans le cloud."
       },
+      "meetingOnDevice": {
+        "label": "Transcription des réunions sur l’appareil",
+        "description": "Le modèle local écrit la transcription de la réunion, donc son audio reste sur ce Mac. Seul le texte va à ChatGPT, pour le titre et le résumé. ChatGPT transcrit quand même si le modèle local n’est pas téléchargé, ou si votre langue ne fait pas partie des 25 qu’il couvre.",
+        "descriptionWindows": "Le modèle local écrit la transcription de la réunion, donc son audio reste sur ce PC. Seul le texte va à ChatGPT, pour le titre et le résumé. ChatGPT transcrit quand même si le modèle local n’est pas téléchargé, ou si votre langue ne fait pas partie des 25 qu’il couvre."
+      },
       "meetingsAudio": {
         "title": "Supprimer l’audio des réunions",
         "description": "Supprime l’audio des réunions traitées après le délai choisi, pour libérer de l’espace. Les transcriptions et les résumés sont conservés.",

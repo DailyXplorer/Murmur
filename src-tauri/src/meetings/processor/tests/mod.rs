@@ -271,6 +271,8 @@ struct Harness {
     vocabulary: Vec<String>,
     /// This Mac's model, when it is ready.
     local: Option<Arc<dyn Transcriber>>,
+    /// The setting that keeps meetings on this Mac.
+    on_device: bool,
     /// Off for the tests that record 25 minutes.
     compress_audio: bool,
     _dir: tempfile::TempDir,
@@ -286,6 +288,7 @@ fn harness() -> Harness {
         language: None,
         vocabulary: Vec::new(),
         local: None,
+        on_device: false,
         compress_audio: true,
         _dir: dir,
     }
@@ -337,6 +340,7 @@ impl Harness {
             root: self.root.clone(),
             transcriber: codex,
             local: self.local.clone(),
+            on_device: self.on_device,
             analyzer,
             summarizer,
             policy: RetryPolicy {

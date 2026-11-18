@@ -148,6 +148,7 @@ const APP_COMMANDS: &[&str] = &[
     "fit_call_prompt",
     "get_call_prompt",
     "change_meeting_live_transcript_setting",
+    "change_meeting_on_device_setting",
     "get_live_transcript",
 ];
 
