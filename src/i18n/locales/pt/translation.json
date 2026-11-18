@@ -608,21 +608,31 @@
       "missing": "Sem sessão iniciada",
       "groups": {
         "processing": "Processamento de texto",
-        "styleByApp": "Estilo por tipo de app",
-        "languageByApp": "Idioma por tipo de app",
+        "byApp": "Por tipo de app",
         "output": "Saída",
         "engine": "Como o Murmur transcreve"
       },
       "styleByApp": {
-        "description": "O estilo dos ditados neste tipo de app. “Como o geral” segue o estilo de ditado, e “Sem limpeza” cola o texto como foi transcrito.",
         "options": {
           "general": "Como o geral",
           "off": "Sem limpeza"
         }
       },
       "languageByApp": {
-        "description": "O idioma dos ditados neste tipo de app. “Como o geral” segue o idioma escolhido em Geral.",
         "error": "Não foi possível mudar o idioma."
+      },
+      "byApp": {
+        "title": "Estilo e idioma",
+        "description": "Cada tipo de app pode ter seu próprio estilo de ditado e seu próprio idioma: formal nos e-mails, outro idioma em um editor de código. “Como o geral” segue seus ajustes gerais.",
+        "customize": "Personalizar…",
+        "customized_one": "{{count}} tipo de app personalizado",
+        "customized_other": "{{count}} tipos de app personalizados",
+        "dialogTitle": "Estilo e idioma por tipo de app",
+        "columns": {
+          "kind": "Tipo de app",
+          "style": "Estilo",
+          "language": "Idioma"
+        }
       },
       "sessionExpired": "Sessão expirada, entre novamente",
       "aiCleanup": {
@@ -899,7 +909,7 @@
     },
     "renameDialog": {
       "title": "Renomear participantes",
-      "description": "O novo nome aparece em toda esta reunião.",
+      "description": "O novo nome aparece em toda esta reunião. O Murmur nomeia sozinho um participante quando a conversa diz quem ele é.",
       "nameLabel": "Nome para {{name}}",
       "save": "Salvar",
       "error": "Não foi possível renomear o participante."

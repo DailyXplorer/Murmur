@@ -199,9 +199,14 @@ impl AudioRecorder {
                 let sample_rate = config.sample_rate().0;
                 let channels = config.channels() as usize;
 
+                // No device name: it often holds its owner's.
                 log::info!(
-                    "Using device: {:?}\nSample rate: {}\nChannels: {}\nFormat: {:?}",
-                    thread_device.name(),
+                    "Recording from the {} microphone: {} Hz, {} channels, {:?}",
+                    if opened_on_default {
+                        "default"
+                    } else {
+                        "chosen"
+                    },
                     sample_rate,
                     channels,
                     config.sample_format()

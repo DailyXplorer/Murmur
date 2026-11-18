@@ -7,7 +7,7 @@ fn audio_is_compressed_then_deleted_and_the_text_stays() {
     assert!(!store.delete_audio(recording, || Ok(())).unwrap());
 
     let id = ready(&store);
-    store.save_summary(id, None, "Notes.").unwrap();
+    store.save_summary(id, None, "Notes.", &[]).unwrap();
     assert_eq!(store.get(id).unwrap().unwrap().audio, AudioState::Tracks);
     // Waiting for its audio to be compressed.
     assert_eq!(store.waiting_for_processing().unwrap(), [id]);
@@ -129,7 +129,7 @@ fn interrupted_audio_deletion_is_retried() {
 fn audio_that_failed_to_compress_three_times_is_no_longer_requeued() {
     let (_dir, store) = store();
     let id = ready(&store);
-    store.save_summary(id, None, "Notes.").unwrap();
+    store.save_summary(id, None, "Notes.", &[]).unwrap();
     for _ in 0..2 {
         store.compress_failed(id).unwrap();
     }

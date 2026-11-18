@@ -41,7 +41,7 @@ fn titles_saved_with_speaker_markers_get_the_speakers_names() {
             .unwrap();
         store.finish_processing(id, None).unwrap();
         store.rename_speaker(id, "s1", "Camille").unwrap();
-        store.save_summary(id, Some(title), "Notes.").unwrap();
+        store.save_summary(id, Some(title), "Notes.", &[]).unwrap();
         id
     };
     let written = titled("Point avec [[s1]] et [[me]], [[s9]]");

@@ -608,21 +608,31 @@
       "missing": "Not signed in",
       "groups": {
         "processing": "Text processing",
-        "styleByApp": "Style by app type",
-        "languageByApp": "Language by app type",
+        "byApp": "By app type",
         "output": "Output",
         "engine": "How Murmur transcribes"
       },
       "styleByApp": {
-        "description": "The style of dictations into this kind of app. Same as general follows the dictation style. No cleanup pastes the text as transcribed.",
         "options": {
           "general": "Same as general",
           "off": "No cleanup"
         }
       },
       "languageByApp": {
-        "description": "The language of dictations into this kind of app. Same as general follows the language set in the general settings.",
         "error": "Couldn't change the language."
+      },
+      "byApp": {
+        "title": "Style and language",
+        "description": "Each kind of app can have its own dictation style and language: formal in emails, another language in a code editor. Same as general follows your general settings.",
+        "customize": "Customize…",
+        "customized_one": "{{count}} app type customized",
+        "customized_other": "{{count}} app types customized",
+        "dialogTitle": "Style and language by app type",
+        "columns": {
+          "kind": "App type",
+          "style": "Style",
+          "language": "Language"
+        }
       },
       "sessionExpired": "Session expired, sign in again",
       "aiCleanup": {
@@ -899,7 +909,7 @@
     },
     "renameDialog": {
       "title": "Rename speakers",
-      "description": "A new name shows everywhere in this meeting.",
+      "description": "A new name shows everywhere in this meeting. Murmur names a speaker itself when the conversation says who they are.",
       "nameLabel": "Name for {{name}}",
       "save": "Save",
       "error": "Couldn't rename the speaker."

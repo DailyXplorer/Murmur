@@ -36,10 +36,9 @@ pub(crate) const TRANSCRIBE_URL: &str = "https://chatgpt.com/backend-api/transcr
 const SAMPLE_RATE: u32 = 16_000;
 const WAV_BYTES_PER_SAMPLE: usize = 2;
 
-/// The Codex CLI only ever uploaded `audio/wav` to this endpoint, so Murmur
-/// sends uncompressed WAV. The endpoint publishes no size limit; the public
-/// OpenAI transcription API caps uploads at 25 MB (about 13.6 minutes here),
-/// so longer recordings get a warning before upload.
+/// The endpoint publishes no size limit; the public OpenAI transcription API
+/// caps uploads at 25 MB (about 13.6 minutes as WAV, the largest form an
+/// upload takes), so longer recordings get a warning before upload.
 pub const UPLOAD_SOFT_LIMIT_BYTES: usize = 25 * 1024 * 1024;
 
 /// Covers connect, upload and response. Long recordings get one extra second
@@ -129,12 +128,17 @@ impl DictationQuota {
     }
 }
 
-/// Wall-clock time, so the window also runs out while the Mac sleeps. A
-/// clock set back before the window opened ends it.
 fn codex_window_open(spent_at: Option<SystemTime>, now: SystemTime) -> bool {
-    spent_at.is_some_and(|spent_at| {
-        now.duration_since(spent_at)
-            .is_ok_and(|elapsed| elapsed < CODEX_QUOTA_BACKOFF)
+    within(spent_at, now, CODEX_QUOTA_BACKOFF)
+}
+
+/// Whether `now` is less than `window` after `since`. Wall-clock time, so
+/// the window also runs out while the Mac sleeps. A clock set back before
+/// the window opened ends it.
+fn within(since: Option<SystemTime>, now: SystemTime, window: Duration) -> bool {
+    since.is_some_and(|since| {
+        now.duration_since(since)
+            .is_ok_and(|elapsed| elapsed < window)
     })
 }
 
@@ -142,8 +146,84 @@ pub fn auth_status() -> CodexAuthStatus {
     codex_auth::auth_status()
 }
 
+/// The size of the upload as WAV, which FLAC stays under.
 pub fn upload_size_for_samples(sample_count: usize) -> usize {
     44 + sample_count * WAV_BYTES_PER_SAMPLE
+}
+
+/// How the audio is encoded for the upload. FLAC is lossless, so the server
+/// hears exactly the samples WAV would carry, in about 45 % of the bytes for
+/// speech. The endpoint is undocumented and the Codex CLI only ever sent it
+/// WAV: FLAC is accepted today, and WAV stays as the form to fall back on.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum AudioFormat {
+    Flac,
+    Wav,
+}
+
+impl AudioFormat {
+    fn file_name(self) -> &'static str {
+        match self {
+            Self::Flac => "codex.flac",
+            Self::Wav => "codex.wav",
+        }
+    }
+
+    fn mime(self) -> &'static str {
+        match self {
+            Self::Flac => "audio/flac",
+            Self::Wav => "audio/wav",
+        }
+    }
+
+    fn encode(self, samples: &[f32]) -> Result<Vec<u8>> {
+        match self {
+            Self::Flac => pcm_f32_to_flac_bytes(samples),
+            Self::Wav => pcm_f32_to_wav_bytes(samples),
+        }
+    }
+}
+
+/// A refusal may have been of something else than the format, such as a
+/// proxy's challenge page, so FLAC is tried again after this long. If the
+/// endpoint did drop FLAC, that costs one refused upload an hour.
+const FLAC_RETRY_AFTER: Duration = Duration::from_secs(60 * 60);
+
+/// When the endpoint refused FLAC and took the same audio as WAV. Shared by
+/// every request in the process, dictations and parallel meeting uploads.
+struct UploadFormat {
+    flac_refused_at: Mutex<Option<SystemTime>>,
+}
+
+static UPLOAD_FORMAT: UploadFormat = UploadFormat {
+    flac_refused_at: Mutex::new(None),
+};
+
+impl UploadFormat {
+    fn preferred(&self, now: SystemTime) -> AudioFormat {
+        if within(*self.refused_at(), now, FLAC_RETRY_AFTER) {
+            AudioFormat::Wav
+        } else {
+            AudioFormat::Flac
+        }
+    }
+
+    /// The endpoint refused a FLAC upload and took the same audio as WAV.
+    /// True when no window was running, so parallel uploads report it once.
+    fn flac_refused(&self, now: SystemTime) -> bool {
+        let mut refused_at = self.refused_at();
+        if within(*refused_at, now, FLAC_RETRY_AFTER) {
+            return false;
+        }
+        *refused_at = Some(now);
+        true
+    }
+
+    fn refused_at(&self) -> std::sync::MutexGuard<'_, Option<SystemTime>> {
+        self.flac_refused_at
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+    }
 }
 
 /// Uploads to Codex under way, from dictations and meeting pieces alike:
@@ -196,27 +276,42 @@ pub(crate) async fn transcribe_at(
     uploads_at_once: usize,
     operation: &ProcessingOperation,
 ) -> Result<String> {
-    transcribe_with_quota(
+    let learned = Learned {
+        quota: &DICTATION_QUOTA,
+        upload_format: &UPLOAD_FORMAT,
+    };
+    transcribe_with(
         url,
         auth_path,
         samples,
         language,
         uploads_at_once,
         operation,
-        &DICTATION_QUOTA,
+        learned,
     )
     .await
 }
 
-async fn transcribe_with_quota(
+/// What the requests of the process learned about the endpoint so far.
+#[derive(Clone, Copy)]
+struct Learned<'a> {
+    quota: &'a DictationQuota,
+    upload_format: &'a UploadFormat,
+}
+
+async fn transcribe_with(
     url: &str,
     auth_path: Option<&Path>,
     samples: &[f32],
     language: Option<&str>,
     uploads_at_once: usize,
     operation: &ProcessingOperation,
-    quota: &DictationQuota,
+    learned: Learned<'_>,
 ) -> Result<String> {
+    let Learned {
+        quota,
+        upload_format,
+    } = learned;
     if samples.is_empty() {
         return Ok(String::new());
     }
@@ -224,9 +319,11 @@ async fn transcribe_with_quota(
         return Err(anyhow!("Codex transcription cancelled"));
     }
 
-    let wav = pcm_f32_to_wav_bytes(samples)?;
+    let mut format = upload_format.preferred(SystemTime::now());
+    let mut audio = format.encode(samples)?;
     let upload = Upload::begin();
-    let timeout = request_timeout(wav.len(), uploads_at_once.max(upload.sharing));
+    let uploads_at_once = uploads_at_once.max(upload.sharing);
+    let mut timeout = request_timeout(audio.len(), uploads_at_once);
     let auth_path = match auth_path {
         Some(path) => path.to_path_buf(),
         None => codex_auth::auth_path()?,
@@ -240,17 +337,31 @@ async fn transcribe_with_quota(
     let mut identity = quota.identity(SystemTime::now());
     let mut switched_identity = false;
     let mut recovered_from_unauthorized = false;
+    let mut resent_as_wav = false;
     let mut retries = 0;
 
     loop {
         if operation.is_cancelled() {
             return Err(anyhow!("Codex transcription cancelled"));
         }
-        let result =
-            transcribe_with_session_at(url, &session, identity, &wav, language, timeout, operation)
-                .await;
+        let request = UploadRequest {
+            identity,
+            format,
+            audio: &audio,
+            language,
+            timeout,
+        };
+        let result = transcribe_with_session_at(url, &session, &request, operation).await;
         let error = match result {
-            Ok(text) => return Ok(text),
+            Ok(text) => {
+                if resent_as_wav && upload_format.flac_refused(SystemTime::now()) {
+                    warn!(
+                        "Codex refused FLAC and took WAV; uploads go as WAV for the next {} min",
+                        FLAC_RETRY_AFTER.as_secs() / 60
+                    );
+                }
+                return Ok(text);
+            }
             Err(RequestError::Cancelled) => return Err(anyhow!("Codex transcription cancelled")),
             Err(RequestError::DictationQuotaSpent(error)) => {
                 if identity == RequestIdentity::Codex && quota.codex_spent(SystemTime::now()) {
@@ -281,6 +392,16 @@ async fn transcribe_with_quota(
             Err(RequestError::Failed(error)) => error,
         };
 
+        // A refusal may be of the format: the same audio goes once as WAV,
+        // outside the retry budget.
+        if error.kind == FailureKind::Rejected && format == AudioFormat::Flac {
+            format = AudioFormat::Wav;
+            audio = format.encode(samples)?;
+            timeout = request_timeout(audio.len(), uploads_at_once);
+            resent_as_wav = true;
+            continue;
+        }
+
         // Like Codex: on the first 401, refresh once and resend once.
         if error.kind == FailureKind::SessionExpired && !recovered_from_unauthorized {
             recovered_from_unauthorized = true;
@@ -307,30 +428,43 @@ async fn transcribe_with_quota(
     }
 }
 
+/// One upload: who asks, and the audio as it goes out.
+struct UploadRequest<'a> {
+    identity: RequestIdentity,
+    format: AudioFormat,
+    audio: &'a [u8],
+    language: Option<&'a str>,
+    timeout: Duration,
+}
+
 async fn transcribe_with_session_at(
     url: &str,
     session: &Session,
-    identity: RequestIdentity,
-    wav: &[u8],
-    language: Option<&str>,
-    timeout: Duration,
+    request: &UploadRequest<'_>,
     operation: &ProcessingOperation,
 ) -> Result<String, RequestError> {
+    let UploadRequest {
+        identity,
+        format,
+        audio,
+        language,
+        timeout,
+    } = *request;
     let failed = |kind, detail: String| RequestError::Failed(TranscriptionError::new(kind, detail));
-    let client = crate::http::client(CONNECT_TIMEOUT).map_err(|error| {
+    let client = crate::http::client().map_err(|error| {
         failed(
             FailureKind::Other,
             format!("failed to build transcription HTTP client: {error}"),
         )
     })?;
 
-    let part = reqwest::multipart::Part::bytes(wav.to_vec())
-        .file_name("codex.wav")
-        .mime_str("audio/wav")
+    let part = reqwest::multipart::Part::bytes(audio.to_vec())
+        .file_name(format.file_name())
+        .mime_str(format.mime())
         .map_err(|error| {
             failed(
                 FailureKind::Other,
-                format!("invalid wav content type: {error}"),
+                format!("invalid audio content type: {error}"),
             )
         })?;
     let mut form = reqwest::multipart::Form::new().part("file", part);
@@ -357,7 +491,7 @@ async fn transcribe_with_session_at(
         response = request.send() => response.map_err(|error| {
             // Any transport failure may mean a dead pooled connection or a
             // changed network or proxy: the next request starts fresh.
-            crate::http::forget_all();
+            crate::http::forget();
             failed(
                 FailureKind::from_transport(&error),
                 format!("Codex transcription request failed: {error}"),
@@ -440,6 +574,73 @@ pub(crate) fn user_agent() -> String {
     format!("Murmur/{} (Mac OS; {arch})", env!("CARGO_PKG_VERSION"))
 }
 
+fn to_pcm16(sample: f32) -> i16 {
+    (sample.clamp(-1.0, 1.0) * i16::MAX as f32) as i16
+}
+
+/// The samples as 16-bit PCM, converted a block at a time so a ten-minute
+/// meeting piece is never held a second time in memory.
+struct Pcm16<'a> {
+    samples: &'a [f32],
+    block: Vec<i32>,
+}
+
+impl flacenc::source::Source for Pcm16<'_> {
+    fn channels(&self) -> usize {
+        1
+    }
+
+    fn bits_per_sample(&self) -> usize {
+        8 * WAV_BYTES_PER_SAMPLE
+    }
+
+    fn sample_rate(&self) -> usize {
+        SAMPLE_RATE as usize
+    }
+
+    fn read_samples<F: flacenc::source::Fill>(
+        &mut self,
+        block_size: usize,
+        dest: &mut F,
+    ) -> Result<usize, flacenc::error::SourceError> {
+        let (block, rest) = self.samples.split_at(block_size.min(self.samples.len()));
+        self.samples = rest;
+        self.block.clear();
+        self.block
+            .extend(block.iter().map(|sample| i32::from(to_pcm16(*sample))));
+        dest.fill_interleaved(&self.block)?;
+        Ok(block.len())
+    }
+}
+
+fn pcm_f32_to_flac_bytes(samples: &[f32]) -> Result<Vec<u8>> {
+    use flacenc::component::BitRepr;
+    use flacenc::error::Verify;
+
+    let config = flacenc::config::Encoder::default()
+        .into_verified()
+        .map_err(|(_, error)| anyhow!("invalid FLAC encoder settings: {error}"))?;
+    let source = Pcm16 {
+        samples,
+        block: Vec::with_capacity(config.block_size),
+    };
+    let mut stream = flacenc::encode_with_fixed_block_size(&config, source, config.block_size)
+        .map_err(|error| anyhow!("failed to encode FLAC: {error}"))?;
+    // The encoder records a short last block as the stream's minimum block
+    // size. The format excludes the last block from it: a minimum under the
+    // maximum declares variable blocks, and a strict decoder then refuses
+    // every frame of this fixed-block stream.
+    stream
+        .stream_info_mut()
+        .set_block_sizes(config.block_size, config.block_size)
+        .map_err(|error| anyhow!("invalid FLAC block size: {error}"))?;
+    let mut sink = flacenc::bitsink::ByteSink::new();
+    stream
+        .write(&mut sink)
+        .map_err(|error| anyhow!("failed to write FLAC: {error}"))?;
+    Ok(sink.into_inner())
+}
+
 fn pcm_f32_to_wav_bytes(samples: &[f32]) -> Result<Vec<u8>> {
     let spec = WavSpec {
         channels: 1,
@@ -452,9 +653,8 @@ fn pcm_f32_to_wav_bytes(samples: &[f32]) -> Result<Vec<u8>> {
         let mut writer = hound::WavWriter::new(&mut cursor, spec)
             .context("failed to create in-memory WAV writer")?;
         for sample in samples {
-            let clipped = sample.clamp(-1.0, 1.0);
             writer
-                .write_sample((clipped * i16::MAX as f32) as i16)
+                .write_sample(to_pcm16(*sample))
                 .context("failed to write WAV sample")?;
         }
         writer.finalize().context("failed to finalize WAV")?;
@@ -464,3 +664,5 @@ fn pcm_f32_to_wav_bytes(samples: &[f32]) -> Result<Vec<u8>> {
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+pub(crate) mod uploaded;

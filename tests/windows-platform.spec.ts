@@ -81,7 +81,9 @@ test.describe("Windows build", () => {
     await expect(
       page.getByRole("checkbox", { name: "Check for updates" }),
     ).toBeVisible();
-    await expect(page.getByText("Show what's new")).toHaveCount(0);
+    await expect(
+      page.getByRole("checkbox", { name: "Show what's new" }),
+    ).toBeVisible();
     await expect(
       page.getByRole("checkbox", { name: "Meetings", exact: true }),
     ).toBeChecked();
@@ -173,14 +175,18 @@ test.describe("Windows build", () => {
       .toEqual([{ enabled: false }]);
   });
 
-  test("previews no macOS release notes on the Debug page", async ({
-    page,
-  }) => {
+  test("previews the release notes on the Debug page", async ({ page }) => {
     await openWindows(page);
     await nav(page, "Debug").click();
 
     await expect(page.getByText("Log level", { exact: true })).toBeVisible();
-    await expect(page.getByText("Preview what's new")).toHaveCount(0);
+    await expect(
+      page.getByText("Preview what's new", { exact: true }),
+    ).toBeVisible();
+    await page.getByRole("button", { name: "Preview", exact: true }).click();
+    const notes = page.getByRole("dialog", { name: /^New in Murmur v/ });
+    await expect(notes).toBeVisible();
+    await expect(notes).not.toContainText("Windows (beta)");
   });
 
   test("credits only the speech model it downloads", async ({ page }) => {

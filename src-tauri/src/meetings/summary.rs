@@ -13,8 +13,8 @@ use std::pin::Pin;
 use std::time::Duration;
 
 use super::export::clock;
-use super::merge::PLACEHOLDER;
-use super::rename::MAX_TITLE_CHARS;
+use super::merge::{ME, PLACEHOLDER};
+use super::rename::{self, MAX_TITLE_CHARS};
 use super::store::{MeetingSpeaker, MeetingTurn, MeetingsStore, SummaryStatus};
 use super::transcribe::{unreachable, CodexVerdict, RetryPolicy};
 use crate::chinese_script::in_chosen_script;
@@ -52,15 +52,20 @@ Leave a blank line between blocks. No preamble, no code fences, no closing remar
 
 const TRANSCRIPT_FORMAT: &str = "Each line of the transcript is one passage: \"[time] [[key]] Name: text\", where [[key]] is the speaker's marker.";
 
+/// The one place a name is written: the summary's reply ends with the
+/// speakers the conversation itself named. Asked of every request that reads
+/// the transcript; the merge of a long meeting reads notes, not the transcript.
+const NAMES: &str = "After the notes, on lines of their own, give the name of each speaker, [[me]] included, whose own name the transcript makes certain, as `[[key]] = Name`. A name is certain when the speaker says who they are, or when someone calls them by it and they are the one who answers. A name said to someone, as in \"thanks Louis\" or \"Sarah, can you start?\", belongs to the person spoken to, never to the speaker who says it. A person who is only talked about is not a speaker. Write the name as that person would sign it. Leave out every speaker whose name is not said or would be a guess; when no name is certain, write no such line. These lines are the only place where a name is written.";
+
 fn instructions() -> String {
     format!(
-        "You write the notes of a meeting from its transcript.\n\n{TRANSCRIPT_FORMAT}\n\n{SHAPE}"
+        "You write the notes of a meeting from its transcript.\n\n{TRANSCRIPT_FORMAT}\n\n{SHAPE}\n\n{NAMES}"
     )
 }
 
 fn section_instructions() -> String {
     format!(
-        "You write the notes of one part of a long meeting from its transcript. Other parts are summarised separately and merged later.\n\n{TRANSCRIPT_FORMAT}\n\n{SHAPE}"
+        "You write the notes of one part of a long meeting from its transcript. Other parts are summarised separately and merged later.\n\n{TRANSCRIPT_FORMAT}\n\n{SHAPE}\n\n{NAMES}"
     )
 }
 
@@ -185,6 +190,108 @@ pub struct Summary {
     pub title: Option<String>,
     /// Markdown, with `[[key]]` markers for people.
     pub body: String,
+    /// The speakers whose names were said in the meeting.
+    pub named: Vec<Named>,
+}
+
+/// A speaker and the name the conversation gave them.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Named {
+    pub key: String,
+    pub name: String,
+}
+
+/// The longest name a speaker is given: "Jean-Pierre de La Fontaine" is four words.
+const MAX_NAME_WORDS: usize = 5;
+
+/// `[[s2]] = Marie Dupont`, as `("s2", "Marie Dupont")`, also as a list item.
+fn name_line(line: &str) -> Option<(&str, &str)> {
+    let line = line.trim();
+    let line = line
+        .strip_prefix("- ")
+        .or_else(|| line.strip_prefix("* "))
+        .unwrap_or(line);
+    let (key, name) = line.trim_start().strip_prefix("[[")?.split_once("]]")?;
+    let name = name.trim_start().strip_prefix('=')?;
+    Some((key.trim(), name.trim()))
+}
+
+/// A reply without its name lines, and what those lines said, in order.
+fn split_names(output: &str) -> (String, Vec<(String, String)>) {
+    let mut names = Vec::new();
+    let notes: Vec<&str> = output
+        .lines()
+        .filter(|line| match name_line(line) {
+            Some((key, name)) => {
+                names.push((key.to_string(), name.to_string()));
+                false
+            }
+            None => true,
+        })
+        .collect();
+    (notes.join("\n"), names)
+}
+
+/// Whether two names read the same, whatever their case: "Élodie" and
+/// "élodie" do.
+pub(crate) fn same_name(a: &str, b: &str) -> bool {
+    a.to_lowercase() == b.to_lowercase()
+}
+
+/// Whether two names may be one person's: the same, or one the start of the
+/// other ("Louis" and "Louis Martin").
+fn same_person(a: &str, b: &str) -> bool {
+    let (a, b) = (a.to_lowercase(), b.to_lowercase());
+    let (a, b): (Vec<&str>, Vec<&str>) = (a.split(' ').collect(), b.split(' ').collect());
+    a.starts_with(&b) || b.starts_with(&a)
+}
+
+/// The names worth giving. A name the reply said counts when it is valid as a
+/// rename and reads as a name. A speaker is given the first one said for
+/// them, when they are a speaker of this meeting other than the user, no
+/// speaker shows that name already ("Speaker 2"), and the reply gave it to
+/// no other speaker, in any of its lines: a later name of a speaker is not
+/// given, but still tells that a name went to two. The reply names the user
+/// so that this last rule catches the common mistake: the user's name, said
+/// to them, given to the speaker who said it.
+fn accepted(candidates: Vec<(String, String)>, speakers: &[MeetingSpeaker]) -> Vec<Named> {
+    let said: Vec<Named> = candidates
+        .into_iter()
+        .filter_map(|(key, name)| {
+            let name = name.trim_matches(|c: char| {
+                c.is_whitespace()
+                    || matches!(c, '*' | '_' | '`' | '"' | '\'' | '«' | '»' | '“' | '”')
+            });
+            let name = rename::speaker_name(name).ok()?;
+            // A name, not a sentence about the speaker.
+            let prose = name.split(' ').count() > MAX_NAME_WORDS
+                || name.contains([':', ';', '!', '?'])
+                || name.contains("[[");
+            (!prose).then_some(Named { key, name })
+        })
+        .collect();
+    let given = |named: &Named| {
+        let shown = |speaker: &MeetingSpeaker| {
+            same_name(&speaker.name, &named.name) || same_name(&speaker.default_name, &named.name)
+        };
+        named.key != ME
+            && speakers.iter().any(|speaker| speaker.key == named.key)
+            && !speakers.iter().any(shown)
+            && !said
+                .iter()
+                .any(|other| other.key != named.key && same_person(&other.name, &named.name))
+    };
+    let mut firsts: Vec<&Named> = Vec::new();
+    for named in &said {
+        if !firsts.iter().any(|first| first.key == named.key) {
+            firsts.push(named);
+        }
+    }
+    firsts
+        .into_iter()
+        .filter(|named| given(named))
+        .cloned()
+        .collect()
 }
 
 /// One line per bubble, `[04:07] [[s2]] Speaker 2: text`, with the names as
@@ -231,8 +338,20 @@ fn sections(lines: &[String], max_chars: usize) -> Vec<String> {
 /// Reads the reply: the first line `# Title` is the title, the rest the
 /// body, with code fences removed and lists at most two levels deep. The
 /// title is plain text that a rename does not reach, so a marker Codex put
-/// in it despite the rules becomes the speaker's name as it is now.
-pub fn parse(output: &str, speakers: &[MeetingSpeaker]) -> Result<Summary, SummaryError> {
+/// in it despite the rules becomes the speaker's name as it is now: never a
+/// name the reply only proposes, which the speaker may not take.
+///
+/// The lines `[[key]] = Name` are the speakers the conversation named, taken
+/// out of the body. `said` are the names the parts of a long meeting gave,
+/// which come before the reply's own.
+pub fn parse(
+    output: &str,
+    speakers: &[MeetingSpeaker],
+    mut said: Vec<(String, String)>,
+) -> Result<Summary, SummaryError> {
+    let (output, own) = split_names(output);
+    said.extend(own);
+    let named = accepted(said, speakers);
     let mut lines: Vec<&str> = output.trim().lines().collect();
     if lines
         .first()
@@ -263,7 +382,7 @@ pub fn parse(output: &str, speakers: &[MeetingSpeaker]) -> Result<Summary, Summa
     if body.is_empty() {
         return Err(SummaryError::Empty);
     }
-    Ok(Summary { title, body })
+    Ok(Summary { title, body, named })
 }
 
 /// `- point` at the top level, `  - detail` below it; deeper levels join
@@ -387,9 +506,6 @@ fn summary_request<'a>(model: &'a str, instructions: &'a str, input: &'a str) ->
         max_output_chars: MAX_OUTPUT_CHARS,
         effort: "medium",
         verbosity: "medium",
-        // As long as a transcription piece: the summary has no fallback, and
-        // retrying on the same slow link would only time out again.
-        connect_timeout: crate::codex_transcribe::CONNECT_TIMEOUT,
     }
 }
 
@@ -479,6 +595,9 @@ pub async fn summarize(
         return SummaryEnd::Failed(SummaryError::NothingToSummarize);
     }
     let transcript = lines.join("\n");
+    // The names the parts of a long meeting gave: the merge reads their notes
+    // only.
+    let mut said = Vec::new();
     let result = if transcript.chars().count() <= max_chars {
         ask(
             summarizer,
@@ -502,11 +621,15 @@ pub async fn summarize(
             )
             .await
             {
-                Ok(output) => notes.push(format!(
-                    "Notes of part {} of {count}:\n\n{}",
-                    index + 1,
-                    output.trim()
-                )),
+                Ok(output) => {
+                    let (part, names) = split_names(&output);
+                    said.extend(names);
+                    notes.push(format!(
+                        "Notes of part {} of {count}:\n\n{}",
+                        index + 1,
+                        part.trim()
+                    ));
+                }
                 Err(end) => return end,
             }
         }
@@ -519,7 +642,11 @@ pub async fn summarize(
         )
         .await
     };
-    match result.map(|output| parse(&in_chosen_script(hints.language, &output), speakers)) {
+    let said = said
+        .into_iter()
+        .map(|(key, name)| (key, in_chosen_script(hints.language, &name)))
+        .collect();
+    match result.map(|output| parse(&in_chosen_script(hints.language, &output), speakers, said)) {
         Ok(Ok(summary)) => SummaryEnd::Written(summary),
         Ok(Err(error)) => SummaryEnd::Failed(error),
         Err(end) => end,
@@ -593,7 +720,12 @@ pub async fn write(
                 summary.body.chars().count()
             );
             Ok(Summarized {
-                settled: store.save_summary(id, summary.title.as_deref(), &summary.body)?,
+                settled: store.save_summary(
+                    id,
+                    summary.title.as_deref(),
+                    &summary.body,
+                    &summary.named,
+                )?,
                 codex: CodexVerdict::Answered,
             })
         }
@@ -620,5 +752,7 @@ pub async fn write(
     }
 }
 
+#[cfg(test)]
+mod names_tests;
 #[cfg(test)]
 mod tests;

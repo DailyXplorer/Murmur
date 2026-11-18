@@ -182,10 +182,14 @@ const kindWrites = (page: Page) =>
       .map((call) => call.args),
   );
 
+const openByApp = (page: Page) =>
+  page.getByRole("button", { name: "Customize…", exact: true }).click();
+
 test("each kind of app follows the general style until it gets its own", async ({
   page,
 }) => {
   await openTranscription(page);
+  await openByApp(page);
   for (const category of [
     "ai_prompts",
     "personal_messages",
@@ -221,12 +225,11 @@ test("each kind of app follows the general style until it gets its own", async (
   ]);
 });
 
-test("the styles by kind of app are off with cleanup", async ({ page }) => {
+test("the styles by kind of app are off with cleanup, and the dialog says why", async ({
+  page,
+}) => {
   await openTranscription(page, "cleanup=off");
+  await openByApp(page);
   await expect(kindPicker(page, "emails")).toBeDisabled();
-  await page
-    .getByTestId("style-emails")
-    .getByRole("button", { name: new RegExp(`^${CLEANUP_OFF}`) })
-    .hover();
-  await expect(page.getByRole("tooltip")).toContainText(CLEANUP_OFF);
+  await expect(page.getByRole("dialog")).toContainText(CLEANUP_OFF);
 });

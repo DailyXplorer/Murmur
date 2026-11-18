@@ -104,3 +104,12 @@ licensed under the MIT License. It is linked into the Windows app as the
 prebuilt CPU binaries that the Rust crate `ort` (pyke, MIT or Apache License
 2.0) downloads at build time and checks against the hash the crate pins. No
 other execution provider is built in, and no DLL ships beside the app.
+
+## Cloud transcription uploads
+
+### flacenc
+
+flacenc 0.5.1, <https://github.com/yotarok/flacenc-rs>, encodes as FLAC the
+audio Murmur uploads for cloud transcription. Licensed under the Apache
+License 2.0, <https://www.apache.org/licenses/LICENSE-2.0>; copyright
+2023-2024 Google LLC and 2025 the flacenc-rs developers.
