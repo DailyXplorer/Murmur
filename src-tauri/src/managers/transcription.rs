@@ -345,7 +345,7 @@ impl TranscriptionManager {
         let settings = get_settings(&self.app_handle);
         let conditions = self.conditions(&settings);
         let route = engine::route(settings.transcription_engine, conditions);
-        codex_stream::open_parked(&Wanted {
+        codex_stream::open_parked(Wanted {
             enabled: settings.cloud_stream_enabled,
             cloud: matches!(
                 route,
@@ -356,6 +356,7 @@ impl TranscriptionManager {
             ),
             signed_in: conditions.signed_in,
             language: &settings.selected_language,
+            listener: None,
         });
     }
 

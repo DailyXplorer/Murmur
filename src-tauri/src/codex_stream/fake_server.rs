@@ -129,6 +129,7 @@ impl FakeServer {
                 account_id: None,
             }),
             language: language.map(str::to_string),
+            listener: None,
         }
     }
 
