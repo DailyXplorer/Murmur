@@ -1,17 +1,19 @@
-//! When the automatic update checks run: at launch, every
-//! [`CHECK_INTERVAL`], and after the Mac wakes from sleep.
+//! When the automatic update checks run: at launch, then every
+//! [`CHECK_INTERVAL`] of wall-clock time. The time the Mac sleeps counts, so a
+//! check that came due during a sleep runs once the Mac is awake, and a
+//! shorter sleep adds no check.
 
 use std::time::{Duration, Instant};
 
 pub const CHECK_INTERVAL: Duration = Duration::from_secs(4 * 60 * 60);
 /// The wait after a failed check, doubled after each failure in a row up to
-/// [`CHECK_INTERVAL`]. A check on wake can run before the network is back.
+/// [`CHECK_INTERVAL`]. A check right after a wake can run before the network
+/// is back.
 const RETRY_AFTER: Duration = Duration::from_secs(5 * 60);
-/// How often the schedule reads the clocks. A wake is noticed within it.
+/// How often the schedule reads the clocks. A timer for the whole interval
+/// would stand still while the Mac sleeps, as `Instant` does, so a check that
+/// came due during a sleep runs within this of the wake.
 pub const TICK: Duration = Duration::from_secs(60);
-/// Between two ticks, this much more wall-clock than awake time means the
-/// Mac slept in between.
-const SLEEP_GAP: Duration = Duration::from_secs(60);
 
 /// A point in time on both clocks. `Instant` stands still while the Mac
 /// sleeps, the wall clock does not.
@@ -42,17 +44,10 @@ impl Moment {
     fn since(self, earlier: Moment) -> Duration {
         self.awake_since(earlier).max(self.wall_since(earlier))
     }
-
-    fn slept_since(self, earlier: Moment) -> bool {
-        self.wall_since(earlier)
-            .saturating_sub(self.awake_since(earlier))
-            >= SLEEP_GAP
-    }
 }
 
 #[derive(Default)]
 pub struct Schedule {
-    last_tick: Option<Moment>,
     last_check: Option<Moment>,
     /// Checks that failed in a row, the last one included.
     failures: u32,
@@ -61,8 +56,6 @@ pub struct Schedule {
 impl Schedule {
     /// Called every [`TICK`]. Whether an automatic check is due now.
     pub fn due(&mut self, now: Moment, enabled: bool) -> bool {
-        let woke = self.last_tick.is_some_and(|tick| now.slept_since(tick));
-        self.last_tick = Some(now);
         if !enabled {
             // Turning the checks back on checks at once, as a launch does.
             self.last_check = None;
@@ -70,7 +63,7 @@ impl Schedule {
             return false;
         }
         let wait = self.wait();
-        let due = woke || self.last_check.is_none_or(|check| now.since(check) >= wait);
+        let due = self.last_check.is_none_or(|check| now.since(check) >= wait);
         if due {
             self.last_check = Some(now);
         }
@@ -186,18 +179,37 @@ mod tests {
     }
 
     #[test]
-    fn waking_from_sleep_checks() {
+    fn time_asleep_counts_toward_the_interval() {
         let mut clock = Clock::new();
         let mut schedule = Schedule::default();
         assert!(schedule.due(clock.now, true));
-        assert!(!schedule.due(clock.run(TICK), true));
+        assert_eq!(
+            checks_while_running(&mut schedule, &mut clock, HOUR, true),
+            0
+        );
 
-        clock.sleep(Duration::from_secs(20 * 60));
+        clock.sleep(3 * HOUR);
         assert!(
             schedule.due(clock.run(TICK), true),
-            "first tick after waking"
+            "first tick after waking, four hours after the last check"
         );
-        assert!(!schedule.due(clock.run(TICK), true), "once per wake");
+        assert!(!schedule.due(clock.run(TICK), true), "once");
+    }
+
+    #[test]
+    fn a_wake_before_the_interval_adds_no_check() {
+        let mut clock = Clock::new();
+        let mut schedule = Schedule::default();
+        assert!(schedule.due(clock.now, true));
+
+        let nap = Duration::from_secs(20 * 60);
+        let mut checks = 0;
+        for _ in 0..12 {
+            clock.sleep(nap);
+            checks += checks_while_running(&mut schedule, &mut clock, nap, true);
+        }
+
+        assert_eq!(checks, 2, "eight hours of naps: the interval alone decides");
     }
 
     #[test]
