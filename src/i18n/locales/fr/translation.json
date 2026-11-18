@@ -603,21 +603,31 @@
       "missing": "Non connecté",
       "groups": {
         "processing": "Traitement du texte",
-        "styleByApp": "Style par type d’application",
-        "languageByApp": "Langue par type d’application",
+        "byApp": "Par type d’application",
         "output": "Sortie",
         "engine": "Mode de transcription"
       },
       "styleByApp": {
-        "description": "Le style des dictées dans ce type d’application. « Réglage général » suit le style de dictée, et « Sans nettoyage » colle le texte tel qu’il est transcrit.",
         "options": {
           "general": "Réglage général",
           "off": "Sans nettoyage"
         }
       },
       "languageByApp": {
-        "description": "La langue des dictées dans ce type d’application. « Réglage général » suit la langue choisie dans Général.",
         "error": "Impossible de changer la langue."
+      },
+      "byApp": {
+        "title": "Style et langue",
+        "description": "Chaque type d’application peut avoir son propre style de dictée et sa propre langue : formel dans les e-mails, une autre langue dans un éditeur de code. « Réglage général » suit vos réglages généraux.",
+        "customize": "Personnaliser…",
+        "customized_one": "{{count}} type d’application personnalisé",
+        "customized_other": "{{count}} types d’application personnalisés",
+        "dialogTitle": "Style et langue par type d’application",
+        "columns": {
+          "kind": "Type d’application",
+          "style": "Style",
+          "language": "Langue"
+        }
       },
       "sessionExpired": "Session expirée, reconnectez-vous",
       "aiCleanup": {
