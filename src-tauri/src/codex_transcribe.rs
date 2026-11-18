@@ -135,7 +135,7 @@ fn codex_window_open(spent_at: Option<SystemTime>, now: SystemTime) -> bool {
 /// Whether `now` is less than `window` after `since`. Wall-clock time, so
 /// the window also runs out while the Mac sleeps. A clock set back before
 /// the window opened ends it.
-fn within(since: Option<SystemTime>, now: SystemTime, window: Duration) -> bool {
+pub(crate) fn within(since: Option<SystemTime>, now: SystemTime, window: Duration) -> bool {
     since.is_some_and(|since| {
         now.duration_since(since)
             .is_ok_and(|elapsed| elapsed < window)

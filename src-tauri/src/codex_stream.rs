@@ -1,7 +1,10 @@
 //! ChatGPT's live dictation stream. So far: its messages, the text a
-//! session builds from them, and the proof that the WebSocket client opens
-//! it.
+//! session builds from them, when that text is used, what a setback
+//! teaches the next dictations, and the proof that the WebSocket client
+//! opens it.
 
+mod decision;
+mod health;
 mod protocol;
 mod transcript;
 
