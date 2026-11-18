@@ -185,6 +185,16 @@ const kindWrites = (page: Page) =>
 const openByApp = (page: Page) =>
   page.getByRole("button", { name: "Customize…", exact: true }).click();
 
+const BY_APP_TITLE = "Style and language by app type";
+const byAppDialog = (page: Page) =>
+  page.getByRole("dialog", { name: BY_APP_TITLE, exact: true });
+/** The dialog's header: its title, Close, and the (i) when there is one. */
+const byAppHeader = (page: Page) =>
+  byAppDialog(page)
+    .locator("div")
+    .filter({ has: page.getByRole("heading", { name: BY_APP_TITLE }) })
+    .filter({ has: page.getByRole("button", { name: "Close" }) });
+
 test("each kind of app follows the general style until it gets its own", async ({
   page,
 }) => {
@@ -225,11 +235,37 @@ test("each kind of app follows the general style until it gets its own", async (
   ]);
 });
 
-test("the styles by kind of app are off with cleanup, and the dialog says why", async ({
+test("the styles by kind of app are off with cleanup, and the (i) after the dialog's title says why", async ({
   page,
 }) => {
   await openTranscription(page, "cleanup=off");
   await openByApp(page);
   await expect(kindPicker(page, "emails")).toBeDisabled();
-  await expect(page.getByRole("dialog")).toContainText(CLEANUP_OFF);
+  await expect(byAppDialog(page).getByText(CLEANUP_OFF)).toHaveCount(0);
+
+  const info = byAppHeader(page).getByRole("button", {
+    name: CLEANUP_OFF,
+    exact: true,
+  });
+  const title = (await byAppHeader(page).getByRole("heading").boundingBox())!;
+  const icon = (await info.boundingBox())!;
+  const gap = icon.x - (title.x + title.width);
+  expect(gap, "right after the title").toBeGreaterThanOrEqual(0);
+  expect(gap, "right after the title").toBeLessThan(8);
+  expect(
+    Math.abs(icon.y + icon.height / 2 - (title.y + title.height / 2)),
+    "on the title's line",
+  ).toBeLessThan(2);
+
+  await info.hover();
+  await expect(page.getByRole("tooltip")).toHaveText(CLEANUP_OFF);
+});
+
+test("with cleanup on, the header of the dialog by kind of app has no (i)", async ({
+  page,
+}) => {
+  await openTranscription(page);
+  await openByApp(page);
+  await expect(byAppDialog(page)).toBeVisible();
+  await expect(byAppHeader(page).getByRole("button")).toHaveCount(1);
 });

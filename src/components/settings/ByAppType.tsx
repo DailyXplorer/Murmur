@@ -112,6 +112,9 @@ export const ByAppType: React.FC<{ noAccount: boolean }> = ({ noAccount }) => {
       <Dialog
         open={open}
         title={t("settings.transcription.byApp.dialogTitle")}
+        titleInfo={
+          stylesOff ? t("settings.transcription.style.cleanupOff") : undefined
+        }
         description={t("settings.transcription.byApp.description")}
         closeLabel={t("common.close")}
         onOpenChange={setOpen}
@@ -167,11 +170,6 @@ export const ByAppType: React.FC<{ noAccount: boolean }> = ({ noAccount }) => {
             );
           })}
         </div>
-        {stylesOff && (
-          <p className="mt-3 text-pretty text-sm text-text/70">
-            {t("settings.transcription.style.cleanupOff")}
-          </p>
-        )}
       </Dialog>
     </SettingsGroup>
   );

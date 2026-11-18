@@ -8,6 +8,7 @@ import {
 } from "./FloatingLayerContext";
 import { useDismissableLayer } from "./DismissableLayer";
 import { IconButton } from "./IconButton";
+import { DescriptionTooltip } from "./SettingContainer";
 
 const FOCUSABLE_SELECTOR = [
   "a[href]",
@@ -21,6 +22,8 @@ const FOCUSABLE_SELECTOR = [
 interface DialogProps {
   open: boolean;
   title: React.ReactNode;
+  /** Shown in an info bubble after the title, as on a settings row. */
+  titleInfo?: string;
   children: React.ReactNode;
   onOpenChange: (open: boolean) => void;
   description?: React.ReactNode;
@@ -58,6 +61,7 @@ const getFocusableElements = (container: HTMLElement) =>
 export const Dialog: React.FC<DialogProps> = ({
   open,
   title,
+  titleInfo,
   children,
   onOpenChange,
   description,
@@ -200,9 +204,21 @@ export const Dialog: React.FC<DialogProps> = ({
         >
           <div className="flex shrink-0 items-start justify-between gap-3 border-b border-mid-gray/20 px-4 py-2.5">
             <div className="min-w-0">
-              <h2 id={titleId} className="text-base font-semibold text-text">
-                {title}
-              </h2>
+              <div className="flex min-w-0 items-center gap-0.5">
+                <h2 id={titleId} className="text-base font-semibold text-text">
+                  {title}
+                </h2>
+                {/* The (i) is taller than a line of the title and would push
+                    the description down. */}
+                {titleInfo && (
+                  <span className="flex h-6 items-center">
+                    <DescriptionTooltip
+                      description={titleInfo}
+                      position="top"
+                    />
+                  </span>
+                )}
+              </div>
               {description && (
                 <p id={descriptionId} className="mt-1 text-sm text-mid-gray">
                   {description}
