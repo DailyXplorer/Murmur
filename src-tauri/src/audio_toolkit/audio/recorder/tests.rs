@@ -1,7 +1,7 @@
 use super::{
     append_recording_frame_with_limit, is_microphone_access_denied, is_no_input_device_error,
-    run_consumer, AudioChunk, AudioRecorder, Capture, Cmd, ReleaseTailRequest, StreamHealth, STALL,
-    ZERO_REOPEN_EVERY,
+    run_consumer, AudioChunk, AudioRecorder, Capture, Clip, Cmd, FrameTap, ReleaseTailRequest,
+    StreamHealth, STALL, ZERO_REOPEN_EVERY,
 };
 use crate::audio_toolkit::release_tail::TailConfig;
 use std::{
@@ -133,7 +133,7 @@ fn spawn_consumer() -> (
 fn record_one_chunk(sample_tx: &mpsc::Sender<AudioChunk>, cmd_tx: &mpsc::Sender<Cmd>) {
     let (ready_tx, ready_rx) = mpsc::channel();
     cmd_tx
-        .send(Cmd::Start(Instant::now(), ready_tx))
+        .send(Cmd::Start(Instant::now(), ready_tx, None))
         .expect("start");
     sample_tx
         .send(AudioChunk::Samples(vec![0.1; 4_800]))
@@ -198,11 +198,15 @@ impl Stopping {
     /// `in_flight` is already sent by the callback when the consumer
     /// starts.
     fn with(in_flight: Option<Vec<f32>>) -> Self {
+        Self::with_tap(in_flight, None)
+    }
+
+    fn with_tap(in_flight: Option<Vec<f32>>, tap: Option<FrameTap>) -> Self {
         let (sample_tx, sample_rx) = mpsc::channel();
         let (cmd_tx, cmd_rx) = mpsc::channel();
         let (ready_tx, _ready_rx) = mpsc::channel();
         cmd_tx
-            .send(Cmd::Start(Instant::now(), ready_tx))
+            .send(Cmd::Start(Instant::now(), ready_tx, tap))
             .expect("start");
         let reply = stop(&cmd_tx);
         if let Some(samples) = in_flight {
@@ -311,7 +315,7 @@ fn tail_chunks(
     let (sample_tx, cmd_tx, stop_flag, worker) = spawn_consumer();
     let (ready_tx, ready_rx) = mpsc::channel();
     cmd_tx
-        .send(Cmd::Start(Instant::now(), ready_tx))
+        .send(Cmd::Start(Instant::now(), ready_tx, None))
         .expect("start");
     sample_tx
         .send(AudioChunk::Samples(vec![0.1; first_chunk]))
@@ -350,7 +354,7 @@ fn a_release_after_a_pause_ends_the_tail_early() {
     let (sample_tx, cmd_tx, stop_flag, worker) = spawn_consumer();
     let (ready_tx, ready_rx) = mpsc::channel();
     cmd_tx
-        .send(Cmd::Start(Instant::now(), ready_tx))
+        .send(Cmd::Start(Instant::now(), ready_tx, None))
         .expect("start");
     // 300 ms of speech, then 200 ms of silence before the release.
     let mut clip = vec![0.1_f32; SPEECH_SAMPLES];
@@ -425,7 +429,7 @@ fn recorder_with_consumer() -> (
 /// stream then needs rebuilding.
 fn needs_reopen_after_clip_of(level: f32) -> bool {
     let (recorder, sample_tx, stop_flag, worker) = recorder_with_consumer();
-    let ready = recorder.start().expect("start");
+    let ready = recorder.start(None).expect("start");
     sample_tx
         .send(AudioChunk::Samples(vec![level; 1_600]))
         .expect("chunk");
@@ -536,7 +540,7 @@ fn a_closed_callback_channel_preserves_the_recording_and_reports_microphone_loss
     });
     let (ready_tx, _ready_rx) = mpsc::channel();
     cmd_tx
-        .send(Cmd::Start(Instant::now(), ready_tx))
+        .send(Cmd::Start(Instant::now(), ready_tx, None))
         .expect("start");
     sample_tx
         .send(AudioChunk::Samples(vec![0.1; 4_800]))
@@ -566,13 +570,13 @@ fn a_microphone_cpal_reported_gone_before_any_audio_is_reported_lost() {
 
     // A Bluetooth microphone can take seconds to deliver its first
     // chunk: a stop before it is no sign of a lost device.
-    recorder.start().expect("start");
+    recorder.start(None).expect("start");
     let slow = recorder.stop().expect("stop");
     assert!(slow.samples.is_empty());
     assert!(!slow.mic_lost, "a slow microphone is not a lost one");
 
     // cpal's disconnect listener fired before the first chunk.
-    recorder.start().expect("start");
+    recorder.start(None).expect("start");
     health.failed.store(true, Ordering::Relaxed);
     let lost = recorder.stop().expect("stop");
     assert!(lost.samples.is_empty());
@@ -634,4 +638,176 @@ fn recording_frames_never_exceed_the_sample_limit() {
         3
     ));
     assert_eq!(samples, vec![1.0, 2.0, 3.0]);
+}
+
+/// A tap that passes on each frame it hears. Its receiver is disconnected
+/// once the tap is dropped.
+fn listening_tap() -> (FrameTap, mpsc::Receiver<Vec<f32>>) {
+    let (heard_tx, heard_rx) = mpsc::channel();
+    let tap: FrameTap = Box::new(move |frame: &[f32]| {
+        let _ = heard_tx.send(frame.to_vec());
+    });
+    (tap, heard_rx)
+}
+
+/// What the tap heard so far, after checking that the recorder dropped it.
+fn heard_by_dropped_tap(heard: &mpsc::Receiver<Vec<f32>>) -> Vec<f32> {
+    let frames: Vec<f32> = heard.try_iter().flatten().collect();
+    assert_eq!(
+        heard.try_recv(),
+        Err(mpsc::TryRecvError::Disconnected),
+        "the tap outlived the capture"
+    );
+    frames
+}
+
+/// A ramp, so a sample lost or out of order shows.
+fn ramp(samples: usize, from: usize) -> Vec<f32> {
+    (from..from + samples)
+        .map(|i| (i % 4_000) as f32 / 8_000.0)
+        .collect()
+}
+
+#[test]
+fn a_tap_hears_exactly_the_capture_of_a_recording_stopped_without_a_tail() {
+    let (sample_tx, cmd_tx, stop_flag, worker) = spawn_consumer();
+    let (tap, heard) = listening_tap();
+    let (ready_tx, ready_rx) = mpsc::channel();
+    cmd_tx
+        .send(Cmd::Start(Instant::now(), ready_tx, Some(tap)))
+        .expect("start");
+    sample_tx
+        .send(AudioChunk::Samples(ramp(4_900, 0)))
+        .expect("chunk");
+    ready_rx.recv().expect("the chunk was captured");
+
+    // A cancel stops this way. The stop drains a last chunk, then pads the
+    // samples that do not fill a frame.
+    let reply = stop(&cmd_tx);
+    while !stop_flag.load(Ordering::Relaxed) {
+        thread::yield_now();
+    }
+    sample_tx
+        .send(AudioChunk::Samples(ramp(250, 4_900)))
+        .expect("chunk");
+    sample_tx.send(AudioChunk::EndOfStream).expect("end");
+    let capture = reply.recv().expect("reply");
+
+    let mut recorded = ramp(5_150, 0);
+    recorded.resize(5_280, 0.0);
+    assert_eq!(capture.samples, recorded);
+    assert_eq!(heard_by_dropped_tap(&heard), capture.samples);
+
+    // An open stream goes on delivering: none of it reaches a tap.
+    sample_tx
+        .send(AudioChunk::Samples(vec![0.3; 4_800]))
+        .expect("chunk");
+    cmd_tx.send(Cmd::Shutdown).expect("shutdown");
+    drop(sample_tx);
+    worker.join().expect("join consumer");
+    assert_eq!(heard.try_iter().count(), 0);
+}
+
+#[test]
+fn a_tap_hears_the_chunk_in_flight_when_the_stop_arrives() {
+    let (tap, heard) = listening_tap();
+    let consumer = Stopping::with_tap(Some(ramp(4_800, 0)), Some(tap));
+
+    // No EndOfStream follows: the stop gives up on the device.
+    let capture = consumer.reply.recv().expect("reply");
+
+    assert_eq!(capture.samples, ramp(4_800, 0));
+    assert_eq!(heard_by_dropped_tap(&heard), capture.samples);
+    consumer.shut_down();
+}
+
+#[test]
+fn a_tap_hears_the_release_tail() {
+    let (sample_tx, cmd_tx, stop_flag, worker) = spawn_consumer();
+    let (tap, heard) = listening_tap();
+    let (ready_tx, ready_rx) = mpsc::channel();
+    cmd_tx
+        .send(Cmd::Start(Instant::now(), ready_tx, Some(tap)))
+        .expect("start");
+    sample_tx
+        .send(AudioChunk::Samples(vec![0.1; SPEECH_SAMPLES]))
+        .expect("chunk");
+    ready_rx.recv().expect("the chunk was captured");
+
+    let (reply_tx, reply_rx) = mpsc::channel();
+    cmd_tx
+        .send(Cmd::Stop(reply_tx, Some(tail_request(false))))
+        .expect("stop");
+    // The consumer takes the stop within its 50 ms poll, then waits for
+    // the tail's audio.
+    thread::sleep(Duration::from_millis(120));
+    let feeder = deliver_until_stopped(sample_tx.clone(), stop_flag, |index| {
+        0.1 + index as f32 / 1_000.0
+    });
+    let capture = reply_rx.recv().expect("reply");
+    feeder.join().expect("join feeder");
+
+    assert!(
+        capture.samples.len() > SPEECH_SAMPLES,
+        "the tail was recorded"
+    );
+    assert_eq!(heard_by_dropped_tap(&heard), capture.samples);
+    cmd_tx.send(Cmd::Shutdown).expect("shutdown");
+    drop(sample_tx);
+    worker.join().expect("join consumer");
+}
+
+#[test]
+fn a_tap_hears_no_sample_past_the_recording_limit() {
+    let (tap, heard) = listening_tap();
+    let mut clip = Clip::new(3);
+    clip.start(Some(tap));
+
+    clip.push(&[1.0, 2.0]);
+    clip.push(&[3.0, 4.0]);
+    clip.push(&[5.0]);
+
+    assert!(clip.full);
+    assert_eq!(clip.take(), [1.0, 2.0, 3.0]);
+    assert_eq!(heard_by_dropped_tap(&heard), [1.0, 2.0, 3.0]);
+}
+
+#[test]
+fn a_new_recording_drops_the_tap_of_one_that_was_never_stopped() {
+    let (stale, heard_by_stale) = listening_tap();
+    let (tap, heard) = listening_tap();
+    let mut clip = Clip::new(100);
+    clip.start(Some(stale));
+    clip.push(&[1.0]);
+
+    clip.start(Some(tap));
+    clip.push(&[2.0]);
+
+    assert_eq!(heard_by_dropped_tap(&heard_by_stale), [1.0]);
+    assert_eq!(clip.take(), [2.0]);
+    assert_eq!(heard_by_dropped_tap(&heard), [2.0]);
+}
+
+#[test]
+fn a_recorder_starts_with_the_tap_it_is_given() {
+    let (recorder, sample_tx, stop_flag, worker) = recorder_with_consumer();
+    let (tap, heard) = listening_tap();
+    let ready = recorder.start(Some(tap)).expect("start");
+    sample_tx
+        .send(AudioChunk::Samples(vec![0.1; 1_600]))
+        .expect("chunk");
+    ready.recv().expect("the chunk was captured");
+    let feeder = deliver_until_stopped(sample_tx.clone(), stop_flag, |_| 0.1);
+    let capture = recorder.stop().expect("stop");
+    feeder.join().expect("join feeder");
+
+    assert_eq!(heard_by_dropped_tap(&heard), capture.samples);
+    recorder
+        .cmd_tx
+        .as_ref()
+        .unwrap()
+        .send(Cmd::Shutdown)
+        .expect("shutdown");
+    drop(sample_tx);
+    worker.join().expect("join consumer");
 }
