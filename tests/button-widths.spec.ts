@@ -43,6 +43,7 @@ const TEXT_BUTTON_LABELS: [key: string, icon?: "icon"][] = [
   ["settings.about.supportDevelopment.button"],
   ["settings.about.sourceCode.button"],
   ["settings.about.modelLicences.button"],
+  ["settings.about.star.button"],
   ["insights.share.button"],
   ["meetings.start"],
   ["meetings.stop"],
@@ -235,8 +236,11 @@ test.describe("at the minimum window size", () => {
 test("buttons side by side have the same width", async ({ page }) => {
   await openAbout(page);
   const about = await Promise.all(
-    ["Donate", "View on GitHub", "View licences"].map((name) =>
-      page.getByRole("button", { name, exact: true }).boundingBox(),
+    ["Donate", "View on GitHub", "View licences", "Give a star"].map((name) =>
+      page
+        .getByRole("main")
+        .getByRole("button", { name, exact: true })
+        .boundingBox(),
     ),
   );
   expect(new Set(about.map((box) => box?.width)).size).toBe(1);

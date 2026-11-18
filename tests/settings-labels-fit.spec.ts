@@ -21,7 +21,8 @@ for (const locale of LOCALES) {
   }) => {
     await page.setViewportSize(DEFAULT_WINDOW);
     await page.goto(`/tests/fixtures/settings-pages.html?lang=${locale}`);
-    const sections = page.getByRole("navigation").getByRole("button");
+    // The button under the sections opens the project page, not a section.
+    const sections = page.locator("nav > div").first().getByRole("button");
     await expect(sections.first()).toBeVisible();
     const count = await sections.count();
     expect(count).toBeGreaterThan(INSIGHTS);

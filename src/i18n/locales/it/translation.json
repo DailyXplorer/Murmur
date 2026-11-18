@@ -87,7 +87,8 @@
     "about": "Informazioni",
     "transcription": "Trascrizione",
     "insights": "Statistiche",
-    "meetings": "Riunioni"
+    "meetings": "Riunioni",
+    "star": "Stella GitHub"
   },
   "insights": {
     "error": "Impossibile caricare le statistiche.",
@@ -599,6 +600,11 @@
       "modelLicences": {
         "description": "Licenze dei modelli vocali che funzionano sul dispositivo",
         "button": "Vedi licenze"
+      },
+      "star": {
+        "title": "Ti piace Murmur?",
+        "description": "Una stella su GitHub aiuta altre persone a scoprire Murmur. Si apre la pagina del progetto, dove fai clic su «Star».",
+        "button": "Metti una stella"
       }
     },
     "transcription": {

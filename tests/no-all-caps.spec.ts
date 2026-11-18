@@ -77,6 +77,7 @@ const PROPER_PHRASES = [
   "History",
   "Minimal",
   "GitHub",
+  "Star", // the button on the GitHub project page
   "OpenAI",
   "Murmur",
   "Apple",

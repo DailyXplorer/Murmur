@@ -87,7 +87,8 @@
     "about": "Info",
     "transcription": "Transkription",
     "insights": "Statistiken",
-    "meetings": "Meetings"
+    "meetings": "Meetings",
+    "star": "GitHub-Stern"
   },
   "insights": {
     "error": "Statistiken konnten nicht geladen werden.",
@@ -599,6 +600,11 @@
       "modelLicences": {
         "description": "Lizenzen der Sprachmodelle auf dem Gerät",
         "button": "Lizenzen anzeigen"
+      },
+      "star": {
+        "title": "Gefällt dir Murmur?",
+        "description": "Ein Stern auf GitHub hilft anderen, Murmur zu finden. Die Projektseite öffnet sich, dort klickst du auf „Star“.",
+        "button": "Stern vergeben"
       }
     },
     "transcription": {
