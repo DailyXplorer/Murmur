@@ -406,7 +406,8 @@ impl ShortcutAction for TranscribeAction {
 
         let mut recording_error: Option<String> = None;
         let recording_start_time = Instant::now();
-        match rm.try_start_recording(&binding_id, None) {
+        let (tap, live) = crate::codex_stream::pair();
+        match rm.try_start_recording(&binding_id, Some(tap)) {
             Ok(readiness) => {
                 debug!(
                     "Recording request accepted in {:?}; waiting for first microphone samples",
@@ -414,10 +415,13 @@ impl ShortcutAction for TranscribeAction {
                 );
                 recently_cancelled::wipe(app);
                 crate::window_names::capture(context_reads(&settings));
+                crate::codex_stream::park(live);
                 let tm = Arc::clone(&app.state::<Arc<TranscriptionManager>>());
-                // The connection warm-up first: it is quick, and the local
-                // warm-up can block on a model load.
+                // The stream first, so its handshake overlaps the speaking
+                // time. Then the connection warm-up: it is quick, and the
+                // local warm-up can block on a model load.
                 std::thread::spawn(move || {
+                    tm.open_cloud_stream();
                     tm.warm_cloud_connection();
                     tm.warm_if_local();
                 });
@@ -620,10 +624,15 @@ impl TranscribeAction {
             let stop_recording_time = Instant::now();
             let window = crate::window_names::collect();
             let language = language_for(&get_settings(&ah), window.kind).map(str::to_string);
+            let mut live = None;
             let captured = match input {
-                Input::Recording { binding_id } => rm
-                    .stop_recording(&binding_id, cancel_generation)
-                    .map(|capture| (capture, None)),
+                Input::Recording { binding_id } => {
+                    let capture = rm.stop_recording(&binding_id, cancel_generation);
+                    // Taken after the stop: a cancel during the release tail
+                    // still finds the stream parked and closes it.
+                    live = crate::codex_stream::take();
+                    capture.map(|capture| (capture, None))
+                }
                 Input::Restored(mut kept) => {
                     let samples = std::mem::take(&mut kept.samples);
                     let transcript = kept.transcript.take();
@@ -692,6 +701,7 @@ impl TranscribeAction {
                                 Arc::clone(&samples),
                                 operation.clone(),
                                 language.as_deref(),
+                                live,
                             )
                             .await
                         }

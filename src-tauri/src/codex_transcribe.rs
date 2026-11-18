@@ -669,6 +669,6 @@ fn pcm_f32_to_wav_bytes(samples: &[f32]) -> Result<Vec<u8>> {
 }
 
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;
 #[cfg(test)]
 pub(crate) mod uploaded;

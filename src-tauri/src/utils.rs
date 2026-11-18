@@ -41,6 +41,9 @@ fn cancel_current_operation_impl(app: &AppHandle) -> Option<Vec<f32>> {
         log::warn!("Ignoring cancellation before the audio manager is initialized");
         return None;
     };
+    // Before the recorder stops: the end of the audio must not close the
+    // session as a finished dictation does.
+    crate::codex_stream::abort_parked();
     let samples = audio_manager.cancel_recording();
     shortcut::unregister_cancel_shortcut(app);
     change_tray_icon(app, crate::tray::TrayIconState::Idle);
