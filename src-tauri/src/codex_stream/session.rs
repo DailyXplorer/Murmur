@@ -318,8 +318,8 @@ mod tests {
         )
         .unwrap();
         let (first, second) = (uuid_v4(), uuid_v4());
-        assert!(pattern.is_match(&first), "{first}");
-        assert!(pattern.is_match(&second), "{second}");
+        assert!(pattern.is_match(&first));
+        assert!(pattern.is_match(&second));
         assert_ne!(first, second);
     }
 
