@@ -1,5 +1,9 @@
 import React, { useCallback, useEffect, useId, useRef, useState } from "react";
 import { InfoIcon } from "@phosphor-icons/react/dist/csr/Info";
+import {
+  DIALOG_FLOATING_LAYERS,
+  useFloatingLayers,
+} from "./FloatingLayerContext";
 import { Tooltip } from "./Tooltip";
 
 interface SettingContainerProps {
@@ -31,6 +35,7 @@ export const DescriptionTooltip: React.FC<DescriptionTooltipProps> = ({
   const triggerRef = useRef<HTMLButtonElement>(null);
   const hideTimeoutRef = useRef<number | null>(null);
   const tooltipId = useId();
+  const inDialog = useFloatingLayers() === DIALOG_FLOATING_LAYERS;
 
   const clearHideTimeout = useCallback(() => {
     if (hideTimeoutRef.current === null) return;
@@ -71,17 +76,24 @@ export const DescriptionTooltip: React.FC<DescriptionTooltipProps> = ({
         hideTooltip();
       }
     };
+    // In a dialog the same Escape would close the dialog too. The bubble takes
+    // it first, in the capture phase, and marks it handled for the dismissable
+    // layers. It does not register as one, because the dialog must stay the
+    // topmost layer to keep Tab inside.
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") hideTooltip();
+      if (event.key !== "Escape") return;
+      if (inDialog) event.preventDefault();
+      hideTooltip();
     };
+    const keyOptions = { capture: inDialog };
 
     document.addEventListener("mousedown", handleClickOutside);
-    document.addEventListener("keydown", handleKeyDown);
+    document.addEventListener("keydown", handleKeyDown, keyOptions);
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
-      document.removeEventListener("keydown", handleKeyDown);
+      document.removeEventListener("keydown", handleKeyDown, keyOptions);
     };
-  }, [hideTooltip, visible]);
+  }, [hideTooltip, inDialog, visible]);
 
   return (
     <span className="-my-1 inline-flex h-control w-5 shrink-0 items-center">
