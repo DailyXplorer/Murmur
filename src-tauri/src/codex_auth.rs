@@ -315,8 +315,18 @@ pub fn auth_path() -> Result<PathBuf, TranscriptionError> {
 }
 
 fn refresh_endpoint() -> String {
-    std::env::var(REFRESH_TOKEN_URL_OVERRIDE_ENV_VAR)
-        .unwrap_or_else(|_| REFRESH_TOKEN_URL.to_string())
+    endpoint(
+        std::env::var(REFRESH_TOKEN_URL_OVERRIDE_ENV_VAR).ok(),
+        cfg!(debug_assertions),
+    )
+}
+
+/// The refresh request carries the refresh token, so only a debug build lets
+/// the variable Codex reads send it to another server.
+fn endpoint(overridden: Option<String>, debug_build: bool) -> String {
+    overridden
+        .filter(|_| debug_build)
+        .unwrap_or_else(|| REFRESH_TOKEN_URL.to_string())
 }
 
 /// Local view of the session for settings and onboarding. Never refreshes and
