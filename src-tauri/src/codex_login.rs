@@ -3,6 +3,11 @@
 //! `codex logout` does. The session goes to the auth.json Codex reads, so
 //! Murmur and Codex share it: signing in or out in one does it for both.
 //!
+//! One step of Codex's sign-in is left out: the exchange of the ID token for
+//! an API key. Codex itself goes on without the key when that exchange fails,
+//! a ChatGPT session works without it and Murmur never reads it, so the file
+//! says `null` instead of holding a long-lived key nobody uses.
+//!
 //! Tokens, codes, verifiers and states are never logged.
 
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
@@ -269,39 +274,12 @@ impl Flow<'_> {
             SignInError::Rejected
         })?;
 
-        let api_key = post_form(
-            &client,
-            &endpoint,
-            &[
-                (
-                    "grant_type",
-                    "urn:ietf:params:oauth:grant-type:token-exchange",
-                ),
-                ("client_id", CLIENT_ID),
-                ("requested_token", "openai-api-key"),
-                ("subject_token", tokens.id_token.as_str()),
-                (
-                    "subject_token_type",
-                    "urn:ietf:params:oauth:token-type:id_token",
-                ),
-            ],
-        )
-        .await
-        .ok()
-        .and_then(|body| serde_json::from_str::<ApiKeyResponse>(&body).ok())
-        .map(|key| key.access_token);
-
-        save(
-            &self.config.auth_path,
-            &self.config.issuer,
-            &tokens,
-            api_key,
-        )
-        .await
-        .map_err(|error| {
-            warn!("Couldn't save the ChatGPT session: {error}");
-            SignInError::SaveFailed
-        })
+        save(&self.config.auth_path, &self.config.issuer, &tokens)
+            .await
+            .map_err(|error| {
+                warn!("Couldn't save the ChatGPT session: {error}");
+                SignInError::SaveFailed
+            })
     }
 }
 
@@ -310,11 +288,6 @@ struct TokenResponse {
     id_token: String,
     access_token: String,
     refresh_token: String,
-}
-
-#[derive(Deserialize)]
-struct ApiKeyResponse {
-    access_token: String,
 }
 
 fn http_client(timeout: Duration) -> reqwest::Result<reqwest::Client> {
@@ -354,14 +327,11 @@ async fn post_form(
     response.text().await.map_err(|_| SignInError::Rejected)
 }
 
-/// Writes the session as Codex's sign-in does. Top-level keys Codex does not
-/// know are kept, since another version of Codex may have written them.
-async fn save(
-    path: &Path,
-    issuer: &str,
-    tokens: &TokenResponse,
-    api_key: Option<String>,
-) -> std::io::Result<()> {
+/// Writes the session as Codex's sign-in does when it gets no API key:
+/// `OPENAI_API_KEY` is null, which also clears a key an earlier sign-in
+/// left. Top-level keys Codex does not know are kept, since another version
+/// of Codex may have written them.
+async fn save(path: &Path, issuer: &str, tokens: &TokenResponse) -> std::io::Result<()> {
     let _guard = REFRESH_LOCK.lock().await;
     let mut root = fs::read_to_string(path)
         .ok()
@@ -375,7 +345,7 @@ async fn save(
         root.remove(key);
     }
     root.insert("auth_mode".to_string(), json!("chatgpt"));
-    root.insert("OPENAI_API_KEY".to_string(), json!(api_key));
+    root.insert("OPENAI_API_KEY".to_string(), Value::Null);
     root.insert(
         "tokens".to_string(),
         json!({
