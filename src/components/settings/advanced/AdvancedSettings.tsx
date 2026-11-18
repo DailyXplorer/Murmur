@@ -18,7 +18,6 @@ import { ShowWhatsNewOnUpdate } from "../ShowWhatsNewOnUpdate";
 import { UpdateChecksToggle } from "../UpdateChecksToggle";
 import { AppDataDirectory } from "../AppDataDirectory";
 import { LogDirectory } from "../debug";
-import { isWindows } from "@/lib/platform";
 
 export const AdvancedSettings: React.FC = () => {
   const { t } = useTranslation();
@@ -43,10 +42,9 @@ export const AdvancedSettings: React.FC = () => {
         <McpAccess />
       </SettingsGroup>
 
-      {/* The Windows beta has no release notes in the app: they sit on the GitHub release. */}
       <SettingsGroup title={t("settings.advanced.groups.updates")}>
         <UpdateChecksToggle grouped={true} />
-        {!isWindows && <ShowWhatsNewOnUpdate grouped={true} />}
+        <ShowWhatsNewOnUpdate grouped={true} />
       </SettingsGroup>
 
       <SettingsGroup title={t("settings.advanced.groups.storage")}>
