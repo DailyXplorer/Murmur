@@ -15,6 +15,9 @@
   /* The widest copy pill: with its window margins, well inside a
      1280-px-wide screen. */
   --ov-copy-max-w: 560px;
+  /* The widest dictation pill once it shows its words
+     (LIVE_TEXT_OVERLAY_WIDTH less its margins). */
+  --ov-live-max-w: 440px;
 
   /* The capsule is dark in both themes, like the menu bar notch. It is near
      opaque because WebKit's backdrop-filter cannot blur the desktop behind a
@@ -104,8 +107,8 @@
   }
 }
 
-/* Dictation: the orb alone, a circle whose ring wobbles with the voice
-   (orbPath in waveform.ts). The capsule never changes size. */
+/* Dictation: the orb, a circle whose ring wobbles with the voice (orbPath in
+   waveform.ts). Alone, the capsule never changes size. */
 .ov-capsule.ov-dictation {
   width: var(--ov-orb);
   height: var(--ov-orb);
@@ -146,6 +149,57 @@
   to {
     transform: rotate(1turn);
   }
+}
+
+/* Dictation with its words (the dictation_live_text setting): the orb, then
+   one line of text. The pill is as wide as its content up to its maximum,
+   and never wider than the window gives it. Its width follows the words
+   with no animation. */
+.ov-capsule.ov-dictation.with-text {
+  width: auto;
+  max-width: min(var(--ov-live-max-w), 100vw - 2 * var(--ov-margin));
+  border-radius: calc(var(--ov-orb) / 2);
+  justify-content: flex-start;
+}
+.with-text .ov-orb {
+  flex: none;
+}
+/* The line is laid out from its end, so what does not fit leaves by the
+   start, on the orb's side, in either writing direction. The box is as tall
+   as the pill, so no script is cut above or below. */
+.ov-live-text {
+  flex: 0 1 auto;
+  align-self: stretch;
+  min-width: 0;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 16px;
+  white-space: nowrap;
+  color: var(--ov-ink);
+  transition: opacity 200ms ease;
+}
+/* The orb's own margin is the gap before the words; after them, the margin
+   the notices end with. */
+.ov-live-words {
+  flex: none;
+  padding-inline-end: 14px;
+}
+/* Only while words are clipped: they fade out towards the orb. */
+.ov-live-text[data-clipped="ltr"] {
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 20px);
+  mask-image: linear-gradient(to right, transparent, #000 20px);
+}
+.ov-live-text[data-clipped="rtl"] {
+  -webkit-mask-image: linear-gradient(to left, transparent, #000 20px);
+  mask-image: linear-gradient(to left, transparent, #000 20px);
+}
+/* Transcribing: the words dim with the ring. */
+.processing .ov-live-text {
+  opacity: 0.55;
 }
 
 /* The orb, small, at the start of a pill. */
@@ -485,6 +539,7 @@
   .ov-call-button,
   .ov-orb-ring,
   .ov-orb-arc,
+  .ov-live-text,
   .ov-glyph::after {
     animation: none;
     transition: none;
