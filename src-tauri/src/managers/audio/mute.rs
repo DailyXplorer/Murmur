@@ -5,6 +5,9 @@ use log::debug;
 
 use super::*;
 
+#[cfg(target_os = "macos")]
+mod core_audio;
+
 /// The volume control of the default output device.
 #[cfg(target_os = "windows")]
 pub(super) fn output_volume(
@@ -49,8 +52,18 @@ pub(super) fn get_mute() -> Option<bool> {
         .map(|muted| muted.as_bool())
 }
 
+/// Core Audio first, `osascript` for an output Core Audio cannot mute: no
+/// default device, no settable mute, or a failed call.
 #[cfg(target_os = "macos")]
 pub(super) fn set_mute(mute: bool) {
+    if !core_audio::set_muted(mute) {
+        debug!("Mute: Core Audio could not set it, asking osascript");
+        set_mute_with_osascript(mute);
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn set_mute_with_osascript(mute: bool) {
     use std::process::Command;
     let script = format!(
         "set volume output muted {}",
@@ -62,11 +75,16 @@ pub(super) fn set_mute(mute: bool) {
 /// Reads the current system output mute state, mirroring `set_mute`.
 ///
 /// Returns `Some(true)`/`Some(false)` when the state could be determined, or
-/// `None` when `osascript` is missing or returns an error. Callers treat `None`
-/// as "unknown" and fall back to unmuting on stop,
+/// `None` when Core Audio cannot tell and `osascript` is missing or returns an
+/// error. Callers treat `None` as "unknown" and fall back to unmuting on stop,
 /// so we never strand the user's audio muted.
 #[cfg(target_os = "macos")]
 pub(super) fn get_mute() -> Option<bool> {
+    core_audio::muted().or_else(get_mute_with_osascript)
+}
+
+#[cfg(target_os = "macos")]
+fn get_mute_with_osascript() -> Option<bool> {
     use std::process::Command;
 
     let out = Command::new("osascript")
@@ -189,3 +207,6 @@ impl AudioRecordingManager {
             .release_for_good(restore_mute);
     }
 }
+
+#[cfg(all(test, target_os = "macos"))]
+mod tests;
