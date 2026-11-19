@@ -780,14 +780,26 @@ fn live_stream_transcribes() {
     let auth_path = crate::codex_auth::auth_path().unwrap();
     let session = crate::codex_auth::stored_session(&auth_path).unwrap();
 
+    // With MURMUR_LIVE_LISTEN set, the session asks for the text as it is
+    // heard: each change is counted, never printed.
+    let heard = std::sync::Arc::new(std::sync::Mutex::new(Vec::<(u128, usize)>::new()));
+    let listening = std::env::var("MURMUR_LIVE_LISTEN").is_ok();
+
     tauri::async_runtime::block_on(async {
         let (mut tap, mut live) = pair();
         let opened = Instant::now();
+        let listener: Option<super::Listener> = listening.then(|| {
+            let heard = std::sync::Arc::clone(&heard);
+            Box::new(move |text: &str| {
+                let at = opened.elapsed().as_millis();
+                heard.lock().unwrap().push((at, text.chars().count()));
+            }) as super::Listener
+        });
         live.settle(Ok(Params {
             url: super::STREAM_URL.to_string(),
             credentials: Credentials::Session(session),
             language: language.clone(),
-            listener: None,
+            listener,
         }));
         let mut state = live.state().expect("an open stream");
         let steps = tauri::async_runtime::spawn(async move {
@@ -835,8 +847,21 @@ fn live_stream_transcribes() {
             "text {} ms after session.close",
             since(close_sent, answered)
         );
+        if listening {
+            let heard = heard.lock().unwrap();
+            println!(
+                "{} texts heard while speaking; the first {} ms after the start; the longest {} characters",
+                heard.len(),
+                heard.first().map_or(0, |(at, _)| *at),
+                heard.iter().map(|(_, length)| *length).max().unwrap_or(0)
+            );
+        }
         match outcome {
-            Ok(text) => println!("{} words", text.split_whitespace().count()),
+            Ok(text) => println!(
+                "{} words, {} characters",
+                text.split_whitespace().count(),
+                text.chars().count()
+            ),
             Err(skip) => panic!("the stream was not used: {skip}"),
         }
     });
