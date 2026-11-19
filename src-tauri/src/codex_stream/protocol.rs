@@ -30,8 +30,18 @@ pub(super) struct Config<'a> {
     max_utterance_duration_ms: u32,
     session_ttl_ms: u32,
     provider_mode: &'static str,
-    transcript_delivery_mode: &'static str,
+    transcript_delivery_mode: Delivery,
     vad: Vad,
+}
+
+/// When the server sends the text of an utterance.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub(super) enum Delivery {
+    /// Once, when the utterance is over.
+    FinalOnly,
+    /// Each time more of it is heard, whole so far, then the final text.
+    Segment,
 }
 
 #[derive(Debug, Serialize)]
@@ -48,7 +58,7 @@ impl<'a> Config<'a> {
     /// detects it. The buffer and utterance sizes are the most the server
     /// grants, and neither cuts a long dictation. The session may live 30
     /// minutes, twice the longest recording.
-    pub(super) fn dictation(language: Option<&'a str>) -> Self {
+    pub(super) fn dictation(language: Option<&'a str>, delivery: Delivery) -> Self {
         Self {
             language,
             input_audio_format: "pcm16",
@@ -58,7 +68,7 @@ impl<'a> Config<'a> {
             max_utterance_duration_ms: 30_000,
             session_ttl_ms: 1_800_000,
             provider_mode: "streaming_sse",
-            transcript_delivery_mode: "final_only",
+            transcript_delivery_mode: delivery,
             vad: Vad {
                 kind: "server_vad",
                 threshold: 0.5,
@@ -122,11 +132,11 @@ pub(super) fn parse(frame: &str) -> serde_json::Result<ServerEvent> {
 mod tests {
     use super::*;
 
-    fn start(language: Option<&str>) -> String {
+    fn start(language: Option<&str>, delivery: Delivery) -> String {
         serde_json::to_string(&ClientMessage::Start {
             dictation_session_id: "11111111-1111-4111-8111-111111111111",
             attempt_id: "22222222-2222-4222-8222-222222222222",
-            config: Config::dictation(language),
+            config: Config::dictation(language, delivery),
         })
         .unwrap()
     }
@@ -134,7 +144,7 @@ mod tests {
     #[test]
     fn session_start_has_the_shape_the_server_was_tested_with() {
         assert_eq!(
-            start(Some("fr")),
+            start(Some("fr"), Delivery::FinalOnly),
             concat!(
                 r#"{"type":"session.start","#,
                 r#""dictation_session_id":"11111111-1111-4111-8111-111111111111","#,
@@ -151,8 +161,18 @@ mod tests {
     }
 
     #[test]
+    fn session_start_asks_for_the_text_as_it_is_heard_only_for_a_listener() {
+        let mode = |delivery| {
+            let message: serde_json::Value = serde_json::from_str(&start(None, delivery)).unwrap();
+            message["config"]["transcript_delivery_mode"].clone()
+        };
+        assert_eq!(mode(Delivery::Segment), "segment");
+        assert_eq!(mode(Delivery::FinalOnly), "final_only");
+    }
+
+    #[test]
     fn session_start_leaves_the_language_out_for_automatic_detection() {
-        let message = start(None);
+        let message = start(None, Delivery::FinalOnly);
         assert!(!message.contains("language"), "{message}");
         assert!(message.contains(r#""config":{"input_audio_format":"pcm16""#));
     }

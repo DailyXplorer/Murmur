@@ -16,6 +16,7 @@ import {
   formatDuration,
   formatMeetingDate,
 } from "@/lib/meetings/format";
+import { LiveText } from "./LiveText";
 import { openFromOrb, useReducedMotion } from "./openFromOrb";
 import {
   approach,
@@ -26,10 +27,13 @@ import {
   voiceLevel,
 } from "./waveform";
 
+// `text` is what ChatGPT heard of the dictation so far, when the overlay
+// shows it (the `dictation_live_text` setting): it lives and ends with the
+// dictation's own states.
 type View =
   | { kind: "hidden" }
-  | { kind: "recording"; live: boolean }
-  | { kind: "transcribing" }
+  | { kind: "recording"; live: boolean; text: string }
+  | { kind: "transcribing"; text: string }
   | { kind: "error"; message: string }
   | { kind: "copy"; labels: CopyLabels; copied: boolean }
   | { kind: "warning"; message: string }
@@ -178,12 +182,25 @@ const RecordingOverlay: React.FC = () => {
       levelsRef.current = [];
       // Applied before any await: an error or hide that arrives while the
       // settings load must not be overwritten by this older show.
-      setView(
+      setView((current) =>
         event.payload === "transcribing"
-          ? { kind: "transcribing" }
-          : { kind: "recording", live: false },
+          ? {
+              kind: "transcribing",
+              // Only the recording it follows hands its words on: Restore
+              // transcribes with none.
+              text: current.kind === "recording" ? current.text : "",
+            }
+          : { kind: "recording", live: false, text: "" },
       );
       refreshPosition();
+    }).then(storeUnlistener, () => undefined);
+
+    void listen<string>("dictation-live-text", (event) => {
+      setView((current) =>
+        current.kind === "recording" || current.kind === "transcribing"
+          ? { ...current, text: event.payload }
+          : current,
+      );
     }).then(storeUnlistener, () => undefined);
 
     void listen<MeetingPill>("show-overlay-meeting", (event) => {
@@ -592,7 +609,10 @@ const RecordingOverlay: React.FC = () => {
 
   return (
     <div className={`ov-stage ${position}`}>
-      <div className={`ov-capsule ov-dictation ${phase}`}>
+      <div
+        className={`ov-capsule ov-dictation ${phase}${view.text ? " with-text" : ""}`}
+        dir={view.text ? "auto" : undefined}
+      >
         <svg
           className="ov-orb"
           viewBox={`0 0 ${ORB_SIZE} ${ORB_SIZE}`}
@@ -608,6 +628,7 @@ const RecordingOverlay: React.FC = () => {
             />
           )}
         </svg>
+        {view.text && <LiveText text={view.text} />}
       </div>
     </div>
   );

@@ -123,6 +123,7 @@ pub fn get_default_settings() -> AppSettings {
         mcp_include_dictations: false,
         cleanup_short_dictations: false,
         cloud_stream_enabled: default_cloud_stream_enabled(),
+        dictation_live_text: false,
     }
 }
 

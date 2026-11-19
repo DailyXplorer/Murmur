@@ -771,6 +771,17 @@ async changeCloudStreamEnabledSetting(enabled: boolean) : Promise<Result<null, s
     else return { status: "error", error: String(e) };
 }
 },
+/**
+ * Applies from the next dictation: the one recording keeps how it started.
+ */
+async changeDictationLiveTextSetting(enabled: boolean) : Promise<Result<null, string>> {
+    try {
+    return { status: "ok", data: await TAURI_INVOKE("change_dictation_live_text_setting", { enabled }) };
+} catch (e) {
+    if(e instanceof Error) throw e;
+    else return { status: "error", error: String(e) };
+}
+},
 async getHistoryEntries(cursor: number | null, limit: number | null) : Promise<Result<PaginatedHistory, string>> {
     try {
     return { status: "ok", data: await TAURI_INVOKE("get_history_entries", { cursor, limit }) };
@@ -1460,7 +1471,12 @@ cleanup_short_dictations?: boolean;
  * With ChatGPT transcription, sends the audio to ChatGPT while the user
  * speaks. Off: the recording is uploaded after the stop.
  */
-cloud_stream_enabled?: boolean }
+cloud_stream_enabled?: boolean; 
+/**
+ * With ChatGPT transcription, the recording overlay shows the words as
+ * the server hears them.
+ */
+dictation_live_text?: boolean }
 export type AudioDevice = { index: string; name: string; is_default: boolean }
 /**
  * Where a meeting's audio is.

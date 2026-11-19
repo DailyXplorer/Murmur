@@ -66,13 +66,6 @@ impl Transcript {
 
     /// What is known of the text now: the final text of each utterance, or
     /// its partial text until then.
-    #[cfg_attr(
-        not(test),
-        expect(
-            dead_code,
-            reason = "for the recording overlay, which does not show it yet"
-        )
-    )]
     pub(crate) fn so_far(&self) -> String {
         let texts: Vec<&str> = self
             .utterances

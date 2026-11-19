@@ -15,8 +15,9 @@ use tokio::time::Instant;
 
 use super::decision::{Failure, Standing};
 use super::feed::Audio;
-use super::protocol::{self, ClientMessage, Config, ServerEvent};
+use super::protocol::{self, ClientMessage, Config, Delivery, ServerEvent};
 use super::transcript::Transcript;
+use super::Listener;
 use crate::audio_toolkit::constants::TARGET_SAMPLE_RATE;
 use crate::codex_auth::{self, Session};
 use crate::codex_transcribe::{to_pcm16, user_agent, CONNECT_TIMEOUT};
@@ -38,6 +39,8 @@ pub(super) struct Params {
     pub(super) credentials: Credentials,
     /// As a request names it; `None` lets the server detect the language.
     pub(super) language: Option<String>,
+    /// With one, the server is asked for the text as it hears it.
+    pub(super) listener: Option<Listener>,
 }
 
 pub(super) enum Credentials {
@@ -119,6 +122,8 @@ async fn stream(
 ) -> Result<String, End> {
     let mut socket = open(params).await?;
     let mut transcript = Transcript::default();
+    // What the listener heard last, so that it hears each text once.
+    let mut told = String::new();
     // Samples taken from the recorder that do not fill a message yet.
     let mut partial_message: Vec<f32> = Vec::with_capacity(MESSAGE_SAMPLES);
 
@@ -146,9 +151,11 @@ async fn stream(
                 ServerEvent::SpeechStarted { utterance_id } => transcript.heard(&utterance_id),
                 ServerEvent::Segment(text) => {
                     transcript.segment(&text.utterance_id, text.revision, &text.text);
+                    tell(params.listener.as_ref(), aborted, &transcript, &mut told);
                 }
                 ServerEvent::Final(text) => {
                     transcript.finish(&text.utterance_id, text.revision, &text.text);
+                    tell(params.listener.as_ref(), aborted, &transcript, &mut told);
                 }
                 ServerEvent::TranscriptFailed => return Err(Failure::TranscriptFailed.into()),
                 ServerEvent::Error { fatal } => {
@@ -192,6 +199,26 @@ async fn stream(
     }
 }
 
+/// Tells the listener the text so far when an event changed it. The task
+/// runs on until its next wait once it is aborted: what it reads meanwhile
+/// is not told.
+fn tell(
+    listener: Option<&Listener>,
+    aborted: &AtomicBool,
+    transcript: &Transcript,
+    told: &mut String,
+) {
+    let Some(listener) = listener else {
+        return;
+    };
+    let so_far = transcript.so_far();
+    if so_far == *told || aborted.load(Ordering::Acquire) {
+        return;
+    }
+    listener(&so_far);
+    *told = so_far;
+}
+
 /// Connects, upgrades and sends `session.start`. The handshake names no
 /// client: the Codex identity the upload sends could not be verified here,
 /// so the stream counts against ChatGPT's own dictation quota.
@@ -227,10 +254,14 @@ pub(super) async fn open(params: &Params) -> Result<WebSocket, Failure> {
         .map_err(|_| Failure::Connect)?;
 
     let (session_id, attempt_id) = (uuid_v4(), uuid_v4());
+    let delivery = match params.listener {
+        Some(_) => Delivery::Segment,
+        None => Delivery::FinalOnly,
+    };
     let start = ClientMessage::Start {
         dictation_session_id: &session_id,
         attempt_id: &attempt_id,
-        config: Config::dictation(params.language.as_deref()),
+        config: Config::dictation(params.language.as_deref(), delivery),
     };
     send(&mut socket, &start).await?;
     Ok(socket)

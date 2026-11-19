@@ -347,6 +347,11 @@
             "bottom": "In basso",
             "top": "In alto"
           }
+        },
+        "liveText": {
+          "title": "Mostra il testo mentre detti",
+          "description": "Mostra le parole accanto al cerchio di registrazione man mano che ChatGPT le sente. Chiunque veda il tuo schermo può leggerle.",
+          "needsChatGpt": "Funziona solo con la trascrizione di ChatGPT."
         }
       },
       "pasteMethod": {

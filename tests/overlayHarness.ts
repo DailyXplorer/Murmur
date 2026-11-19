@@ -1,10 +1,12 @@
 import { expect, type Page } from "@playwright/test";
 import type { MeetingNoticeLabels } from "../src/overlay/RecordingOverlay";
 
-// CARD_MARGIN, ORB_OVERLAY_SIZE, OVERLAY_* and ERROR_OVERLAY_* in
-// src-tauri/src/overlay.rs.
+// CARD_MARGIN, ORB_OVERLAY_SIZE, LIVE_TEXT_OVERLAY_WIDTH, OVERLAY_* and
+// ERROR_OVERLAY_* in src-tauri/src/overlay.rs.
 const CARD_MARGIN = 16;
 export const ORB_WINDOW = { width: 66, height: 66 };
+/** The dictation window while the overlay shows the words. */
+export const LIVE_TEXT_WINDOW = { width: 472, height: 66 };
 export const MEETING_WINDOW = { width: 140, height: 66 };
 export const ERROR_WINDOW = { width: 336, height: 116 };
 

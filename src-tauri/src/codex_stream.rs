@@ -8,6 +8,7 @@
 //! observed, `transcript` builds the text as the official client does,
 //! `session` owns the socket, `decision` says when the stream's text is
 //! used, and `health` keeps the dictations after a setback off the stream.
+//! A dictation with a `Listener` is also told its text while it is spoken.
 
 mod decision;
 mod feed;
@@ -37,8 +38,11 @@ static HEALTH: Health = Health::new();
 
 static PARKED: Parked = Parked::new();
 
+/// Hears the text of a dictation so far, each time the stream changes it.
+/// It is called on the session's task, so it must not wait.
+pub(crate) type Listener = Box<dyn Fn(&str) + Send + Sync>;
+
 /// What a dictation that starts allows.
-#[derive(Debug, Clone, Copy)]
 pub(crate) struct Wanted<'a> {
     /// The `cloud_stream_enabled` setting.
     pub(crate) enabled: bool,
@@ -47,6 +51,8 @@ pub(crate) struct Wanted<'a> {
     pub(crate) signed_in: bool,
     /// The dictation language setting, "auto" included.
     pub(crate) language: &'a str,
+    /// Who shows the text while the user speaks, if anyone.
+    pub(crate) listener: Option<Listener>,
 }
 
 /// The language a stream is started in, or why this dictation has none.
@@ -64,6 +70,17 @@ fn plan(wanted: &Wanted<'_>, setback: Option<Setback>) -> Result<Option<String>,
         return Err(NotOpened::Health(setback));
     }
     Ok(crate::codex_transcribe::request_language(wanted.language).map(str::to_string))
+}
+
+/// What the session of a dictation that streams is opened with.
+fn params(wanted: Wanted<'_>, setback: Option<Setback>) -> Result<Params, NotOpened> {
+    let language = plan(&wanted, setback)?;
+    Ok(Params {
+        url: STREAM_URL.to_string(),
+        credentials: Credentials::AuthFile(None),
+        language,
+        listener: wanted.listener,
+    })
 }
 
 /// The stream of the dictation being recorded, between its start and its
@@ -107,13 +124,8 @@ pub(crate) fn park(live: LiveDictation) {
 /// Opens the parked stream when this dictation allows one, and otherwise
 /// drops the audio that waited for it. Does no I/O itself: the session runs
 /// as a task.
-pub(crate) fn open_parked(wanted: &Wanted<'_>) {
-    let plan = plan(wanted, HEALTH.setback(SystemTime::now())).map(|language| Params {
-        url: STREAM_URL.to_string(),
-        credentials: Credentials::AuthFile(None),
-        language,
-    });
-    PARKED.settle(plan);
+pub(crate) fn open_parked(wanted: Wanted<'_>) {
+    PARKED.settle(params(wanted, HEALTH.setback(SystemTime::now())));
 }
 
 /// The stream of the recording that just stopped.

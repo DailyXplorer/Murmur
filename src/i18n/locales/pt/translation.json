@@ -347,6 +347,11 @@
             "bottom": "Inferior",
             "top": "Superior"
           }
+        },
+        "liveText": {
+          "title": "Mostrar o texto ao ditar",
+          "description": "Mostra as palavras ao lado do círculo de gravação à medida que o ChatGPT as ouve. Qualquer pessoa que veja sua tela pode lê-las.",
+          "needsChatGpt": "Funciona apenas com a transcrição do ChatGPT."
         }
       },
       "pasteMethod": {

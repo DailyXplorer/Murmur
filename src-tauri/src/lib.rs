@@ -412,6 +412,7 @@ fn specta_builder() -> Builder<tauri::Wry> {
             commands::transcription::switch_to_local_when_ready,
             commands::transcription::change_local_stt_card_dismissed_setting,
             commands::transcription::change_cloud_stream_enabled_setting,
+            commands::transcription::change_dictation_live_text_setting,
             commands::history::get_history_entries,
             commands::history::search_history,
             commands::history::toggle_history_entry_saved,

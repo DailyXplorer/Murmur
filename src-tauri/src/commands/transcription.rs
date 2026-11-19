@@ -63,6 +63,14 @@ pub fn change_cloud_stream_enabled_setting(app: AppHandle, enabled: bool) -> Res
     Ok(())
 }
 
+/// Applies from the next dictation: the one recording keeps how it started.
+#[tauri::command]
+#[specta::specta]
+pub fn change_dictation_live_text_setting(app: AppHandle, enabled: bool) -> Result<(), String> {
+    update_settings(&app, |settings| settings.dictation_live_text = enabled);
+    Ok(())
+}
+
 #[tauri::command]
 #[specta::specta]
 /// Returns whether the local Codex authentication cache contains a ChatGPT

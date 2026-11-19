@@ -14,6 +14,8 @@ use std::sync::mpsc;
 use std::thread;
 use std::time::{Duration, SystemTime};
 
+mod listener;
+
 /// What the recorder hands the tap: 30 ms.
 const FRAME: usize = 480;
 const SECOND: usize = 16_000;
@@ -606,41 +608,42 @@ fn a_recording_stopped_before_anything_decided_has_no_stream() {
 
 #[test]
 fn a_dictation_streams_only_when_everything_allows_it() {
-    let wanted = Wanted {
+    let wanted = || Wanted {
         enabled: true,
         cloud: true,
         signed_in: true,
         language: "fr-FR",
+        listener: None,
     };
-    assert_eq!(plan(&wanted, None), Ok(Some("fr".to_string())));
+    assert_eq!(plan(&wanted(), None), Ok(Some("fr".to_string())));
     let auto = Wanted {
         language: "auto",
-        ..wanted
+        ..wanted()
     };
     assert_eq!(plan(&auto, None), Ok(None));
     let chinese = Wanted {
         language: "zh-Hant",
-        ..wanted
+        ..wanted()
     };
     assert_eq!(plan(&chinese, None), Ok(Some("zh".to_string())));
 
     let off = Wanted {
         enabled: false,
-        ..wanted
+        ..wanted()
     };
     let local = Wanted {
         cloud: false,
-        ..wanted
+        ..wanted()
     };
     let signed_out = Wanted {
         signed_in: false,
-        ..wanted
+        ..wanted()
     };
     assert_eq!(plan(&off, None), Err(NotOpened::SettingOff));
     assert_eq!(plan(&local, None), Err(NotOpened::OtherEngine));
     assert_eq!(plan(&signed_out, None), Err(NotOpened::SignedOut));
     assert_eq!(
-        plan(&wanted, Some(Setback::Refused)),
+        plan(&wanted(), Some(Setback::Refused)),
         Err(NotOpened::Health(Setback::Refused))
     );
 
@@ -649,6 +652,7 @@ fn a_dictation_streams_only_when_everything_allows_it() {
         cloud: false,
         signed_in: false,
         language: "auto",
+        listener: None,
     };
     assert_eq!(
         plan(&nothing, Some(Setback::Failed)),
@@ -725,6 +729,7 @@ fn live_stream_handshake() {
         url: super::STREAM_URL.to_string(),
         credentials: Credentials::Session(session),
         language: None,
+        listener: None,
     };
     tauri::async_runtime::block_on(async {
         let opened = std::time::Instant::now();
@@ -775,13 +780,26 @@ fn live_stream_transcribes() {
     let auth_path = crate::codex_auth::auth_path().unwrap();
     let session = crate::codex_auth::stored_session(&auth_path).unwrap();
 
+    // With MURMUR_LIVE_LISTEN set, the session asks for the text as it is
+    // heard: each change is counted, never printed.
+    let heard = std::sync::Arc::new(std::sync::Mutex::new(Vec::<(u128, usize)>::new()));
+    let listening = std::env::var("MURMUR_LIVE_LISTEN").is_ok();
+
     tauri::async_runtime::block_on(async {
         let (mut tap, mut live) = pair();
         let opened = Instant::now();
+        let listener: Option<super::Listener> = listening.then(|| {
+            let heard = std::sync::Arc::clone(&heard);
+            Box::new(move |text: &str| {
+                let at = opened.elapsed().as_millis();
+                heard.lock().unwrap().push((at, text.chars().count()));
+            }) as super::Listener
+        });
         live.settle(Ok(Params {
             url: super::STREAM_URL.to_string(),
             credentials: Credentials::Session(session),
             language: language.clone(),
+            listener,
         }));
         let mut state = live.state().expect("an open stream");
         let steps = tauri::async_runtime::spawn(async move {
@@ -829,8 +847,21 @@ fn live_stream_transcribes() {
             "text {} ms after session.close",
             since(close_sent, answered)
         );
+        if listening {
+            let heard = heard.lock().unwrap();
+            println!(
+                "{} texts heard while speaking; the first {} ms after the start; the longest {} characters",
+                heard.len(),
+                heard.first().map_or(0, |(at, _)| *at),
+                heard.iter().map(|(_, length)| *length).max().unwrap_or(0)
+            );
+        }
         match outcome {
-            Ok(text) => println!("{} words", text.split_whitespace().count()),
+            Ok(text) => println!(
+                "{} words, {} characters",
+                text.split_whitespace().count(),
+                text.chars().count()
+            ),
             Err(skip) => panic!("the stream was not used: {skip}"),
         }
     });

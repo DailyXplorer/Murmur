@@ -94,6 +94,7 @@ const APP_COMMANDS: &[&str] = &[
     "switch_to_local_when_ready",
     "change_local_stt_card_dismissed_setting",
     "change_cloud_stream_enabled_setting",
+    "change_dictation_live_text_setting",
     "get_history_entries",
     "search_history",
     "get_insights",

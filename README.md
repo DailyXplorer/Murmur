@@ -231,7 +231,11 @@ in History, even when pasting or saving the recording fails.
 With cloud transcription, Murmur sends the audio to ChatGPT while you speak
 and takes the text from that stream when you stop. When the stream cannot be
 used, for instance because it did not open or fell behind, Murmur uploads the
-recording after you stop, as described above.
+recording after you stop, as described above. With "Show text while dictating"
+turned on in Advanced settings (off by default), the overlay shows the words
+next to the orb as ChatGPT hears them, where anyone who can see your screen
+can read them; the text that is pasted is still the one that comes when you
+stop.
 
 Recordings longer than about 13 minutes exceed 25 MB of audio. The Codex
 transcription endpoint publishes no size limit, and the public OpenAI

@@ -31,12 +31,15 @@ use meeting_notice::MeetingNews;
 pub use meeting_notice::{announce_meeting, meeting_updated, settings_meeting_changed};
 
 mod call_prompt;
+mod live_text;
 mod notices;
 mod placement;
 mod recording;
 
 use call_prompt::*;
 pub use call_prompt::{hide_call_prompt, show_call_prompt};
+pub(crate) use live_text::listener as live_text_listener;
+use live_text::*;
 pub(crate) use notices::copy_held_notice;
 #[cfg(all(test, target_os = "macos"))]
 pub(crate) use notices::hold_copy_notice;
@@ -66,6 +69,10 @@ tauri_panel! {
 const CARD_MARGIN: f64 = 16.0;
 // Dictation: the 34-point orb. Its size never changes.
 const ORB_OVERLAY_SIZE: f64 = 34.0 + 2.0 * CARD_MARGIN;
+// Dictation that shows its words (`dictation_live_text`): the orb, then one
+// line of text, in a capsule at most 440 wide. The window is this wide for
+// both states of the dictation, so it never resizes while the user speaks.
+const LIVE_TEXT_OVERLAY_WIDTH: f64 = 440.0 + 2.0 * CARD_MARGIN;
 // Meeting pill: 108 wide and 34 high, the least size of a fitted pill's
 // window too. The width stays even so the centred capsule's edges sit on
 // whole points.
@@ -215,6 +222,10 @@ static DICTATION_SHOWING: AtomicBool = AtomicBool::new(false);
 /// stays set for a cancelled dictation until the coordinator hides its
 /// overlay, so only this count tells that dictation from a newer one.
 static DICTATION_EPOCH: AtomicU64 = AtomicU64::new(0);
+/// The epoch at which the recording of the dictation on screen took the
+/// overlay. Its transcribing state moves `DICTATION_EPOCH` on and leaves
+/// this one, so the text of its stream still finds its dictation.
+static RECORDING_EPOCH: AtomicU64 = AtomicU64::new(0);
 
 /// How many dictation states had taken the overlay at some moment.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -224,6 +235,10 @@ pub struct DictationEpoch(u64);
 /// pill raised for it later is dropped when the epoch has moved on.
 pub fn dictation_epoch() -> DictationEpoch {
     DictationEpoch(DICTATION_EPOCH.load(Ordering::SeqCst))
+}
+
+fn recording_epoch() -> DictationEpoch {
+    DictationEpoch(RECORDING_EPOCH.load(Ordering::SeqCst))
 }
 
 /// The meeting pill, while a meeting records. Dictation and error capsules
@@ -263,18 +278,19 @@ fn show_overlay_state(app_handle: &AppHandle, state: &str) {
         return;
     }
     let generation = OVERLAY_GENERATION.fetch_add(1, Ordering::SeqCst) + 1;
-    DICTATION_EPOCH.fetch_add(1, Ordering::SeqCst);
+    let epoch = DictationEpoch(DICTATION_EPOCH.fetch_add(1, Ordering::SeqCst) + 1);
+    let recording = recording_shown(state, epoch, recording_epoch());
+    RECORDING_EPOCH.store(recording.0, Ordering::SeqCst);
     DICTATION_SHOWING.store(true, Ordering::SeqCst);
     drop(held);
+    let (width, height) = dictation_window_size(&settings);
     let handle = app_handle.clone();
     let state = state.to_string();
     let _ = app_handle.run_on_main_thread(move || {
         if OVERLAY_GENERATION.load(Ordering::SeqCst) != generation {
             return;
         }
-        if let Some(window) =
-            present_overlay_window(&handle, &state, ORB_OVERLAY_SIZE, ORB_OVERLAY_SIZE, false)
-        {
+        if let Some(window) = present_overlay_window(&handle, &state, width, height, false) {
             let _ = window.emit("show-overlay", state);
         }
     });

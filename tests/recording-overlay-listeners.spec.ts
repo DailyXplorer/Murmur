@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 
 const expectedListenerCounts = {
   "show-overlay": 2,
+  "dictation-live-text": 2,
   "show-overlay-meeting": 2,
   "show-overlay-meeting-notice": 2,
   "meeting-notice-page-epoch": 2,

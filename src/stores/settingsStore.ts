@@ -304,6 +304,8 @@ const settingUpdaters: {
     commands.changeCleanupShortDictationsSetting(value as boolean),
   cloud_stream_enabled: (value) =>
     commands.changeCloudStreamEnabledSetting(value as boolean),
+  dictation_live_text: (value) =>
+    commands.changeDictationLiveTextSetting(value as boolean),
   show_tray_icon: (value) =>
     commands.changeShowTrayIconSetting(value as boolean),
   extra_recording_buffer_ms: (value) =>
