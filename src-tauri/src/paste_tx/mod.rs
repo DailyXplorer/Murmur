@@ -16,15 +16,17 @@
 //!
 //! Three rules keep settlement conservative:
 //!
-//! 1. A read is diagnostic only. It never triggers auto-submit, restoration,
-//!    or early cleanup because it may come from a clipboard manager.
+//! 1. A read never triggers auto-submit. A read after the chord shortens the
+//!    wait to `AFTER_READ_HOLD`, so the user's clipboard is back about a
+//!    second after the paste instead of eight; a clipboard manager reacts to
+//!    the publication, before the chord, and does not count.
 //! 2. Auto-submit never depends on a read. Cmd+V and Return are posted directly
 //!    to the captured PID, with the full app identity revalidated before each.
 //! 3. Murmur only restores or materializes anything while it still owns the
 //!    clipboard. If the user copied something else, their action wins.
 //!
-//! Settlement uses a bounded lifetime that is never shortened by reads, so a
-//! slow target has had the full window to read the transcript before the
+//! Without a read after the chord, settlement waits the full bounded lifetime,
+//! so a slow target has had the whole window to read the transcript before the
 //! user's previous clipboard (every item and type, saved before publishing)
 //! is put back.
 
@@ -43,9 +45,14 @@ mod windows;
 use self::windows as platform;
 pub(crate) use platform::ReliablePasteReceipt;
 
-/// Bounded lifetime of the promised transcript. Reads never shorten it because
-/// the system does not reveal whether the intended target or a third party read.
+/// Bounded lifetime of the promised transcript when no read follows the chord.
 pub(crate) const SETTLEMENT_TIMEOUT: Duration = Duration::from_secs(8);
+
+/// How long the transcript stays after the first read that follows the chord.
+/// Targets read 20 to 50 ms after it, some several times (Chromium probes, then
+/// reads); a user who pastes their own copy right after a dictation waited
+/// the whole `SETTLEMENT_TIMEOUT` and got the dictation again.
+pub(crate) const AFTER_READ_HOLD: Duration = Duration::from_secs(1);
 
 /// When the chord could not be injected at all, no legitimate receipt can
 /// arrive, so retain the transcript quickly instead of waiting the full time.
@@ -67,6 +74,8 @@ pub(crate) struct TxState {
     pub cancelled: bool,
     /// First post-injection read has been logged for diagnostics.
     pub logged_receipt: bool,
+    /// When the first read after the chord came.
+    pub first_read_at: Option<Instant>,
 }
 
 impl TxState {
@@ -78,15 +87,17 @@ impl TxState {
             ownership_lost: false,
             cancelled: false,
             logged_receipt: false,
+            first_read_at: None,
         }
     }
 
-    /// Logs the first post-injection read. Reads are never security evidence.
+    /// Records and logs the first read after the chord.
     pub fn record_receipt(&mut self, at: Instant) {
         if !self.logged_receipt {
             if let Some(injected) = self.injected_at {
                 if at >= injected {
                     self.logged_receipt = true;
+                    self.first_read_at = Some(at);
                     log::info!(
                         "[reliable-paste] clipboard read {}ms after chord",
                         at.duration_since(injected).as_millis()
@@ -124,6 +135,11 @@ pub(crate) fn evaluate(state: &TxState, now: Instant) -> WaitDecision {
     };
     if now.duration_since(state.published_at) >= deadline {
         return WaitDecision::Finish;
+    }
+    if let Some(read) = state.first_read_at {
+        if now.saturating_duration_since(read) >= AFTER_READ_HOLD {
+            return WaitDecision::Finish;
+        }
     }
     WaitDecision::KeepWaiting
 }
@@ -254,7 +270,7 @@ mod tests {
     }
 
     #[test]
-    fn read_never_shortens_settlement_lifetime() {
+    fn a_read_after_the_chord_keeps_the_transcript_for_the_hold() {
         let mut s = state_after_publish(Duration::from_millis(300));
         s.injected_at = Some(Instant::now() - Duration::from_millis(250));
         s.record_receipt(Instant::now() - Duration::from_millis(200));
@@ -262,6 +278,14 @@ mod tests {
             evaluate(&s, Instant::now()),
             WaitDecision::KeepWaiting
         ));
+    }
+
+    #[test]
+    fn the_previous_clipboard_returns_a_hold_after_the_targets_read() {
+        let mut s = state_after_publish(Duration::from_millis(1300));
+        s.injected_at = Some(Instant::now() - Duration::from_millis(1250));
+        s.record_receipt(Instant::now() - AFTER_READ_HOLD);
+        assert!(matches!(evaluate(&s, Instant::now()), WaitDecision::Finish));
     }
 
     #[test]
