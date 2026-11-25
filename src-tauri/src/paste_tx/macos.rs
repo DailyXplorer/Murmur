@@ -422,7 +422,7 @@ fn spawn_waiter(pending: Arc<Mutex<MacPending>>, app_handle: AppHandle) {
         } else if injection_failed {
             info!("[reliable-paste] settling early after chord injection failure");
         } else if read_observed {
-            info!("[reliable-paste] settling after bounded lifetime; read observed");
+            info!("[reliable-paste] settling after the target's read");
         } else {
             info!("[reliable-paste] settling after bounded lifetime; no read observed");
         }
